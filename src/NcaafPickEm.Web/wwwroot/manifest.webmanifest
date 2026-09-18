@@ -1,22 +1,39 @@
 {
-  "name": "NcaafPickEm.Web",
-  "short_name": "NcaafPickEm.Web",
+  "name": "NCAAF Pick Em",
+  "short_name": "Pick Em",
+  "description": "Family college football pick em league.",
   "id": "./",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#03173d",
+  "orientation": "portrait",
+  "background_color": "#0b2545",
+  "theme_color": "#0b2545",
   "prefer_related_applications": false,
   "icons": [
     {
-      "src": "icon-512.png",
-      "type": "image/png",
-      "sizes": "512x512"
-    },
-    {
       "src": "icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    },
+    {
+      "src": "apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180",
+      "purpose": "any"
     }
   ]
 }

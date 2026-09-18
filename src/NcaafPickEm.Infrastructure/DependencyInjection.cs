@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Providers.Fixture;
 
 namespace NcaafPickEm.Infrastructure;
 
@@ -51,6 +53,12 @@ public static class DependencyInjection
                 sql => sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
         services.AddHostedService<DatabaseMigratorHostedService>();
+
+        // Season calendar (P0-05). The week source is fixture-backed for every provider setting
+        // today; P2-02 adds a CFBD-ingest-backed source and selects it when
+        // Providers:ReferenceData is Cfbd.
+        services.TryAddSingleton<SeasonCalendar>();
+        services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
 
         return services;
     }

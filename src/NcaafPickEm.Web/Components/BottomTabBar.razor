@@ -1,0 +1,68 @@
+@implements IDisposable
+@inject AppShellState Shell
+
+@*
+    Primary navigation for the phone: a thumb-reachable bottom tab bar.
+    Tabs point into the league in context. With no league they fall back to the home route,
+    which is where a member picks a league; they render as plain links there so three tabs do
+    not all light up as "active" on the same href.
+*@
+<nav class="tab-bar" aria-label="Primary">
+    @foreach (Tab tab in Tabs)
+    {
+        @if (tab.InLeague)
+        {
+            <NavLink class="tab" href="@tab.Href" Match="NavLinkMatch.All">@Body(tab)</NavLink>
+        }
+        else
+        {
+            <a class="tab" href="@tab.Href">@Body(tab)</a>
+        }
+    }
+</nav>
+
+@code {
+    private const string Home = "/";
+
+    private sealed record Tab(string Label, string Icon, string Href, bool InLeague);
+
+    // 24x24 path data, single path per icon: check, bars, trophy, ellipsis.
+    private const string CheckIcon = "M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z";
+    private const string BarsIcon = "M4 20V10h4v10zm6 0V4h4v16zm6 0v-6h4v6z";
+    private const string TrophyIcon = "M5 3h14v2h3v3a4 4 0 0 1-4 4h-.6A5 5 0 0 1 13 15.9V18h4v3H7v-3h4v-2.1A5 5 0 0 1 7.6 12H7a4 4 0 0 1-4-4V5h2zm0 4v1a2 2 0 0 0 2 2V7zm12 3a2 2 0 0 0 2-2V7h-2z";
+    private const string MoreIcon = "M6 10a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4zm6 0a2 2 0 1 1 0 4 2 2 0 0 1 0-4z";
+
+    private bool HasLeague => Shell.LeagueId is not null;
+
+    private IEnumerable<Tab> Tabs =>
+    [
+        new("Picks", CheckIcon, WeekRoute("picks"), HasLeague),
+        new("Dashboard", BarsIcon, WeekRoute("dashboard"), HasLeague),
+        new("Leaderboard", TrophyIcon, LeaderboardHref, HasLeague),
+        new("More", MoreIcon, "/more", true),
+    ];
+
+    private string LeagueHome => Shell.LeagueId is { } id ? $"/leagues/{id}" : Home;
+
+    private string LeaderboardHref => Shell.LeagueId is { } id ? $"/leagues/{id}/leaderboard" : Home;
+
+    private string WeekRoute(string leaf) =>
+        (Shell.LeagueId, Shell.Week) switch
+        {
+            ({ } id, { } week) => $"/leagues/{id}/weeks/{week}/{leaf}",
+            _ => LeagueHome,
+        };
+
+    private RenderFragment Body(Tab tab) =>
+        @<text>
+            <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="@tab.Icon" /></svg>
+            <span class="tab-label">@tab.Label</span>
+        </text>;
+
+    protected override void OnInitialized() => Shell.Changed += OnShellChanged;
+
+    private void OnShellChanged() => StateHasChanged();
+
+    /// <inheritdoc />
+    public void Dispose() => Shell.Changed -= OnShellChanged;
+}

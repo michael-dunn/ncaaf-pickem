@@ -35,6 +35,15 @@ Practical facts every implementation agent needs. Read after `00-README.md`, `05
 - Signed-in identity is `ICurrentUser` (scoped). Claims are `ClaimTypes.NameIdentifier` = our `Users.Id`, `Name` = display name, `Email`.
 - API tests: `[Collection(ApiTestCollection.Name)]`, take `ApiTestFixture`, seed with `TestUsers`, call `factory.CreateClientAs(userId)` (or `CreateMutatingClientAs` for the CSRF header). One authorization-matrix test per endpoint group: `AuthMatrix.RunAsync(fixture, method, memberRoute, commishRoute)` with `{leagueId}` in the templates.
 - `/api/leagues/{leagueId}/ping` and `/ping/commish` are temporary probes mapped only in Development/Testing. **P1-01 deletes `DiagnosticsEndpoints.cs`, `DiagnosticsPing.cs`, and the environment block in `EndpointMapping`** and repoints `AuthMatrixTests` (D-021).
+- **Do NOT put `#[.{fingerprint}]` placeholders back in `Web/wwwroot/index.html`** (D-024). The SDK only rewrites them when the Web project is published on its own; through the Api's publish the literal placeholder ships and the app never boots. `OverrideHtmlAssetPlaceholders` is false on purpose.
+- **Do NOT set `TrimMode=full`** on the Web project (D-025): it strips component constructors reached only by reflection, so a published build renders `NotFound` and throws `CtorNotLocated`. The SDK default trim mode is what we ship.
+- A publish that curls clean can still be a dead app. After any change to `index.html`, trimming, or publishing, actually render the app in a browser. Headless Edge works: `C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe`; `--dump-dom` fires before WASM boots, so drive it over the DevTools protocol (`--remote-debugging-port`) and poll for real content. P0-04 left a working harness recipe in `Implementation/spikes/wasm-load-time.md`.
+
+## Client (Blazor) facts from P0-04
+- The client runs with `InvariantGlobalization=true` (D-023). Local time renders fine; .NET cannot give you a zone *abbreviation* ("MDT") - use `Intl.DateTimeFormat` from JS or the UTC offset, and take Eastern strings from the server (`LockAtEasternDisplay`).
+- Inject `HttpClient` (scoped, already carries the CSRF header handler and the 401 -> `/login` redirect). Register new client services in `Web/Services/DependencyInjection.cs`, not `Program.cs`.
+- Shell state is `AppShellState` (cascaded by `MainLayout`): call `SetLeague(id, name, week)` / `SetTitle(...)` from a page's `OnInitialized`/`OnParametersSet`, or `ClearLeague()` outside a league. The bottom tab bar reads it to build its routes.
+- Component styles go in a co-located `.razor.css`; a rule that must reach a child component's markup (a `NavLink`, say) needs `::deep`. `app.css` holds only tokens, the reset, and shell primitives.
 
 ## Fixtures
 - `tests/NcaafPickEm.Fixtures` embeds `Data/**/*.json`; `FixtureLoader.Names` / `ReadText(name)` / `Read<T>(name)` with names like `"Week7_2026/schedule.json"`. `ScaffoldTests` asserts `Names` is empty; P2-05 must update it.

@@ -53,7 +53,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 | Method | Route | Scope | Response |
 |---|---|---|---|
-| GET | `/api/seasons/{year}/weeks` | Auth | `SeasonWeek[] { Week, StartUtc, EndUtc, IsRegularSeason }` |
+| GET | `/api/seasons/{year}/weeks` | Auth | `SeasonWeek[] { Week, StartUtc, EndUtc, IsRegularSeason }`; 404 when the calendar has no such season (P0-05). Weeks are ordered ascending and `Week` may be 0. |
 | GET | `/api/leagues/{leagueId}/weeks` | Member | `LeagueWeek[] { Week, HasGameSet, IsCurrent, IsLocked, IsComplete, LockAtUtc? }` restricted to First..Last |
 
 ## Game set configuration (Feature 02)

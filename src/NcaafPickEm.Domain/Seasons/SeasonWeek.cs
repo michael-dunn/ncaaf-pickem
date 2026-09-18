@@ -1,20 +1,25 @@
 namespace NcaafPickEm.Domain.Seasons;
 
 /// <summary>
-/// One week of one season, from the provider calendar (Feature 13). The window runs Sunday
-/// 00:00 Eastern to Saturday 23:59:59 Eastern, stored in UTC.
+/// One provider-numbered week of a season and the window it occupies
+/// (Sunday 00:00:00 ET through Saturday 23:59:59.999 ET, 04-Domain-Algorithms.md section 1).
 /// </summary>
-public sealed class SeasonWeek
+/// <param name="SeasonYear">Calendar year of the season, e.g. 2026.</param>
+/// <param name="Week">Week number as the data provider numbers it. Week 0 exists in some seasons.</param>
+/// <param name="StartUtc">Sunday 00:00:00 Eastern for this week, in UTC.</param>
+/// <param name="EndUtc">Saturday 23:59:59.999 Eastern for this week, in UTC. Inclusive.</param>
+/// <param name="IsRegularSeason">
+/// False for conference championship week and anything after it. Only regular-season weeks are
+/// playable (Feature 13).
+/// </param>
+public sealed record SeasonWeek(
+    int SeasonYear,
+    int Week,
+    DateTimeOffset StartUtc,
+    DateTimeOffset EndUtc,
+    bool IsRegularSeason)
 {
-    public int SeasonYear { get; set; }
-
-    /// <summary>Provider week number. Week 0 exists and is excluded from league defaults.</summary>
-    public int Week { get; set; }
-
-    public DateTime StartUtc { get; set; }
-
-    public DateTime EndUtc { get; set; }
-
-    /// <summary>False from championship week onward; those weeks are out of scope.</summary>
-    public bool IsRegularSeason { get; set; }
+    /// <summary>True when <paramref name="utc"/> falls inside this week's window, ends included.</summary>
+    /// <param name="utc">An instant in UTC.</param>
+    public bool Contains(DateTimeOffset utc) => utc >= StartUtc && utc <= EndUtc;
 }
