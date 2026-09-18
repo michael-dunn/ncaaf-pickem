@@ -35,7 +35,8 @@ public sealed class MeEndpointTests
         me.DisplayName.Should().Be("Reads Me");
         me.Email.Should().Be(user.Email);
 
-        // P1-01 fills this in; until then an empty array is the contract.
+        // A fresh user with no memberships has no leagues (P1-01 fills Leagues from the caller's
+        // active memberships; see LeagueServiceTests / LeagueEndpointsTests for the non-empty case).
         me.Leagues.Should().BeEmpty();
     }
 
