@@ -16,7 +16,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | P1-02 | League UI | | Sonnet | Todo | | |
 | P1-03 | Display names | | Sonnet | Todo | | |
 | P2-05 | Fixtures and fixture providers | | Sonnet | Todo | | Start first in Phase 2 |
-| P2-01 | Provider spike (real APIs) | | Opus | Todo | | Needs CFBD key |
+| P2-01 | Provider spike (real APIs) | opus-p2-01 | Opus | Done with notes | p2-01-provider-spike | ESPN half done; CFBD live calls pending key. Spike doc `Implementation/spikes/providers.md`; trimmed real captures + TeamAliases draft in `tests/NcaafPickEm.Fixtures/Real/`; D-012 logged; Feature 12 follow-ups updated. CFBD tier question answered from the tiers page (Live Scoreboard = Tier 1, $1/mo) and the five CFBD DTO contracts derived from the public OpenAPI doc, so P2-02 is unblocked. The five live CFBD calls are NOT made: the key exists at the operator path but the auto-mode permission classifier refuses read-credential-then-network commands (reason: Credential Exploration) in both Git Bash and PowerShell. Operator to-do with exact requests is in the spike doc. Also missing: an in-progress ESPN payload (capture window fell between slates). |
 | P2-02 | CFBD reference data provider and ingest | | Sonnet | Todo | | Opus review |
 | P2-03 | ESPN live score provider, matcher, CFBD fallback | | Opus | Todo | | |
 | P2-04 | Refresh jobs, Saturday poller, data status page | | Sonnet | Todo | | Opus review on poller |

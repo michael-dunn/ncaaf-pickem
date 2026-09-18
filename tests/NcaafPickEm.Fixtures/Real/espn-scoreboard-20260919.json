@@ -1,0 +1,704 @@
+{
+  "_note": "TRIMMED capture of the real ESPN college-football scoreboard response. Captured by P2-01 on 2026-09-18. Request: GET https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&dates=20260919&limit=300 (71 events, all STATUS_SCHEDULED). Events reduced to 4; links/logos arrays/broadcasts/leaders/headlines/geoBroadcasts/notes/tickets/situation/statistics/highlights/weather/format/records(non-total) stripped.",
+  "leagues": [
+    {
+      "id": "23",
+      "uid": "s:20~l:23",
+      "name": "NCAA - Football",
+      "abbreviation": "NCAAF",
+      "slug": "college-football",
+      "season": {
+        "year": 2026,
+        "startDate": "2026-02-01T08:00Z",
+        "endDate": "2027-01-28T07:59Z",
+        "displayName": "2026",
+        "type": {
+          "id": "2",
+          "type": 2,
+          "name": "Regular Season",
+          "abbreviation": "reg"
+        }
+      },
+      "calendarType": "list",
+      "calendar": [
+        {
+          "label": "Regular Season",
+          "value": "2",
+          "startDate": "2026-08-22T07:00Z",
+          "endDate": "2026-12-13T07:59Z",
+          "entries": [
+            {
+              "label": "Week 1",
+              "alternateLabel": "Week 1",
+              "detail": "Aug 22-Sep 7",
+              "value": "1",
+              "startDate": "2026-08-22T07:00Z",
+              "endDate": "2026-09-08T06:59Z"
+            },
+            {
+              "label": "Week 2",
+              "alternateLabel": "Week 2",
+              "detail": "Sep 8-13",
+              "value": "2",
+              "startDate": "2026-09-08T07:00Z",
+              "endDate": "2026-09-14T06:59Z"
+            },
+            {
+              "label": "Week 3",
+              "alternateLabel": "Week 3",
+              "detail": "Sep 14-20",
+              "value": "3",
+              "startDate": "2026-09-14T07:00Z",
+              "endDate": "2026-09-21T06:59Z"
+            },
+            {
+              "label": "Week 4",
+              "alternateLabel": "Week 4",
+              "detail": "Sep 21-27",
+              "value": "4",
+              "startDate": "2026-09-21T07:00Z",
+              "endDate": "2026-09-28T06:59Z"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "groups": [
+    "80"
+  ],
+  "events": [
+    {
+      "id": "401869940",
+      "uid": "s:20~l:23~e:401869940",
+      "date": "2026-09-19T15:30Z",
+      "name": "Coastal Carolina Chanticleers at Delaware Blue Hens",
+      "shortName": "CCU @ DEL",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 3
+      },
+      "competitions": [
+        {
+          "id": "401869940",
+          "uid": "s:20~l:23~e:401869940~c:401869940",
+          "date": "2026-09-19T15:30Z",
+          "neutralSite": false,
+          "conferenceCompetition": false,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "3695",
+            "fullName": "Delaware Stadium",
+            "address": {
+              "city": "Newark",
+              "state": "DE",
+              "country": "USA"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "48",
+              "uid": "s:20~l:23~t:48",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "48",
+                "uid": "s:20~l:23~t:48",
+                "location": "Delaware",
+                "name": "Blue Hens",
+                "abbreviation": "DEL",
+                "displayName": "Delaware Blue Hens",
+                "shortDisplayName": "Delaware",
+                "conferenceId": "12",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/48.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 99
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            },
+            {
+              "id": "324",
+              "uid": "s:20~l:23~t:324",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "324",
+                "uid": "s:20~l:23~t:324",
+                "location": "Coastal Carolina",
+                "name": "Chanticleers",
+                "abbreviation": "CCU",
+                "displayName": "Coastal Carolina Chanticleers",
+                "shortDisplayName": "Coastal",
+                "conferenceId": "37",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/324.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 99
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 0,
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Sat, September 19th at 11:30 AM EDT",
+              "shortDetail": "9/19 - 11:30 AM EDT"
+            }
+          },
+          "odds": [
+            {
+              "provider": {
+                "id": "100",
+                "name": "Draft Kings"
+              },
+              "details": "DEL -5.5",
+              "overUnder": 57.5,
+              "spread": -5.5,
+              "awayTeamOdds": {
+                "favorite": false,
+                "underdog": true,
+                "team": {
+                  "id": "324",
+                  "abbreviation": "CCU"
+                }
+              },
+              "homeTeamOdds": {
+                "favorite": true,
+                "underdog": false,
+                "team": {
+                  "id": "48",
+                  "abbreviation": "DEL"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 0,
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sat, September 19th at 11:30 AM EDT",
+          "shortDetail": "9/19 - 11:30 AM EDT"
+        }
+      }
+    },
+    {
+      "id": "401856686",
+      "uid": "s:20~l:23~e:401856686",
+      "date": "2026-09-19T16:00Z",
+      "name": "Georgia Bulldogs at Arkansas Razorbacks",
+      "shortName": "UGA @ ARK",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 3
+      },
+      "competitions": [
+        {
+          "id": "401856686",
+          "uid": "s:20~l:23~e:401856686~c:401856686",
+          "date": "2026-09-19T16:00Z",
+          "neutralSite": false,
+          "conferenceCompetition": true,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "3887",
+            "fullName": "Donald W. Reynolds Razorback Stadium",
+            "address": {
+              "city": "Fayetteville",
+              "state": "AR",
+              "country": "USA"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "8",
+              "uid": "s:20~l:23~t:8",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "8",
+                "uid": "s:20~l:23~t:8",
+                "location": "Arkansas",
+                "name": "Razorbacks",
+                "abbreviation": "ARK",
+                "displayName": "Arkansas Razorbacks",
+                "shortDisplayName": "Arkansas",
+                "conferenceId": "8",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/8.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 99
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            },
+            {
+              "id": "61",
+              "uid": "s:20~l:23~t:61",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "61",
+                "uid": "s:20~l:23~t:61",
+                "location": "Georgia",
+                "name": "Bulldogs",
+                "abbreviation": "UGA",
+                "displayName": "Georgia Bulldogs",
+                "shortDisplayName": "Georgia",
+                "conferenceId": "8",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/61.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 2
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "2-0"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 0,
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Sat, September 19th at 12:00 PM EDT",
+              "shortDetail": "9/19 - 12:00 PM EDT"
+            }
+          },
+          "groups": {
+            "id": "8",
+            "name": "Southeastern Conference",
+            "shortName": "SEC",
+            "isConference": true
+          },
+          "odds": [
+            {
+              "provider": {
+                "id": "100",
+                "name": "Draft Kings"
+              },
+              "details": "UGA -24.5",
+              "overUnder": 54.5,
+              "spread": 24.5,
+              "awayTeamOdds": {
+                "favorite": true,
+                "underdog": false,
+                "team": {
+                  "id": "61",
+                  "abbreviation": "UGA"
+                }
+              },
+              "homeTeamOdds": {
+                "favorite": false,
+                "underdog": true,
+                "team": {
+                  "id": "8",
+                  "abbreviation": "ARK"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 0,
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sat, September 19th at 12:00 PM EDT",
+          "shortDetail": "9/19 - 12:00 PM EDT"
+        }
+      }
+    },
+    {
+      "id": "401856812",
+      "uid": "s:20~l:23~e:401856812",
+      "date": "2026-09-19T16:00Z",
+      "name": "Arizona State Sun Devils at Kansas Jayhawks",
+      "shortName": "ASU VS KU",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 3
+      },
+      "competitions": [
+        {
+          "id": "401856812",
+          "uid": "s:20~l:23~e:401856812~c:401856812",
+          "date": "2026-09-19T16:00Z",
+          "neutralSite": true,
+          "conferenceCompetition": true,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "2455",
+            "fullName": "Wembley Stadium",
+            "address": {
+              "city": "London",
+              "country": "England"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "2305",
+              "uid": "s:20~l:23~t:2305",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "2305",
+                "uid": "s:20~l:23~t:2305",
+                "location": "Kansas",
+                "name": "Jayhawks",
+                "abbreviation": "KU",
+                "displayName": "Kansas Jayhawks",
+                "shortDisplayName": "Kansas",
+                "conferenceId": "4",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2305.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 99
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            },
+            {
+              "id": "9",
+              "uid": "s:20~l:23~t:9",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "9",
+                "uid": "s:20~l:23~t:9",
+                "location": "Arizona State",
+                "name": "Sun Devils",
+                "abbreviation": "ASU",
+                "displayName": "Arizona State Sun Devils",
+                "shortDisplayName": "Arizona St",
+                "conferenceId": "4",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/9.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 99
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 0,
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Sat, September 19th at 12:00 PM EDT",
+              "shortDetail": "9/19 - 12:00 PM EDT"
+            }
+          },
+          "groups": {
+            "id": "4",
+            "name": "Big 12 Conference",
+            "shortName": "Big 12",
+            "isConference": true
+          },
+          "odds": [
+            {
+              "provider": {
+                "id": "100",
+                "name": "Draft Kings"
+              },
+              "details": "ASU -5.5",
+              "overUnder": 50.5,
+              "spread": 5.5,
+              "awayTeamOdds": {
+                "favorite": true,
+                "underdog": false,
+                "team": {
+                  "id": "9",
+                  "abbreviation": "ASU"
+                }
+              },
+              "homeTeamOdds": {
+                "favorite": false,
+                "underdog": true,
+                "team": {
+                  "id": "2305",
+                  "abbreviation": "KU"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 0,
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sat, September 19th at 12:00 PM EDT",
+          "shortDetail": "9/19 - 12:00 PM EDT"
+        }
+      }
+    },
+    {
+      "id": "401856694",
+      "uid": "s:20~l:23~e:401856694",
+      "date": "2026-09-19T19:30Z",
+      "name": "Kentucky Wildcats at Texas A&M Aggies",
+      "shortName": "UK @ TA&M",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 3
+      },
+      "competitions": [
+        {
+          "id": "401856694",
+          "uid": "s:20~l:23~e:401856694~c:401856694",
+          "date": "2026-09-19T19:30Z",
+          "neutralSite": false,
+          "conferenceCompetition": true,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "3795",
+            "fullName": "Kyle Field",
+            "address": {
+              "city": "College Station",
+              "state": "TX",
+              "country": "USA"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "245",
+              "uid": "s:20~l:23~t:245",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "245",
+                "uid": "s:20~l:23~t:245",
+                "location": "Texas A&M",
+                "name": "Aggies",
+                "abbreviation": "TA&M",
+                "displayName": "Texas A&M Aggies",
+                "shortDisplayName": "Texas A&M",
+                "conferenceId": "8",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/245.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 9
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "2-0"
+                }
+              ]
+            },
+            {
+              "id": "96",
+              "uid": "s:20~l:23~t:96",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "96",
+                "uid": "s:20~l:23~t:96",
+                "location": "Kentucky",
+                "name": "Wildcats",
+                "abbreviation": "UK",
+                "displayName": "Kentucky Wildcats",
+                "shortDisplayName": "Kentucky",
+                "conferenceId": "8",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/96.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 99
+              },
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 0,
+            "type": {
+              "id": "1",
+              "name": "STATUS_SCHEDULED",
+              "state": "pre",
+              "completed": false,
+              "description": "Scheduled",
+              "detail": "Sat, September 19th at 3:30 PM EDT",
+              "shortDetail": "9/19 - 3:30 PM EDT"
+            }
+          },
+          "groups": {
+            "id": "8",
+            "name": "Southeastern Conference",
+            "shortName": "SEC",
+            "isConference": true
+          },
+          "odds": [
+            {
+              "provider": {
+                "id": "100",
+                "name": "Draft Kings"
+              },
+              "details": "TA&M -16.5",
+              "overUnder": 49.5,
+              "spread": -16.5,
+              "awayTeamOdds": {
+                "favorite": false,
+                "underdog": true,
+                "team": {
+                  "id": "96",
+                  "abbreviation": "UK"
+                }
+              },
+              "homeTeamOdds": {
+                "favorite": true,
+                "underdog": false,
+                "team": {
+                  "id": "245",
+                  "abbreviation": "TA&M"
+                }
+              }
+            }
+          ]
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 0,
+        "type": {
+          "id": "1",
+          "name": "STATUS_SCHEDULED",
+          "state": "pre",
+          "completed": false,
+          "description": "Scheduled",
+          "detail": "Sat, September 19th at 3:30 PM EDT",
+          "shortDetail": "9/19 - 3:30 PM EDT"
+        }
+      }
+    }
+  ],
+  "week": {
+    "number": 3
+  }
+}

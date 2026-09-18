@@ -1,0 +1,741 @@
+{
+  "_note": "TRIMMED capture of the real ESPN college-football scoreboard response. Captured by P2-01 on 2026-09-18. Request: GET https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard?groups=80&dates=20260912&limit=300 (80 events, all STATUS_FINAL). Events reduced to 4; links/logos arrays/broadcasts/leaders/headlines/geoBroadcasts/notes/tickets/situation/statistics/highlights/weather/format/records(non-total) stripped.",
+  "leagues": [
+    {
+      "id": "23",
+      "uid": "s:20~l:23",
+      "name": "NCAA - Football",
+      "abbreviation": "NCAAF",
+      "slug": "college-football",
+      "season": {
+        "year": 2026,
+        "startDate": "2026-02-01T08:00Z",
+        "endDate": "2027-01-28T07:59Z",
+        "displayName": "2026",
+        "type": {
+          "id": "2",
+          "type": 2,
+          "name": "Regular Season",
+          "abbreviation": "reg"
+        }
+      },
+      "calendarType": "list",
+      "calendar": [
+        {
+          "label": "Regular Season",
+          "value": "2",
+          "startDate": "2026-08-22T07:00Z",
+          "endDate": "2026-12-13T07:59Z",
+          "entries": [
+            {
+              "label": "Week 1",
+              "alternateLabel": "Week 1",
+              "detail": "Aug 22-Sep 7",
+              "value": "1",
+              "startDate": "2026-08-22T07:00Z",
+              "endDate": "2026-09-08T06:59Z"
+            },
+            {
+              "label": "Week 2",
+              "alternateLabel": "Week 2",
+              "detail": "Sep 8-13",
+              "value": "2",
+              "startDate": "2026-09-08T07:00Z",
+              "endDate": "2026-09-14T06:59Z"
+            },
+            {
+              "label": "Week 3",
+              "alternateLabel": "Week 3",
+              "detail": "Sep 14-20",
+              "value": "3",
+              "startDate": "2026-09-14T07:00Z",
+              "endDate": "2026-09-21T06:59Z"
+            },
+            {
+              "label": "Week 4",
+              "alternateLabel": "Week 4",
+              "detail": "Sep 21-27",
+              "value": "4",
+              "startDate": "2026-09-21T07:00Z",
+              "endDate": "2026-09-28T06:59Z"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "groups": [
+    "80"
+  ],
+  "events": [
+    {
+      "id": "401856682",
+      "uid": "s:20~l:23~e:401856682",
+      "date": "2026-09-12T23:30Z",
+      "name": "Ohio State Buckeyes at Texas Longhorns",
+      "shortName": "OSU @ TEX",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 2
+      },
+      "competitions": [
+        {
+          "id": "401856682",
+          "uid": "s:20~l:23~e:401856682~c:401856682",
+          "date": "2026-09-12T23:30Z",
+          "neutralSite": false,
+          "conferenceCompetition": false,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "3910",
+            "fullName": "DKR-Texas Memorial Stadium",
+            "address": {
+              "city": "Austin",
+              "state": "TX",
+              "country": "USA"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "251",
+              "uid": "s:20~l:23~t:251",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "251",
+                "uid": "s:20~l:23~t:251",
+                "location": "Texas",
+                "name": "Longhorns",
+                "abbreviation": "TEX",
+                "displayName": "Texas Longhorns",
+                "shortDisplayName": "Texas",
+                "conferenceId": "8",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/251.png"
+              },
+              "score": "24",
+              "curatedRank": {
+                "current": 4
+              },
+              "winner": true,
+              "linescores": [
+                {
+                  "value": 0,
+                  "period": 1
+                },
+                {
+                  "value": 3,
+                  "period": 2
+                },
+                {
+                  "value": 0,
+                  "period": 3
+                },
+                {
+                  "value": 21,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "2-0"
+                }
+              ]
+            },
+            {
+              "id": "194",
+              "uid": "s:20~l:23~t:194",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "194",
+                "uid": "s:20~l:23~t:194",
+                "location": "Ohio State",
+                "name": "Buckeyes",
+                "abbreviation": "OSU",
+                "displayName": "Ohio State Buckeyes",
+                "shortDisplayName": "Ohio State",
+                "conferenceId": "5",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/194.png"
+              },
+              "score": "23",
+              "curatedRank": {
+                "current": 1
+              },
+              "winner": false,
+              "linescores": [
+                {
+                  "value": 10,
+                  "period": 1
+                },
+                {
+                  "value": 10,
+                  "period": 2
+                },
+                {
+                  "value": 3,
+                  "period": 3
+                },
+                {
+                  "value": 0,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 4,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "attendance": 105044
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 4,
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      }
+    },
+    {
+      "id": "401856674",
+      "uid": "s:20~l:23~e:401856674",
+      "date": "2026-09-12T19:30Z",
+      "name": "Alabama Crimson Tide at Kentucky Wildcats",
+      "shortName": "ALA @ UK",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 2
+      },
+      "competitions": [
+        {
+          "id": "401856674",
+          "uid": "s:20~l:23~e:401856674~c:401856674",
+          "date": "2026-09-12T19:30Z",
+          "neutralSite": false,
+          "conferenceCompetition": true,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "3683",
+            "fullName": "Kroger Field",
+            "address": {
+              "city": "Lexington",
+              "state": "KY",
+              "country": "USA"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "96",
+              "uid": "s:20~l:23~t:96",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "96",
+                "uid": "s:20~l:23~t:96",
+                "location": "Kentucky",
+                "name": "Wildcats",
+                "abbreviation": "UK",
+                "displayName": "Kentucky Wildcats",
+                "shortDisplayName": "Kentucky",
+                "conferenceId": "8",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/96.png"
+              },
+              "score": "17",
+              "curatedRank": {
+                "current": 99
+              },
+              "winner": false,
+              "linescores": [
+                {
+                  "value": 7,
+                  "period": 1
+                },
+                {
+                  "value": 10,
+                  "period": 2
+                },
+                {
+                  "value": 0,
+                  "period": 3
+                },
+                {
+                  "value": 0,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-1"
+                }
+              ]
+            },
+            {
+              "id": "333",
+              "uid": "s:20~l:23~t:333",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "333",
+                "uid": "s:20~l:23~t:333",
+                "location": "Alabama",
+                "name": "Crimson Tide",
+                "abbreviation": "ALA",
+                "displayName": "Alabama Crimson Tide",
+                "shortDisplayName": "Alabama",
+                "conferenceId": "8",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/333.png"
+              },
+              "score": "45",
+              "curatedRank": {
+                "current": 12
+              },
+              "winner": true,
+              "linescores": [
+                {
+                  "value": 7,
+                  "period": 1
+                },
+                {
+                  "value": 6,
+                  "period": 2
+                },
+                {
+                  "value": 18,
+                  "period": 3
+                },
+                {
+                  "value": 14,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "2-0"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 4,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "groups": {
+            "id": "8",
+            "name": "Southeastern Conference",
+            "shortName": "SEC",
+            "isConference": true
+          },
+          "attendance": 61820
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 4,
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      }
+    },
+    {
+      "id": "401858439",
+      "uid": "s:20~l:23~e:401858439",
+      "date": "2026-09-12T16:00Z",
+      "name": "Howard Bison at Indiana Hoosiers",
+      "shortName": "HOW @ IU",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 2
+      },
+      "competitions": [
+        {
+          "id": "401858439",
+          "uid": "s:20~l:23~e:401858439~c:401858439",
+          "date": "2026-09-12T16:00Z",
+          "neutralSite": false,
+          "conferenceCompetition": false,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "3830",
+            "fullName": "Memorial Stadium (Bloomington, IN)",
+            "address": {
+              "city": "Bloomington",
+              "state": "IN",
+              "country": "USA"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "84",
+              "uid": "s:20~l:23~t:84",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "84",
+                "uid": "s:20~l:23~t:84",
+                "location": "Indiana",
+                "name": "Hoosiers",
+                "abbreviation": "IU",
+                "displayName": "Indiana Hoosiers",
+                "shortDisplayName": "Indiana",
+                "conferenceId": "5",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/84.png"
+              },
+              "score": "55",
+              "curatedRank": {
+                "current": 5
+              },
+              "winner": true,
+              "linescores": [
+                {
+                  "value": 20,
+                  "period": 1
+                },
+                {
+                  "value": 21,
+                  "period": 2
+                },
+                {
+                  "value": 14,
+                  "period": 3
+                },
+                {
+                  "value": 0,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "2-0"
+                }
+              ]
+            },
+            {
+              "id": "47",
+              "uid": "s:20~l:23~t:47",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "47",
+                "uid": "s:20~l:23~t:47",
+                "location": "Howard",
+                "name": "Bison",
+                "abbreviation": "HOW",
+                "displayName": "Howard Bison",
+                "shortDisplayName": "Howard",
+                "conferenceId": "24",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/47.png"
+              },
+              "score": "0",
+              "curatedRank": {
+                "current": 99
+              },
+              "winner": false,
+              "linescores": [
+                {
+                  "value": 0,
+                  "period": 1
+                },
+                {
+                  "value": 0,
+                  "period": 2
+                },
+                {
+                  "value": 0,
+                  "period": 3
+                },
+                {
+                  "value": 0,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "1-2"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 4,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "attendance": 54376
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 4,
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      }
+    },
+    {
+      "id": "401864571",
+      "uid": "s:20~l:23~e:401864571",
+      "date": "2026-09-12T16:00Z",
+      "name": "App State Mountaineers at East Carolina Pirates",
+      "shortName": "APP @ ECU",
+      "season": {
+        "year": 2026,
+        "type": 2,
+        "slug": "regular-season"
+      },
+      "week": {
+        "number": 2
+      },
+      "competitions": [
+        {
+          "id": "401864571",
+          "uid": "s:20~l:23~e:401864571~c:401864571",
+          "date": "2026-09-12T16:00Z",
+          "neutralSite": false,
+          "conferenceCompetition": false,
+          "type": {
+            "id": "1",
+            "abbreviation": "STD"
+          },
+          "venue": {
+            "id": "3699",
+            "fullName": "Dowdy-Ficklen Stadium",
+            "address": {
+              "city": "Greenville",
+              "state": "NC",
+              "country": "USA"
+            },
+            "indoor": false
+          },
+          "competitors": [
+            {
+              "id": "151",
+              "uid": "s:20~l:23~t:151",
+              "order": 0,
+              "homeAway": "home",
+              "team": {
+                "id": "151",
+                "uid": "s:20~l:23~t:151",
+                "location": "East Carolina",
+                "name": "Pirates",
+                "abbreviation": "ECU",
+                "displayName": "East Carolina Pirates",
+                "shortDisplayName": "East Carolina",
+                "conferenceId": "151",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/151.png"
+              },
+              "score": "24",
+              "curatedRank": {
+                "current": 99
+              },
+              "winner": false,
+              "linescores": [
+                {
+                  "value": 7,
+                  "period": 1
+                },
+                {
+                  "value": 3,
+                  "period": 2
+                },
+                {
+                  "value": 7,
+                  "period": 3
+                },
+                {
+                  "value": 7,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "0-2"
+                }
+              ]
+            },
+            {
+              "id": "2026",
+              "uid": "s:20~l:23~t:2026",
+              "order": 1,
+              "homeAway": "away",
+              "team": {
+                "id": "2026",
+                "uid": "s:20~l:23~t:2026",
+                "location": "App State",
+                "name": "Mountaineers",
+                "abbreviation": "APP",
+                "displayName": "App State Mountaineers",
+                "shortDisplayName": "App State",
+                "conferenceId": "37",
+                "isActive": true,
+                "logo": "https://a.espncdn.com/i/teamlogos/ncaa/500/2026.png"
+              },
+              "score": "27",
+              "curatedRank": {
+                "current": 99
+              },
+              "winner": true,
+              "linescores": [
+                {
+                  "value": 3,
+                  "period": 1
+                },
+                {
+                  "value": 14,
+                  "period": 2
+                },
+                {
+                  "value": 10,
+                  "period": 3
+                },
+                {
+                  "value": 0,
+                  "period": 4
+                }
+              ],
+              "records": [
+                {
+                  "name": "overall",
+                  "type": "total",
+                  "summary": "2-0"
+                }
+              ]
+            }
+          ],
+          "status": {
+            "clock": 0,
+            "displayClock": "0:00",
+            "period": 4,
+            "type": {
+              "id": "3",
+              "name": "STATUS_FINAL",
+              "state": "post",
+              "completed": true,
+              "description": "Final",
+              "detail": "Final",
+              "shortDetail": "Final"
+            }
+          },
+          "attendance": 40074
+        }
+      ],
+      "status": {
+        "clock": 0,
+        "displayClock": "0:00",
+        "period": 4,
+        "type": {
+          "id": "3",
+          "name": "STATUS_FINAL",
+          "state": "post",
+          "completed": true,
+          "description": "Final",
+          "detail": "Final",
+          "shortDetail": "Final"
+        }
+      }
+    }
+  ],
+  "week": {
+    "number": 2
+  }
+}

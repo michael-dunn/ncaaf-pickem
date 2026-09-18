@@ -34,12 +34,13 @@ Provider Options
 ----------------
 Option 1: CollegeFootballData.com (CFBD) only, paid tier
 - Official, documented REST API with an official C# NuGet client (CollegeFootballData).
-- Free: 1,000 calls/mo. Tier 1: $1/mo, 5,000 calls. Tier 2: $5/mo, 30,000 calls and real-time
-  scoreboard. Tier 3: $10/mo, 75,000 calls + GraphQL subscriptions.
+- Free: 1,000 calls/mo. Tier 1: $1/mo, 5,000 calls and the real-time scoreboard. Tier 2: $5/mo,
+  30,000 calls and live play-by-play. Tier 3: $10/mo, 75,000 calls + GraphQL. (Confirmed on the
+  tiers page by P2-01 on 2026-09-18; see D-012 and Implementation/spikes/providers.md.)
 - Covers everything in one place: teams, conferences, FBS/FCS classification, schedule by week,
   AP rankings, betting lines, scores.
-- Cost: $1 to $5 per month during the season (the tiers page lists live scoreboard at Tier 1 in one
-  place and Tier 2 in another; confirm before subscribing). Cancel in the off-season.
+- Cost: $1 per month during the season (Tier 1 is the cheapest tier with the live scoreboard).
+  Cancel in the off-season.
 - Risk: low. Stable project with a long track record.
 
 Option 2: ESPN unofficial endpoints only
@@ -51,8 +52,12 @@ Option 2: ESPN unofficial endpoints only
   rankings:   https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings
 - Cost: $0.
 - Risk: medium. Undocumented and unsupported; ESPN has changed behavior without notice (date-range
-  queries stopped working in 2025). Conference mapping from group IDs is something we maintain.
-  FBS/FCS classification has to be inferred from the groups parameter.
+  queries stopped working in 2025 and were still rejected with HTTP 400 when P2-01 retested on
+  2026-09-18). Conference mapping from group IDs is something we maintain.
+  FBS/FCS classification CANNOT be inferred from the groups parameter: groups=80 returns games
+  involving an FBS team, so FCS opponents are present in the payload (P2-01 counted 185 distinct
+  teams across 22 conference groups in two Saturday captures). This is a further argument against
+  Option 2 standalone, and a reason the hybrid's CFBD Team.classification matters. See D-012.
 
 Option 3: Hybrid, CFBD free tier for reference data + ESPN for live scores  (RECOMMENDED)
 - CFBD free tier handles teams, conferences, FBS/FCS flags, weekly schedule, AP poll, and daily
@@ -61,8 +66,9 @@ Option 3: Hybrid, CFBD free tier for reference data + ESPN for live scores  (REC
 - Games are matched between the two sources by home/away team name plus date; CFBD is the source
   of truth for the game set, ESPN only supplies status and score.
 - Fallback: if the ESPN endpoint breaks on a Saturday, the poller switches to CFBD's games endpoint
-  at a 10-minute cadence (final scores still arrive, live scores go away). Upgrading CFBD to Tier 2
-  for $5 restores live data any time.
+  at a 10-minute cadence (final scores still arrive, live scores go away; note the CFBD games
+  endpoint has no status field at all, only a completed flag, so postponed/cancelled also go away).
+  Upgrading CFBD to Tier 1 for $1 restores live data any time.
 - Cost: $0 normally.
 - Risk: low-medium. Two integrations to maintain, but each is simple and the failure mode is
   degraded rather than broken.
@@ -75,8 +81,8 @@ Option 4: Other paid or freemium APIs (for completeness)
 Recommendation
 --------------
 DECIDED 2026-09-18: Option 3 (hybrid). It costs nothing, keeps CFBD comfortably in the free tier, and the
-provider abstraction in Feature 09 makes it a config change to move to Option 1 (CFBD Tier 2 at
-$5/mo) if ESPN becomes unreliable.
+provider abstraction in Feature 09 makes it a config change to move to Option 1 (CFBD Tier 1 at
+$1/mo) if ESPN becomes unreliable.
 
 Acceptance Criteria
 -------------------
@@ -92,10 +98,24 @@ Acceptance Criteria
 
 Follow-up Tasks
 ---------------
-- Confirm on the CFBD tiers page which tier includes the real-time scoreboard endpoint.
-- Capture a sample ESPN scoreboard payload for a Saturday and document the fields used
-  (status.type.name, competitors[].score, competitors[].curatedRank, groups, odds).
-- Build the team-name matching table between CFBD and ESPN and check it against a full week.
+- [DONE 2026-09-18, P2-01] Confirm on the CFBD tiers page which tier includes the real-time
+  scoreboard endpoint. ANSWER: Tier 1, $1/mo, 5,000 calls. Tier 2 ($5) adds live play-by-play
+  only. The page is no longer self-contradictory. See D-012.
+- [DONE 2026-09-18, P2-01] Capture a sample ESPN scoreboard payload for a Saturday and document
+  the fields used (status.type.name, competitors[].score, competitors[].curatedRank, groups,
+  odds). Trimmed captures are in tests/NcaafPickEm.Fixtures/Real/ (espn-scoreboard-20260912.json,
+  all Final; espn-scoreboard-20260919.json, all Scheduled with odds; espn-rankings.json). Field
+  mappings are in Implementation/spikes/providers.md. Still missing: an in-progress payload -
+  the capture window fell between slates. One Saturday-afternoon call closes it.
+- [PARTIAL 2026-09-18, P2-01] Build the team-name matching table between CFBD and ESPN and check
+  it against a full week. Draft is tests/NcaafPickEm.Fixtures/Real/team-aliases-draft.json,
+  24 rows, ESPN side confirmed against two real Saturday payloads (185 distinct teams), CFBD side
+  unconfirmed because the live CFBD calls have not been made. Note CFBD Team.alternateNames is an
+  alias list CFBD already maintains and should be seeded into TeamAliases(Source='Cfbd') by P2-02.
+- [OPEN] Make the five CFBD reference calls and commit trimmed responses. Exact requests, expected
+  shapes, and file names are in Implementation/spikes/providers.md, "Blocked: operator to-do".
+  Two facts still unverified there: the sign convention of CFBD lines[].spread, and whether
+  CalendarWeek.startDate/endDate are ET-week or UTC-week boundaries.
 
 Sources
 -------
