@@ -20,7 +20,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | P2-02 | CFBD reference data provider and ingest | | Sonnet | Todo | | Opus review |
 | P2-03 | ESPN live score provider, matcher, CFBD fallback | | Opus | Todo | | |
 | P2-04 | Refresh jobs, Saturday poller, data status page | | Sonnet | Todo | | Opus review on poller |
-| P3-01 | Game set generator (domain) | | Opus | Todo | | Can start after Phase 0 |
+| P3-01 | Game set generator (domain) | opus-p3-01 | Opus | Done | p3-01-gameset-generator | Pure `GameSetGenerator.Generate/Preview` + input records; 23 tests. Corrected `04` section 2 (eligibility gates manual adds, lock is a result flag); D-030..D-032. No P0-05 dependency: `IsSaturdayEastern` is an input flag. |
 | P3-02 | Point value resolver (domain) | opus-p3-02 | Opus | Done | p3-02-point-value-resolver | `Domain/Points/`: `PointValueResolver` (`Resolve`, `IsElevated`), `PointRuleValidation` (`Validate` -> `PointRuleError[]`), records `PointGameInfo` / `PointRuleInfo` / `PointResolution`, `PointValueLimits`. New enum `Shared/Enums/PointValueSource` (D-014). 48 new tests in `PointValueResolverTests` + `PointRuleValidationTests`, `dotnet test` 51/51 green, build 0 warnings, `format --verify-no-changes` clean. D-028, D-029 logged; `04` section 3 updated to the real signature; corrected the "at or below" comment on `PointRuleType.CloseSpread` (strictly below). P3-03 consumes the API in D-028. |
 | P3-03 | Configuration endpoints and services | | Sonnet | Todo | | Opus review |
 | P3-04 | Auto-regeneration job and schedule-change handling | | Sonnet | Todo | | Opus review |
