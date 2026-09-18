@@ -20,7 +20,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | P2-02 | CFBD reference data provider and ingest | | Sonnet | Todo | | Opus review |
 | P2-03 | ESPN live score provider, matcher, CFBD fallback | | Opus | Todo | | |
 | P2-04 | Refresh jobs, Saturday poller, data status page | | Sonnet | Todo | | Opus review on poller |
-| P3-01 | Game set generator (domain) | opus-p3-01 | Opus | In review | p3-01-gameset-generator | Pure `GameSetGenerator.Generate/Preview` + input records; 23 tests. Corrected `04` section 2 (eligibility gates manual adds, lock is a result flag); D-023..D-025. No P0-05 dependency: `IsSaturdayEastern` is an input flag. |
+| P3-01 | Game set generator (domain) | opus-p3-01 | Opus | In review | p3-01-gameset-generator | Pure `GameSetGenerator.Generate/Preview` + input records; 23 tests. Corrected `04` section 2 (eligibility gates manual adds, lock is a result flag); D-030..D-032. No P0-05 dependency: `IsSaturdayEastern` is an input flag. |
 | P3-02 | Point value resolver (domain) | | Opus | Todo | | Can start after Phase 0 |
 | P3-03 | Configuration endpoints and services | | Sonnet | Todo | | Opus review |
 | P3-04 | Auto-regeneration job and schedule-change handling | | Sonnet | Todo | | Opus review |
