@@ -6,6 +6,7 @@ using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Shared.Contracts.Invites;
 using NcaafPickEm.Shared.Contracts.Leagues;
+using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Api.Tests;
 
@@ -166,6 +167,10 @@ public sealed class InviteAcceptTests
             Membership membership = await database.Memberships.SingleAsync(
                 m => m.LeagueId == scenario.LeagueId && m.UserId == scenario.MemberUserId);
             membership.RemovedUtc = DateTime.UtcNow;
+
+            // Seeded as a commissioner so the Role reset D-037 asks for is actually asserted
+            // below rather than being true by accident.
+            membership.Role = MembershipRole.Commissioner;
             await database.SaveChangesAsync();
         });
 
@@ -181,5 +186,60 @@ public sealed class InviteAcceptTests
 
         reactivated.RemovedUtc.Should().BeNull();
         reactivated.JoinedWeek.Should().Be(ApiTestFixture.PinnedCurrentWeek);
+        reactivated.Role.Should().Be(MembershipRole.Member, "a reactivated membership starts over as a plain member (D-037)");
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownCode_WhenPreviewed_ThenItIs404()
+    {
+        User caller = await _fixture.PinnedFactory.QueryDbAsync(database => TestUsers.CreateUserAsync(database));
+        using HttpClient client = _fixture.PinnedFactory.CreateClientAs(caller.Id);
+
+        using HttpResponseMessage response = await client.GetAsync("/api/invites/NOSUCHCD");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownCode_WhenAcceptAttempted_ThenItIs404()
+    {
+        User caller = await _fixture.PinnedFactory.QueryDbAsync(database => TestUsers.CreateUserAsync(database));
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(caller.Id);
+
+        using HttpResponseMessage response = await client.PostAsync("/api/invites/NOSUCHCD/accept", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GivenALeagueAtTheMemberCap_WhenAcceptAttempted_ThenItIs409WithFullState()
+    {
+        (LeagueScenario scenario, InviteResponse invite) = await CreateLeagueWithInviteAsync();
+
+        // The scenario league already has 2 active members; top it up to the 50-member cap.
+        await _fixture.PinnedFactory.ExecuteDbAsync(async database =>
+        {
+            League league = await database.Leagues.SingleAsync(l => l.Id == scenario.LeagueId);
+            for (int i = 0; i < LeagueRules.MemberCap - 2; i++)
+            {
+                User filler = await TestUsers.CreateUserAsync(database);
+                await TestUsers.CreateMembershipAsync(database, league, filler);
+            }
+        });
+
+        User joiner = await _fixture.PinnedFactory.QueryDbAsync(database => TestUsers.CreateUserAsync(database));
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(joiner.Id);
+
+        using HttpResponseMessage response = await client.PostAsync($"/api/invites/{invite.Code}/accept", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+        InvitePreview? preview = await response.Content.ReadFromJsonAsync<InvitePreview>();
+        preview!.State.Should().Be(InviteState.Full);
+        preview.MemberCount.Should().Be(LeagueRules.MemberCap);
+
+        bool joined = await _fixture.PinnedFactory.QueryDbAsync(database =>
+            database.Memberships.AsNoTracking().AnyAsync(
+                m => m.LeagueId == scenario.LeagueId && m.UserId == joiner.Id));
+        joined.Should().BeFalse("a full league must not add the caller");
     }
 }

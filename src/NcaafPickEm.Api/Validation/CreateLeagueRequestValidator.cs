@@ -14,7 +14,10 @@ public sealed class CreateLeagueRequestValidator : AbstractValidator<CreateLeagu
     /// <summary>Creates the validator.</summary>
     public CreateLeagueRequestValidator()
     {
+        // Cascade(Stop): the record's Name is non-nullable but a JSON body that omits it binds
+        // null, and without Stop the Must below would dereference it and 500 instead of 400.
         RuleFor(request => request.Name)
+            .Cascade(CascadeMode.Stop)
             .NotEmpty().WithMessage("League name is required.")
             .Must(name => name.Trim().Length is > 0 and <= League.NameMaxLength)
             .WithMessage($"League name must be 1 to {League.NameMaxLength} characters.");

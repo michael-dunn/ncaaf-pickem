@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Tests.Infrastructure;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Shared.Contracts.Auth;
+using NcaafPickEm.Shared.Contracts.Leagues;
+using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Api.Tests;
 
@@ -35,9 +37,23 @@ public sealed class MeEndpointTests
         me.DisplayName.Should().Be("Reads Me");
         me.Email.Should().Be(user.Email);
 
-        // A fresh user with no memberships has no leagues (P1-01 fills Leagues from the caller's
-        // active memberships; see LeagueServiceTests / LeagueEndpointsTests for the non-empty case).
+        // A fresh user with no memberships has no leagues; the non-empty case is the test below.
         me.Leagues.Should().BeEmpty();
+    }
+
+    [Fact]
+    public async Task GivenAMemberOfALeague_WhenGettingMe_ThenLeaguesIsFilled()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.PinnedFactory);
+        using HttpClient client = _fixture.PinnedFactory.CreateClientAs(scenario.MemberUserId);
+
+        MeResponse? me = await client.GetFromJsonAsync<MeResponse>("/api/me");
+
+        me.Should().NotBeNull();
+        LeagueSummary summary = me!.Leagues.Should().ContainSingle(l => l.LeagueId == scenario.LeagueId).Subject;
+        summary.MyRole.Should().Be(MembershipRole.Member);
+        summary.CurrentWeek.Should().Be(ApiTestFixture.PinnedCurrentWeek);
+        summary.MyCurrentWeekStatus.Should().BeNull("no game set exists for the current week");
     }
 
     [Fact]

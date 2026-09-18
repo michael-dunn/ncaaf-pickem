@@ -62,6 +62,23 @@ public sealed class LeagueEndpointsTests
     }
 
     [Fact]
+    public async Task GivenAMissingName_WhenCreatingALeague_ThenItIs400NotAServerError()
+    {
+        User creator = await CreateUserAsync();
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(creator.Id);
+
+        // Name omitted entirely: the record's non-nullable string binds to null at runtime, which
+        // the validator must reject rather than dereference.
+        using var body = new StringContent(
+            """{"seasonYear":2026}""",
+            System.Text.Encoding.UTF8,
+            "application/json");
+        using HttpResponseMessage response = await client.PostAsync("/api/leagues", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest, "a missing name is a validation error, not a 500");
+    }
+
+    [Fact]
     public async Task GivenAChampionshipWeekAsLastWeek_WhenCreatingALeague_ThenItIsRejected()
     {
         User creator = await CreateUserAsync();
@@ -123,6 +140,22 @@ public sealed class LeagueEndpointsTests
         detail.FirstWeek.Should().Be(2);
         detail.LastWeek.Should().Be(13);
         detail.DefaultPointValue.Should().Be(25);
+    }
+
+    [Fact]
+    public async Task GivenAMissingName_WhenUpdatingSettings_ThenItIs400NotAServerError()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.PinnedFactory);
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using var body = new StringContent(
+            """{"firstWeek":1,"lastWeek":14,"defaultPointValue":10}""",
+            System.Text.Encoding.UTF8,
+            "application/json");
+        using HttpResponseMessage response = await client.PutAsync(
+            $"/api/leagues/{scenario.LeagueId}/settings", body);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
     }
 
     [Fact]
