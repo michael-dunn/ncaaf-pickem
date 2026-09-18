@@ -101,7 +101,57 @@ Jobs__Enabled = true | false
 No secrets go in the repo. `deploy/appsettings.Production.template.json` documents every key with a
 placeholder for the home server.
 
-Google sign-in setup for local development is documented by **P0-03**.
+## Google OAuth dev setup
+
+Sign-in is ASP.NET Core cookie authentication plus the Google handler, with no Identity (D-004).
+The app boots and every test passes **without** an OAuth client — the handler falls back to
+placeholder credentials, and API tests replace Google's backchannel entirely. You only need the
+steps below to click through a real Google login on your own machine.
+
+1. Open the [Google Cloud console](https://console.cloud.google.com/), create (or pick) a project.
+2. **APIs & Services -> OAuth consent screen**: user type *External*, fill in the app name and your
+   own email, and add yourself under *Test users*. It can stay in *Testing*; publishing is not
+   needed for a handful of family accounts.
+3. **APIs & Services -> Credentials -> Create credentials -> OAuth client ID**, type
+   *Web application*. Add the authorized redirect URI exactly:
+
+   ```
+   https://localhost:7092/auth/callback/google
+   ```
+
+   For the home server, add its Tailscale HTTPS hostname too:
+   `https://<tailnet-host>/auth/callback/google`. Google requires HTTPS for anything but
+   `localhost`, which is why the server needs a Tailscale-issued certificate.
+4. Put the client ID and secret in user secrets — never in a file in the repo:
+
+   ```bash
+   dotnet user-secrets --project src/NcaafPickEm.Api set "Google:ClientId"     "<client-id>"
+   dotnet user-secrets --project src/NcaafPickEm.Api set "Google:ClientSecret" "<client-secret>"
+   ```
+
+   (`appsettings.Development.json` works too and is gitignored; `Google__ClientId` /
+   `Google__ClientSecret` environment variables work in production.)
+5. Run with the `https` profile and visit <https://localhost:7092/login>:
+
+   ```bash
+   dotnet run --project src/NcaafPickEm.Api
+   ```
+
+   "Sign in with Google" does a full-page redirect to Google and comes back to
+   `/auth/callback/google`, which upserts `Users` by Google subject, issues the `ncaaf.auth` cookie
+   and redirects to `returnUrl`. `GET /api/me` then returns your account.
+
+The cookie is `HttpOnly`, `Secure`, `SameSite=Lax`, named `ncaaf.auth`, with a 90-day sliding
+expiration (Feature 08). `POST /auth/logout` clears it.
+
+### Calling the API
+
+- Unauthenticated `/api/*` returns **401 ProblemDetails**, never a redirect; the SPA handles it.
+- Every mutating `/api` call must send `X-Requested-With: NcaafPickEm` or it is rejected with 400.
+- League-scoped routes use `RequireLeagueMember()` / `RequireLeagueCommissioner()` on the group;
+  the endpoint filter resolves `{leagueId}` once per request and handlers read it back with
+  `HttpContext.GetMembership()`. Non-member is 404 (existence is not revealed); a member on a
+  commissioner route is 403.
 
 ## Run the tests
 
@@ -121,6 +171,21 @@ dotnet test
   ```
 
   API tests run with `Jobs__Enabled=false` and `Providers__*=Fixture`.
+
+No test ever talks to Google. `TestAuthHandler` registers a `TestAuth` scheme that signs a request
+in as whatever user id the `X-Test-User` header names — use `ApiFactory.CreateClientAs(userId)` (or
+`CreateMutatingClientAs`, which adds the CSRF header) after seeding rows with `TestUsers`. The
+Google pipeline itself is covered by `AuthTests`, which swaps in `FakeGoogleBackchannel` and drives
+the real challenge/callback round trip offline.
+
+Every league-scoped endpoint group must have an authorization-matrix test. The harness is one call:
+
+```csharp
+await AuthMatrix.RunAsync(fixture, HttpMethod.Get, "/api/leagues/{leagueId}/x", "/api/leagues/{leagueId}/x/settings");
+```
+
+It seeds its own league, commissioner, member, and stranger, and asserts anonymous -> 401,
+non-member -> 404, member on a commissioner route -> 403, commissioner -> 2xx.
 
 Run a single project or a single test:
 

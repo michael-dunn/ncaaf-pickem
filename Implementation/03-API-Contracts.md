@@ -17,11 +17,17 @@ Frontend and backend agents build against this file. DTO names are the record na
 |---|---|---|---|
 | GET | `/auth/login/google?returnUrl=` | Anon | Challenges Google. `returnUrl` must be a relative path. |
 | GET | `/auth/callback/google` | Anon | Handled by the Google middleware; upserts `Users`, signs in cookie, redirects to `returnUrl`. |
-| POST | `/auth/logout` | Auth | Signs out, clears cookie. |
+| POST | `/auth/logout` | Auth | Signs out, clears cookie. Returns 204. |
 | GET | `/api/me` | Auth | `MeResponse { UserId, Email, DisplayName, Leagues: LeagueSummary[] }` |
-| PUT | `/api/me` | Auth | `UpdateMeRequest { DisplayName }` 1..30 chars. |
+| PUT | `/api/me` | Auth | `UpdateMeRequest { DisplayName }` 1..30 chars after trimming; 400 otherwise. |
 
 Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
+
+`/auth/callback/google` has no endpoint of its own: it is the Google handler's `CallbackPath`, answered by the authentication middleware. `returnUrl` on `/auth/login/google` must be a relative path; anything else (absolute, protocol-relative, or a bare `javascript:`) silently falls back to `/` rather than failing the login.
+
+`/auth/*` is not covered by the CSRF header rule — the whole `/api` group is. `POST /auth/logout` is protected instead by the cookie being `SameSite=Lax`, which a cross-site form post never carries.
+
+`MeResponse.Leagues` is `[]` until **P1-01** wires up league summaries; `LeagueSummary` is already defined in `Shared/Contracts/Leagues` with `MyCurrentWeekStatus` nullable (null when the current week has no game set yet).
 
 ## Leagues and members (Feature 01)
 
