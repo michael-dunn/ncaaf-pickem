@@ -27,6 +27,13 @@ namespace NcaafPickEm.Infrastructure.Providers.Models;
 /// <param name="Spread">
 /// Home-relative spread when the provider carries live odds; negative means home favored.
 /// </param>
+/// <param name="Source">
+/// Which provider produced this update, which decides how the matcher identifies the game
+/// (P2-03): ESPN's payload carries school names and its own event id, while the CFBD fallback
+/// carries neither and is matched on <c>Games.CfbdGameId</c> in <see cref="SourceEventId"/>.
+/// Defaults to <see cref="ProviderSource.Espn"/>, which is also right for the fixture provider
+/// since its payloads are shaped like ESPN's.
+/// </param>
 public sealed record LiveScoreUpdate(
     string SourceEventId,
     DateTime KickoffUtc,
@@ -43,4 +50,5 @@ public sealed record LiveScoreUpdate(
     bool Completed,
     byte? Period,
     string? Clock,
-    decimal? Spread);
+    decimal? Spread,
+    ProviderSource Source = ProviderSource.Espn);

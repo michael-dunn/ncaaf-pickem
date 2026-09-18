@@ -13,6 +13,8 @@ public static class FixtureLoader
 {
     private const string ResourcePrefix = "NcaafPickEm.Fixtures.Data.";
 
+    private const string RealResourcePrefix = "NcaafPickEm.Fixtures.Real.";
+
     private static readonly Assembly Assembly = typeof(FixtureLoader).Assembly;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -42,6 +44,51 @@ public static class FixtureLoader
 
         using var reader = new StreamReader(stream);
         return reader.ReadToEnd();
+    }
+
+    /// <summary>
+    /// Every captured real provider response currently embedded, in sorted order. These are the
+    /// trimmed P2-01 captures under <c>Real/</c>, kept apart from the synthetic sample week.
+    /// </summary>
+    public static IReadOnlyList<string> RealNames { get; } = Assembly
+        .GetManifestResourceNames()
+        .Where(name => name.StartsWith(RealResourcePrefix, StringComparison.Ordinal))
+        .Select(name => name[RealResourcePrefix.Length..])
+        .Order(StringComparer.Ordinal)
+        .ToArray();
+
+    /// <summary>
+    /// Reads a captured real provider response as raw text, e.g.
+    /// <c>"espn-scoreboard-20260912.json"</c>.
+    /// </summary>
+    /// <param name="name">File name under <c>Real/</c>.</param>
+    /// <exception cref="FileNotFoundException">No such capture is embedded.</exception>
+    public static string ReadRealText(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        using Stream? stream = Assembly.GetManifestResourceStream(RealResourcePrefix + name);
+        if (stream is null)
+        {
+            throw new FileNotFoundException(
+                $"Capture '{name}' is not embedded. Known captures: {string.Join(", ", RealNames)}.",
+                name);
+        }
+
+        using var reader = new StreamReader(stream);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>Reads a captured real provider response with web (camelCase) JSON options.</summary>
+    /// <param name="name">File name under <c>Real/</c>.</param>
+    /// <typeparam name="T">The shape to deserialize into.</typeparam>
+    /// <exception cref="FileNotFoundException">No such capture is embedded.</exception>
+    /// <exception cref="InvalidOperationException">The capture deserialized to null.</exception>
+    public static T ReadReal<T>(string name)
+    {
+        string json = ReadRealText(name);
+        return JsonSerializer.Deserialize<T>(json, JsonOptions)
+            ?? throw new InvalidOperationException($"Capture '{name}' deserialized to null.");
     }
 
     /// <summary>Reads a fixture and deserializes it with web (camelCase) JSON options.</summary>

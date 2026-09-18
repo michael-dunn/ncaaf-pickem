@@ -5,12 +5,12 @@
     Every *.json under Data/ is embedded, so consumers need no file copying.
     P2-05 fills Data/ with the Week 7, 2026 sample week.
 
-    Real/ is deliberately OUTSIDE the embedding glob. It holds trimmed captures of real
-    provider responses (P2-01) that exist as documentation for the field mappings in
-    Implementation/spikes/providers.md, not as test inputs. Keeping them out of Data/ keeps
-    FixtureLoader.Names (and the ScaffoldTests assertion that it is empty until P2-05) intact.
-    If a later task wants to load one of these in a test, copy it under Data/ rather than
-    widening the glob.
+    Real/ holds trimmed captures of real provider responses (P2-01): documentation for the field
+    mappings in Implementation/spikes/providers.md, and since P2-03 also inputs - the ESPN parser
+    is tested against the captured scoreboards, and TeamAliasSeed reads team-aliases-draft.json at
+    runtime. They are embedded under their own resource prefix and read with
+    FixtureLoader.ReadRealText, so FixtureLoader.Names still lists only the synthetic sample week
+    in Data/ and no test payload is duplicated into it.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -18,6 +18,7 @@
 
   <ItemGroup>
     <EmbeddedResource Include="Data\**\*.json" />
+    <EmbeddedResource Include="Real\**\*.json" />
   </ItemGroup>
 
 </Project>
