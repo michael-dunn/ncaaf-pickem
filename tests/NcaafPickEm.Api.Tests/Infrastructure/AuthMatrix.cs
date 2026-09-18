@@ -28,12 +28,18 @@ public static class AuthMatrix
     /// commissioner half for groups that have no commissioner-only route.
     /// </param>
     /// <param name="body">Request body factory for a mutating method.</param>
+    /// <param name="commissionerMethod">
+    /// HTTP method the commissioner route answers, when it differs from <paramref name="method"/>
+    /// (e.g. a member <c>GET</c> paired with a commissioner-only <c>PUT .../settings</c>).
+    /// Defaults to <paramref name="method"/>.
+    /// </param>
     public static async Task RunAsync(
         ApiTestFixture fixture,
         HttpMethod method,
         string memberRoute,
         string? commissionerRoute = null,
-        Func<HttpContent>? body = null)
+        Func<HttpContent>? body = null,
+        HttpMethod? commissionerMethod = null)
     {
         ArgumentNullException.ThrowIfNull(fixture);
         ArgumentNullException.ThrowIfNull(method);
@@ -53,13 +59,15 @@ public static class AuthMatrix
             return;
         }
 
+        HttpMethod resolvedCommissionerMethod = commissionerMethod ?? method;
+
         string commish = commissionerRoute.Replace(
             LeagueIdPlaceholder, scenario.LeagueId.ToString(), StringComparison.Ordinal);
 
-        await AssertStatusAsync(fixture, method, commish, caller: null, HttpStatusCode.Unauthorized, body);
-        await AssertStatusAsync(fixture, method, commish, scenario.StrangerUserId, HttpStatusCode.NotFound, body);
-        await AssertStatusAsync(fixture, method, commish, scenario.MemberUserId, HttpStatusCode.Forbidden, body);
-        await AssertSuccessAsync(fixture, method, commish, scenario.CommissionerUserId, body);
+        await AssertStatusAsync(fixture, resolvedCommissionerMethod, commish, caller: null, HttpStatusCode.Unauthorized, body);
+        await AssertStatusAsync(fixture, resolvedCommissionerMethod, commish, scenario.StrangerUserId, HttpStatusCode.NotFound, body);
+        await AssertStatusAsync(fixture, resolvedCommissionerMethod, commish, scenario.MemberUserId, HttpStatusCode.Forbidden, body);
+        await AssertSuccessAsync(fixture, resolvedCommissionerMethod, commish, scenario.CommissionerUserId, body);
     }
 
     private static async Task AssertStatusAsync(

@@ -9,6 +9,7 @@ using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 using NcaafPickEm.Infrastructure.Seeding;
+using NcaafPickEm.Infrastructure.Services;
 
 namespace NcaafPickEm.Infrastructure;
 
@@ -65,6 +66,10 @@ public static class DependencyInjection
         // Providers:ReferenceData is Cfbd.
         services.TryAddSingleton<SeasonCalendar>();
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
+
+        // Leagues and members (P1-01). Scoped: both take AppDbContext.
+        services.AddScoped<LeagueService>();
+        services.AddScoped<InviteService>();
 
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
