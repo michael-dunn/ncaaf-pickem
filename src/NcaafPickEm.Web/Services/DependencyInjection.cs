@@ -39,9 +39,14 @@ public static class DependencyInjection
         // cannot compile in even if USE_FAKE_API is also passed by mistake. See DECISIONS.md.
         services.AddScoped<ILeaguesApi, Fakes.FakeLeaguesApi>();
         services.AddScoped<ISeasonsApi, Fakes.FakeSeasonsApi>();
+        services.AddScoped<Fakes.FakeGameSetStore>();
+        services.AddScoped<IGameSetsApi, Fakes.FakeGameSetsApi>();
+        services.AddScoped<IPointRulesApi, Fakes.FakePointRulesApi>();
 #else
         services.AddScoped<ILeaguesApi, LeaguesApi>();
         services.AddScoped<ISeasonsApi, SeasonsApi>();
+        services.AddScoped<IGameSetsApi, GameSetsApi>();
+        services.AddScoped<IPointRulesApi, PointRulesApi>();
 #endif
 
         return services;
