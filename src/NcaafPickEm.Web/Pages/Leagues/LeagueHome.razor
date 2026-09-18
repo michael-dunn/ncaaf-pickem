@@ -74,6 +74,15 @@ else
                 }
                 <a href="@($"/leagues/{league.LeagueId}/members")">Manage members</a>
             </div>
+
+            <div class="card">
+                <h2>Configure</h2>
+                <a href="@($"/leagues/{league.LeagueId}/config/games")">Game set rules</a>
+                &middot;
+                <a href="@($"/leagues/{league.LeagueId}/config/week/{league.CurrentWeek}")">This week's games</a>
+                &middot;
+                <a href="@($"/leagues/{league.LeagueId}/config/points")">Point rules</a>
+            </div>
         }
     }
 
