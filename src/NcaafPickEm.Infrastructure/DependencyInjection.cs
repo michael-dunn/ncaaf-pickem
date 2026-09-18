@@ -4,13 +4,16 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Kiota.Abstractions.Authentication;
 using Microsoft.Kiota.Http.HttpClientLibrary;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
+using NcaafPickEm.Infrastructure.Providers.Espn;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 using NcaafPickEm.Infrastructure.Seeding;
 using NcaafPickEm.Infrastructure.Services;
@@ -78,6 +81,10 @@ public static class DependencyInjection
 
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
 
+        // Leagues and members (P1-01). Scoped: both take AppDbContext.
+        services.AddScoped<LeagueService>();
+        services.AddScoped<InviteService>();
+
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
         // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.
@@ -88,6 +95,16 @@ public static class DependencyInjection
         // registered (cheap, and the admin endpoint needs it even if a real provider is chosen
         // for reference data but Fixture for live scores).
         services.TryAddSingleton<FixtureSnapshotState>();
+
+        // In-process domain events (P2-03). Collector + dispatcher only; each phase registers its
+        // own handlers with services.AddDomainEventHandler<TEvent, THandler>() right here.
+        services.AddDomainEvents();
+
+        // Every outbound provider call is recorded in ProviderCalls (Features 09 and 12).
+        services.TryAddSingleton<IProviderCallRecorder, ProviderCallRecorder>();
+
+        // Applies a live-score snapshot to Games and raises GameWentFinal / GameScheduleChanged.
+        services.TryAddScoped<LiveScoreApplyService>();
 
         RegisterReferenceDataProvider(services, configuration, referenceDataProvider, environment);
 
@@ -130,9 +147,7 @@ public static class DependencyInjection
 
             case "Cfbd":
                 RegisterCfbdClient(services, configuration);
-                // Scoped, not singleton: CfbdReferenceDataProvider depends on the scoped
-                // ProviderCallRecorder, which shares the caller's AppDbContext.
-                services.TryAddScoped<IReferenceDataProvider, CfbdReferenceDataProvider>();
+                services.TryAddSingleton<IReferenceDataProvider, CfbdReferenceDataProvider>();
                 break;
 
             default:
@@ -157,7 +172,6 @@ public static class DependencyInjection
             return new ApiClient(requestAdapter);
         });
 
-        services.TryAddScoped<ProviderCallRecorder>();
         services.TryAddScoped<ReferenceDataIngestService>();
     }
 
@@ -165,6 +179,38 @@ public static class DependencyInjection
         IServiceCollection services,
         string providerName,
         IHostEnvironment environment)
+    {
+        LiveScoreSource configured = ParseLiveScoreSource(providerName, environment);
+
+        // Singleton: which source is answering, and whether the fallback has engaged, is per
+        // process and per game day (04-Domain-Algorithms.md section 10).
+        services.TryAddSingleton<ILiveScoreHealth>(provider =>
+            new LiveScoreHealth(configured, provider.GetRequiredService<ILogger<LiveScoreHealth>>()));
+
+        if (configured == LiveScoreSource.Fixture)
+        {
+            services.TryAddSingleton<ILiveScoreProvider, FixtureLiveScoreProvider>();
+            return;
+        }
+
+        services.AddHttpClient<EspnLiveScoreProvider>(client =>
+        {
+            client.BaseAddress = new Uri(EspnLiveScoreProvider.DefaultBaseAddress);
+            client.Timeout = TimeSpan.FromSeconds(30);
+        });
+
+        services.TryAddScoped<CfbdLiveScoreProvider>();
+
+        // Both real sources are always constructed; which one is called is a runtime decision the
+        // composite delegates to ILiveScoreHealth, so the poller only knows one provider.
+        services.TryAddScoped<ILiveScoreProvider>(provider => new CompositeLiveScoreProvider(
+            provider.GetRequiredService<EspnLiveScoreProvider>(),
+            provider.GetRequiredService<CfbdLiveScoreProvider>(),
+            provider.GetRequiredService<ILiveScoreHealth>(),
+            provider.GetRequiredService<ILogger<CompositeLiveScoreProvider>>()));
+    }
+
+    private static LiveScoreSource ParseLiveScoreSource(string providerName, IHostEnvironment environment)
     {
         if (string.IsNullOrWhiteSpace(providerName))
         {
@@ -175,28 +221,17 @@ public static class DependencyInjection
                     $"explicitly outside Development (environment is '{environment.EnvironmentName}').");
             }
 
-            services.TryAddSingleton<ILiveScoreProvider, FixtureLiveScoreProvider>();
-            return;
+            return LiveScoreSource.Fixture;
         }
 
-        switch (providerName)
+        return providerName switch
         {
-            case "Fixture":
-                services.TryAddSingleton<ILiveScoreProvider, FixtureLiveScoreProvider>();
-                break;
-
-            // P2-03 registers Espn/Cfbd here:
-            // case "Espn":
-            //     services.TryAddSingleton<ILiveScoreProvider, EspnLiveScoreProvider>();
-            //     break;
-            // case "Cfbd":
-            //     services.TryAddSingleton<ILiveScoreProvider, CfbdLiveScoreProvider>();
-            //     break;
-
-            default:
-                throw new InvalidOperationException(
-                    $"Providers:LiveScores '{providerName}' is not a recognized provider. " +
-                    "Use 'Fixture' (or 'Espn'/'Cfbd' once P2-03 registers them).");
-        }
+            "Fixture" => LiveScoreSource.Fixture,
+            "Espn" => LiveScoreSource.Espn,
+            "Cfbd" => LiveScoreSource.Cfbd,
+            _ => throw new InvalidOperationException(
+                $"Providers:LiveScores '{providerName}' is not a recognized provider. " +
+                "Use 'Fixture', 'Espn' or 'Cfbd'."),
+        };
     }
 }

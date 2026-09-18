@@ -3,7 +3,9 @@ using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Auth;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Services;
 using NcaafPickEm.Shared.Contracts.Auth;
+using NcaafPickEm.Shared.Contracts.Leagues;
 
 namespace NcaafPickEm.Api.Endpoints;
 
@@ -30,19 +32,21 @@ public static class MeEndpoints
     private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult>> GetAsync(
         ICurrentUser currentUser,
         AppDbContext database,
+        LeagueService leagueService,
         CancellationToken cancellationToken)
     {
         User? user = await LoadAsync(currentUser, database, cancellationToken);
 
         return user is null
             ? TypedResults.Unauthorized()
-            : TypedResults.Ok(ToResponse(user));
+            : TypedResults.Ok(await ToResponseAsync(user, leagueService, cancellationToken));
     }
 
     private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult, ValidationProblem>> UpdateAsync(
         UpdateMeRequest request,
         ICurrentUser currentUser,
         AppDbContext database,
+        LeagueService leagueService,
         CancellationToken cancellationToken)
     {
         string displayName = request.DisplayName?.Trim() ?? string.Empty;
@@ -65,7 +69,7 @@ public static class MeEndpoints
         user.DisplayName = displayName;
         await database.SaveChangesAsync(cancellationToken);
 
-        return TypedResults.Ok(ToResponse(user));
+        return TypedResults.Ok(await ToResponseAsync(user, leagueService, cancellationToken));
     }
 
     /// <remarks>
@@ -85,8 +89,12 @@ public static class MeEndpoints
         return await database.Users.FirstOrDefaultAsync(user => user.Id == userId, cancellationToken);
     }
 
-    // TODO P1-01: fill Leagues from the caller's active memberships, with CurrentWeek and
-    // MyCurrentWeekStatus. LeagueSummary is already defined in Shared/Contracts/Leagues.
-    private static MeResponse ToResponse(User user) =>
-        new(user.Id, user.Email, user.DisplayName, Leagues: []);
+    private static async Task<MeResponse> ToResponseAsync(
+        User user,
+        LeagueService leagueService,
+        CancellationToken cancellationToken)
+    {
+        LeagueSummary[] leagues = await leagueService.ListMineAsync(user.Id, cancellationToken);
+        return new MeResponse(user.Id, user.Email, user.DisplayName, leagues);
+    }
 }

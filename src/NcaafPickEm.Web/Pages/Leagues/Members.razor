@@ -1,0 +1,177 @@
+@page "/leagues/{LeagueId:guid}/members"
+@inject ILeaguesApi LeaguesApi
+@inject AppShellState Shell
+
+@*
+    Members (P1-02). Roster with role badges. Commissioners additionally see per-member status
+    and actions (promote, demote, remove, transfer commissioner) behind a ConfirmSheet.
+*@
+
+<PageTitle>Members - NCAAF Pick Em</PageTitle>
+
+<h1>Members</h1>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_members is null)
+{
+    <LoadingSkeleton Rows="5" />
+}
+else
+{
+    <ul class="member-list">
+        @foreach (MemberRow member in _members.Where(m => !m.IsFormer))
+        {
+            <li class="member-row">
+                <div class="member-row-main">
+                    <span class="member-row-name">@member.DisplayName</span>
+                    <RoleBadge Role="member.Role" />
+                    @if (member.CurrentWeekStatus is { } status)
+                    {
+                        <StatusPill Status="status" />
+                    }
+                </div>
+
+                @if (_isCommissioner)
+                {
+                    <div class="member-row-actions">
+                        @if (member.Role == MembershipRole.Member)
+                        {
+                            <button type="button" class="btn btn-secondary" @onclick="() => Ask(member, MemberAction.Promote)">
+                                Promote
+                            </button>
+                            <button type="button" class="btn btn-secondary" @onclick="() => Ask(member, MemberAction.Transfer)">
+                                Make commissioner
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-secondary" @onclick="() => Ask(member, MemberAction.Demote)">
+                                Demote
+                            </button>
+                        }
+                        <button type="button" class="btn btn-danger" @onclick="() => Ask(member, MemberAction.Remove)">
+                            Remove
+                        </button>
+                    </div>
+                }
+            </li>
+        }
+    </ul>
+}
+
+<ConfirmSheet IsOpen="_pendingAction is not null"
+              Title="@SheetTitle"
+              Body="@SheetBody"
+              ConfirmLabel="@SheetConfirmLabel"
+              IsDestructive="_pendingAction?.Action == MemberAction.Remove"
+              OnConfirm="ConfirmAsync"
+              OnCancel="Cancel" />
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private enum MemberAction
+    {
+        Promote,
+        Demote,
+        Remove,
+        Transfer,
+    }
+
+    private sealed record PendingAction(MemberRow Member, MemberAction Action);
+
+    private MemberRow[]? _members;
+    private bool _isCommissioner;
+    private PendingAction? _pendingAction;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Members");
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            LeagueDetail league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            _isCommissioner = league.MyRole == MembershipRole.Commissioner;
+            _members = await LeaguesApi.GetMembersAsync(LeagueId);
+
+            // MemberRow does not identify "me", so every row a commissioner sees offers the same
+            // actions, including their own row. The server enforces the real invariants (cannot
+            // remove self, cannot demote the last commissioner) and ErrorBanner surfaces the 409
+            // if the commissioner taps an action on themselves.
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void Ask(MemberRow member, MemberAction action) => _pendingAction = new PendingAction(member, action);
+
+    private void Cancel() => _pendingAction = null;
+
+    private async Task ConfirmAsync()
+    {
+        if (_pendingAction is not { } pending)
+        {
+            return;
+        }
+
+        _pendingAction = null;
+        try
+        {
+            switch (pending.Action)
+            {
+                case MemberAction.Promote:
+                    await LeaguesApi.PromoteMemberAsync(LeagueId, pending.Member.MembershipId);
+                    break;
+                case MemberAction.Demote:
+                    await LeaguesApi.DemoteMemberAsync(LeagueId, pending.Member.MembershipId);
+                    break;
+                case MemberAction.Remove:
+                    await LeaguesApi.RemoveMemberAsync(LeagueId, pending.Member.MembershipId);
+                    break;
+                case MemberAction.Transfer:
+                    await LeaguesApi.TransferCommissionerAsync(LeagueId, pending.Member.MembershipId);
+                    break;
+            }
+
+            await ReloadAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private string SheetTitle => _pendingAction?.Action switch
+    {
+        MemberAction.Promote => "Promote to commissioner?",
+        MemberAction.Demote => "Demote to member?",
+        MemberAction.Remove => "Remove member?",
+        MemberAction.Transfer => "Transfer commissioner role?",
+        _ => string.Empty,
+    };
+
+    private string SheetBody => _pendingAction switch
+    {
+        { Action: MemberAction.Promote } p => $"{p.Member.DisplayName} will be able to manage the league.",
+        { Action: MemberAction.Demote } p => $"{p.Member.DisplayName} will lose commissioner permissions.",
+        { Action: MemberAction.Remove } p => $"{p.Member.DisplayName} will be removed from the league. This can't be undone.",
+        { Action: MemberAction.Transfer } p => $"{p.Member.DisplayName} becomes commissioner; you become a member.",
+        _ => string.Empty,
+    };
+
+    private string SheetConfirmLabel => _pendingAction?.Action switch
+    {
+        MemberAction.Remove => "Remove",
+        _ => "Confirm",
+    };
+}

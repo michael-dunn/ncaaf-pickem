@@ -11,16 +11,17 @@ namespace NcaafPickEm.Infrastructure.Providers.Cfbd;
 /// <c>Providers:ReferenceData</c> is <c>Cfbd</c> (<c>Implementation/spikes/providers.md</c>).
 /// </summary>
 /// <remarks>
-/// Every outbound call is wrapped in <see cref="ProviderCallRecorder"/>, so scoped rather than
-/// singleton — the recorder shares the caller's <see cref="NcaafPickEm.Infrastructure.Data.AppDbContext"/>.
+/// Every outbound call is wrapped in <see cref="IProviderCallRecorder"/> (the same singleton
+/// P2-03's ESPN provider uses), which opens its own scope to write its <c>ProviderCalls</c> row,
+/// so this provider itself is registered singleton too.
 /// </remarks>
 public sealed class CfbdReferenceDataProvider : IReferenceDataProvider
 {
     private readonly ApiClient _client;
-    private readonly ProviderCallRecorder _recorder;
+    private readonly IProviderCallRecorder _recorder;
 
     /// <summary>Creates the provider.</summary>
-    public CfbdReferenceDataProvider(ApiClient client, ProviderCallRecorder recorder)
+    public CfbdReferenceDataProvider(ApiClient client, IProviderCallRecorder recorder)
     {
         _client = client;
         _recorder = recorder;

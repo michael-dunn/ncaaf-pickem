@@ -28,22 +28,17 @@ public static class EndpointMapping
             .AddEndpointFilter<CsrfEndpointFilter>();
 
         api.MapAdminEndpoints();
+        api.MapInviteEndpoints();
+        api.MapLeagueEndpoints();
         api.MapSeasonEndpoints();
 
         // One line per feature, alphabetical. Later phases add:
-        //   api.MapLeagueEndpoints();        (P1-01)
         //   api.MapGameSetEndpoints();       (P3-03)
         //   api.MapPickEndpoints();          (P4-01)
         //   api.MapLeaderboardEndpoints();   (P5-03)
         //   api.MapDashboardEndpoints();     (P6-02)
         //   api.MapPushEndpoints();          (P7-01)
         api.MapMeEndpoints();
-
-        // Authorization-matrix probes. Never mapped in Production; deleted by P1-01.
-        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
-        {
-            api.MapDiagnosticsEndpoints();
-        }
 
         // Fixture-only dev tools (P2-05): sign in as a demo user without Google, and step the
         // live-score snapshot. Never mapped in Production; Testing needs them too so

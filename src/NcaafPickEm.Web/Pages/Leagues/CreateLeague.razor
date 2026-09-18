@@ -1,0 +1,136 @@
+@page "/leagues/new"
+@inject ILeaguesApi LeaguesApi
+@inject ISeasonsApi SeasonsApi
+@inject AppShellState Shell
+@inject NavigationManager Navigation
+
+@*
+    Create league (P1-02). Name, season year (defaults to the client's current year), and
+    first/last week pickers limited to the regular season by GET /api/seasons/{year}/weeks.
+*@
+
+<PageTitle>Create league - NCAAF Pick Em</PageTitle>
+
+<h1>Create a league</h1>
+
+<ErrorBanner Message="@_error" />
+
+<EditForm Model="_form" OnValidSubmit="SubmitAsync" FormName="create-league">
+    <DataAnnotationsValidator />
+
+    <div class="field">
+        <label for="league-name">League name</label>
+        <InputText id="league-name" @bind-Value="_form.Name" maxlength="50" placeholder="The Family League" />
+        <ValidationMessage For="() => _form.Name" />
+    </div>
+
+    <div class="field">
+        <label for="season-year">Season year</label>
+        <InputNumber id="season-year" @bind-Value="_form.SeasonYear" @bind-Value:after="LoadWeeksAsync"
+                     inputmode="numeric" />
+    </div>
+
+    @if (_weeks is null)
+    {
+        <LoadingSkeleton Rows="1" />
+    }
+    else if (_weeks.Length == 0)
+    {
+        <p class="muted text-sm">No season calendar for @_form.SeasonYear yet. Weeks will default to 1..14.</p>
+    }
+    else
+    {
+        <div class="field">
+            <label for="first-week">First week</label>
+            <select id="first-week" class="input" @bind="_form.FirstWeek">
+                @foreach (int week in RegularSeasonWeeks)
+                {
+                    <option value="@week">Week @week</option>
+                }
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="last-week">Last week</label>
+            <select id="last-week" class="input" @bind="_form.LastWeek">
+                @foreach (int week in RegularSeasonWeeks)
+                {
+                    <option value="@week">Week @week</option>
+                }
+            </select>
+        </div>
+    }
+
+    <button type="submit" class="btn btn-primary" disabled="@_saving">
+        @(_saving ? "Creating..." : "Create league")
+    </button>
+</EditForm>
+
+@code {
+    private readonly CreateLeagueForm _form = new() { SeasonYear = TimeProvider.System.GetLocalNow().Year };
+    private SeasonWeek[]? _weeks;
+    private bool _saving;
+    private string? _error;
+
+    private IEnumerable<int> RegularSeasonWeeks =>
+        (_weeks ?? []).Where(w => w.IsRegularSeason).Select(w => w.Week);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Shell.ClearLeague();
+        Shell.SetTitle("Create league");
+        await LoadWeeksAsync();
+    }
+
+    private async Task LoadWeeksAsync()
+    {
+        _weeks = null;
+        try
+        {
+            _weeks = await SeasonsApi.GetWeeksAsync(_form.SeasonYear);
+            int[] regular = RegularSeasonWeeks.ToArray();
+            if (regular.Length > 0)
+            {
+                _form.FirstWeek = regular.Min();
+                _form.LastWeek = regular.Max();
+            }
+        }
+        catch (LeaguesApiException)
+        {
+            _weeks = [];
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            LeagueDetail league = await LeaguesApi.CreateLeagueAsync(
+                new CreateLeagueRequest(_form.Name.Trim(), _form.SeasonYear, _form.FirstWeek, _form.LastWeek));
+            Navigation.NavigateTo($"/leagues/{league.LeagueId}");
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private sealed class CreateLeagueForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter a league name.")]
+        [System.ComponentModel.DataAnnotations.StringLength(50, MinimumLength = 1)]
+        public string Name { get; set; } = string.Empty;
+
+        public int SeasonYear { get; set; }
+
+        public int? FirstWeek { get; set; }
+
+        public int? LastWeek { get; set; }
+    }
+}

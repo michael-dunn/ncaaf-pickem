@@ -1,4 +1,7 @@
+using FluentValidation;
 using NcaafPickEm.Api.Auth;
+using NcaafPickEm.Api.Validation;
+using NcaafPickEm.Shared.Contracts.Leagues;
 
 namespace NcaafPickEm.Api;
 
@@ -11,12 +14,6 @@ public static class DependencyInjection
     /// <summary>
     /// Registers everything the HTTP layer needs.
     /// </summary>
-    /// <remarks>
-    /// Later phases add:
-    /// <list type="bullet">
-    ///   <item>P1-01 onwards — FluentValidation validators from <c>Api/Validation</c>.</item>
-    /// </list>
-    /// </remarks>
     public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -26,6 +23,14 @@ public static class DependencyInjection
 
         // Cookie scheme + Google handler + the three policies (Feature 08, Option A).
         services.AddAppAuthentication(configuration);
+
+        // FluentValidation validators, run by ValidationFilter<TRequest> on the endpoints that
+        // need them (05-Conventions.md). Registered by hand rather than assembly scanning so the
+        // list here is the list of validators that actually exist.
+        services.AddScoped<IValidator<CreateLeagueRequest>, CreateLeagueRequestValidator>();
+        services.AddScoped<IValidator<UpdateLeagueSettingsRequest>, UpdateLeagueSettingsRequestValidator>();
+        services.AddScoped<IValidator<SetLeagueDisplayNameRequest>, SetLeagueDisplayNameRequestValidator>();
+        services.AddScoped<IValidator<TransferRequest>, TransferRequestValidator>();
 
         return services;
     }

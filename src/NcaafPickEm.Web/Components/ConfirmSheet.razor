@@ -1,0 +1,56 @@
+@* Bottom sheet used before a destructive or hard-to-undo action (Members: promote/demote/remove/
+   transfer; Invites: revoke). Renders nothing when IsOpen is false. *@
+
+@if (IsOpen)
+{
+    <div class="confirm-sheet-backdrop" @onclick="Cancel">
+        <div class="confirm-sheet" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-label="@Title">
+            <h2>@Title</h2>
+            <p class="muted">@Body</p>
+            <div class="confirm-sheet-actions">
+                <button type="button" class="btn btn-secondary" @onclick="Cancel">@CancelLabel</button>
+                <button type="button" class="btn @ConfirmClass" @onclick="Confirm">@ConfirmLabel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Whether the sheet is visible.</summary>
+    [Parameter]
+    public bool IsOpen { get; set; }
+
+    /// <summary>Sheet heading.</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Explanatory body text.</summary>
+    [Parameter, EditorRequired]
+    public string Body { get; set; } = string.Empty;
+
+    /// <summary>Confirm button label. Default "Confirm".</summary>
+    [Parameter]
+    public string ConfirmLabel { get; set; } = "Confirm";
+
+    /// <summary>Cancel button label. Default "Cancel".</summary>
+    [Parameter]
+    public string CancelLabel { get; set; } = "Cancel";
+
+    /// <summary>True renders the confirm button as a destructive (danger) action.</summary>
+    [Parameter]
+    public bool IsDestructive { get; set; }
+
+    /// <summary>Raised when the confirm button is tapped.</summary>
+    [Parameter]
+    public EventCallback OnConfirm { get; set; }
+
+    /// <summary>Raised when the cancel button or the backdrop is tapped.</summary>
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    private string ConfirmClass => IsDestructive ? "btn-danger" : "btn-primary";
+
+    private Task Confirm() => OnConfirm.InvokeAsync();
+
+    private Task Cancel() => OnCancel.InvokeAsync();
+}

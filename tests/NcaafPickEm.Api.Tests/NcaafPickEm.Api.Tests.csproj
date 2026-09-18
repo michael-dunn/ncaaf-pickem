@@ -22,16 +22,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- P2-01's real CFBD captures (Implementation/spikes/providers.md) are deliberately not
-         embedded resources in NcaafPickEm.Fixtures (see that project's csproj comment); copy them
-         to this test assembly's output so CfbdMappingTests can read them by path without moving
-         or duplicating the source files. -->
-    <Content Include="..\NcaafPickEm.Fixtures\Real\*.json" Link="Real\%(Filename)%(Extension)">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
-  </ItemGroup>
-
-  <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="FluentAssertions" />
   </ItemGroup>

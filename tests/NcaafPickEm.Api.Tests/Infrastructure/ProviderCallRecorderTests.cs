@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Kiota.Abstractions;
 using NcaafPickEm.Domain.Operations;
 using NcaafPickEm.Infrastructure.Data;
@@ -8,15 +10,18 @@ using NcaafPickEm.Shared.Enums;
 namespace NcaafPickEm.Api.Tests.Infrastructure;
 
 /// <summary>
-/// <see cref="ProviderCallRecorder"/> (P2-02): a successful call writes a success row, a failing
-/// call writes a failure row with the error and status code, and the monthly count only counts
-/// the requested provider.
+/// <see cref="ProviderCallRecorder"/> (P2-03's singleton shape, P2-02's
+/// <see cref="ProviderCallRecorder.CountThisMonthAsync"/> addition, D-058): a successful call
+/// writes a success row, a failing call writes a failure row with the error and status code (via
+/// either <see cref="HttpRequestException"/> or Kiota's <see cref="ApiException"/>), and the
+/// monthly count only counts the requested provider.
 /// </summary>
 /// <remarks>
 /// Uses its own throwaway database rather than the shared <see cref="ApiTestFixture"/> one:
 /// <c>AdminDataStatusTests</c> asserts <c>CfbdCallsThisMonth == 0</c> against the shared database,
 /// which a <c>ProviderCalls</c> row written here for <see cref="ProviderSource.Cfbd"/> would
-/// break.
+/// break. The recorder opens its own scope per write, so the test builds a tiny service provider
+/// over the throwaway database rather than passing an <see cref="AppDbContext"/> directly.
 /// </remarks>
 public sealed class ProviderCallRecorderTests : IAsyncLifetime
 {
@@ -31,8 +36,7 @@ public sealed class ProviderCallRecorderTests : IAsyncLifetime
     [Fact]
     public async Task GivenASuccessfulCall_WhenRecorded_ThenOneSuccessRowIsWritten()
     {
-        await using AppDbContext database = _database.CreateContext();
-        var recorder = new ProviderCallRecorder(database, TimeProvider.System);
+        ProviderCallRecorder recorder = CreateRecorder();
 
         int result = await recorder.RecordAsync(
             ProviderSource.Cfbd,
@@ -41,6 +45,7 @@ public sealed class ProviderCallRecorderTests : IAsyncLifetime
 
         result.Should().Be(42);
 
+        await using AppDbContext database = _database.CreateContext();
         ProviderCall call = await database.ProviderCalls.SingleAsync();
         call.Provider.Should().Be("Cfbd");
         call.Operation.Should().Be("GetTeams");
@@ -52,8 +57,7 @@ public sealed class ProviderCallRecorderTests : IAsyncLifetime
     [Fact]
     public async Task GivenAFailingCall_WhenRecorded_ThenOneFailureRowIsWrittenAndTheExceptionPropagates()
     {
-        await using AppDbContext database = _database.CreateContext();
-        var recorder = new ProviderCallRecorder(database, TimeProvider.System);
+        ProviderCallRecorder recorder = CreateRecorder();
 
         Func<Task> act = () => recorder.RecordAsync<int>(
             ProviderSource.Cfbd,
@@ -62,6 +66,7 @@ public sealed class ProviderCallRecorderTests : IAsyncLifetime
 
         await act.Should().ThrowAsync<ApiException>().WithMessage("boom");
 
+        await using AppDbContext database = _database.CreateContext();
         ProviderCall call = await database.ProviderCalls.SingleAsync();
         call.Provider.Should().Be("Cfbd");
         call.Operation.Should().Be("GetGames");
@@ -73,8 +78,7 @@ public sealed class ProviderCallRecorderTests : IAsyncLifetime
     [Fact]
     public async Task GivenCallsAcrossTwoProviders_WhenCountingThisMonth_ThenOnlyTheRequestedProviderCounts()
     {
-        await using AppDbContext database = _database.CreateContext();
-        var recorder = new ProviderCallRecorder(database, TimeProvider.System);
+        ProviderCallRecorder recorder = CreateRecorder();
 
         await recorder.RecordAsync(ProviderSource.Cfbd, "GetTeams", _ => Task.FromResult(1));
         await recorder.RecordAsync(ProviderSource.Cfbd, "GetGames", _ => Task.FromResult(1));
@@ -82,5 +86,14 @@ public sealed class ProviderCallRecorderTests : IAsyncLifetime
 
         (await recorder.CountThisMonthAsync(ProviderSource.Cfbd)).Should().Be(2);
         (await recorder.CountThisMonthAsync(ProviderSource.Espn)).Should().Be(1);
+    }
+
+    private ProviderCallRecorder CreateRecorder()
+    {
+        var services = new ServiceCollection();
+        services.AddDbContext<AppDbContext>(options => options.UseSqlServer(_database.ConnectionString));
+        IServiceScopeFactory scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
+
+        return new ProviderCallRecorder(scopeFactory, TimeProvider.System, NullLogger<ProviderCallRecorder>.Instance);
     }
 }

@@ -1,0 +1,9 @@
+.empty-state {
+    text-align: center;
+}
+
+.empty-state-action {
+    margin-top: var(--space-3);
+    display: flex;
+    justify-content: center;
+}

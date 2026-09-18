@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using CollegeFootballData.Models;
+using NcaafPickEm.Fixtures;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Models;
 using NcaafPickEm.Shared.Enums;
@@ -17,7 +18,8 @@ namespace NcaafPickEm.Api.Tests.Infrastructure;
 /// parse-node pipeline, not <c>System.Text.Json</c> attributes, and the referenced serialization
 /// package (<c>Microsoft.Kiota.Serialization.Json</c>) exposes only serialize helpers, not a
 /// simple deserialize-from-JSON one. Rather than hand-roll a Kiota <c>IParseNode</c> walk, these
-/// tests deserialize the real captures with plain <c>System.Text.Json</c>
+/// tests read the real captures via <see cref="FixtureLoader.ReadRealText"/> (embedded under
+/// <c>Real/</c>, D-051) and deserialize with plain <c>System.Text.Json</c>
 /// (<c>PropertyNameCaseInsensitive</c>, since CFBD's wire names are camelCase and the generated
 /// properties are PascalCase — e.g. <c>alternateNames</c> binds to <c>AlternateNames</c> — plus a
 /// <see cref="JsonStringEnumConverter"/> for the one enum field read, <c>Conference.Classification</c>)
@@ -128,8 +130,7 @@ public sealed class CfbdMappingTests
         mapped.CfbdTeamId.Should().Be(194); // Ohio State
     }
 
-    private static string ReadRawCapture(string fileName) =>
-        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Real", fileName));
+    private static string ReadRawCapture(string fileName) => FixtureLoader.ReadRealText(fileName);
 
     private static List<T> ReadCapture<T>(string fileName)
     {

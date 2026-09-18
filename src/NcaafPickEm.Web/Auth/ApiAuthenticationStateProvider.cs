@@ -81,5 +81,14 @@ public sealed class ApiAuthenticationStateProvider : AuthenticationStateProvider
             CurrentUser = null;
             return Anonymous;
         }
+        catch (System.Text.Json.JsonException)
+        {
+            // A 200 that is not actually MeResponse JSON (e.g. a dev host's SPA-fallback HTML for
+            // an unmatched "api/me", such as the Web project's standalone dev server used for
+            // P1-02's Development-only fake-API screenshots). Same outcome as offline: signed out,
+            // not a crashed shell.
+            CurrentUser = null;
+            return Anonymous;
+        }
     }
 }
