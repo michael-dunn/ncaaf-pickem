@@ -27,23 +27,18 @@ public static class EndpointMapping
             // Every mutating /api call must carry X-Requested-With: NcaafPickEm.
             .AddEndpointFilter<CsrfEndpointFilter>();
 
+        api.MapInviteEndpoints();
+        api.MapLeagueEndpoints();
         api.MapSeasonEndpoints();
 
         // One line per feature, alphabetical. Later phases add:
         //   api.MapAdminEndpoints();         (P0-06)
-        //   api.MapLeagueEndpoints();        (P1-01)
         //   api.MapGameSetEndpoints();       (P3-03)
         //   api.MapPickEndpoints();          (P4-01)
         //   api.MapLeaderboardEndpoints();   (P5-03)
         //   api.MapDashboardEndpoints();     (P6-02)
         //   api.MapPushEndpoints();          (P7-01)
         api.MapMeEndpoints();
-
-        // Authorization-matrix probes. Never mapped in Production; deleted by P1-01.
-        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
-        {
-            api.MapDiagnosticsEndpoints();
-        }
 
         return app;
     }
