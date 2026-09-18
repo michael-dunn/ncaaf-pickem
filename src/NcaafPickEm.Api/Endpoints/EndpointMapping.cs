@@ -27,10 +27,10 @@ public static class EndpointMapping
             // Every mutating /api call must carry X-Requested-With: NcaafPickEm.
             .AddEndpointFilter<CsrfEndpointFilter>();
 
+        api.MapAdminEndpoints();
         api.MapSeasonEndpoints();
 
         // One line per feature, alphabetical. Later phases add:
-        //   api.MapAdminEndpoints();         (P0-06)
         //   api.MapLeagueEndpoints();        (P1-01)
         //   api.MapGameSetEndpoints();       (P3-03)
         //   api.MapPickEndpoints();          (P4-01)

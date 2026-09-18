@@ -10,6 +10,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Cron parsing and time-zone-aware occurrence enumeration for the job scheduler (D-005). -->
+    <PackageReference Include="Cronos" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <!-- Design is a full (not private) reference so AppDbContextFactory can implement
          IDesignTimeDbContextFactory<AppDbContext> and `dotnet ef` can load it from the build

@@ -4,6 +4,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 
 namespace NcaafPickEm.Infrastructure;
@@ -59,6 +60,11 @@ public static class DependencyInjection
         // Providers:ReferenceData is Cfbd.
         services.TryAddSingleton<SeasonCalendar>();
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
+
+        // Background jobs (P0-06). Registered after the migrator so the schema is in place before
+        // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
+        // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.
+        services.AddJobScheduler(configuration);
 
         return services;
     }
