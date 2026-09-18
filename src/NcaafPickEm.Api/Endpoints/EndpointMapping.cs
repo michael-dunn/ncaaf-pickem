@@ -20,9 +20,10 @@ public static class EndpointMapping
         RouteGroupBuilder api = app.MapGroup("/api")
             .WithTags("api");
 
+        api.MapSeasonEndpoints();
+
         // One line per feature, alphabetical. Later phases add:
         //   api.MapMeEndpoints();            (P0-03)
-        //   api.MapSeasonEndpoints();        (P0-05)
         //   api.MapAdminEndpoints();         (P0-06)
         //   api.MapLeagueEndpoints();        (P1-01)
         //   api.MapGameSetEndpoints();       (P3-03)
@@ -30,7 +31,6 @@ public static class EndpointMapping
         //   api.MapLeaderboardEndpoints();   (P5-03)
         //   api.MapDashboardEndpoints();     (P6-02)
         //   api.MapPushEndpoints();          (P7-01)
-        _ = api;
 
         return app;
     }
