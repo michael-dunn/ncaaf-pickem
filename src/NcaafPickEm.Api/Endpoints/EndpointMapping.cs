@@ -45,6 +45,15 @@ public static class EndpointMapping
             api.MapDiagnosticsEndpoints();
         }
 
+        // Fixture-only dev tools (P2-05): sign in as a demo user without Google, and step the
+        // live-score snapshot. Never mapped in Production; Testing needs them too so
+        // DevLoginTests and FixtureAdminEndpointTests can exercise the real routes.
+        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+        {
+            app.MapDevAuthEndpoints();
+            api.MapFixtureAdminEndpoints();
+        }
+
         return app;
     }
 }

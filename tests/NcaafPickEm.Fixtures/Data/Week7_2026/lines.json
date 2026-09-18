@@ -1,0 +1,64 @@
+{
+  "data": [
+    {
+      "cfbdGameId": 700001,
+      "provider": "consensus",
+      "spread": -7.5,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700002,
+      "provider": "consensus",
+      "spread": -6.5,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700003,
+      "provider": "consensus",
+      "spread": -4,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700005,
+      "provider": "consensus",
+      "spread": -14,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700006,
+      "provider": "consensus",
+      "spread": -9.5,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700007,
+      "provider": "consensus",
+      "spread": -20,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700008,
+      "provider": "consensus",
+      "spread": 2.5,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700010,
+      "provider": "consensus",
+      "spread": -3.5,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700011,
+      "provider": "consensus",
+      "spread": -6,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    },
+    {
+      "cfbdGameId": 700012,
+      "provider": "consensus",
+      "spread": 5,
+      "fetchedUtc": "2026-10-17T10:00:00Z"
+    }
+  ]
+}

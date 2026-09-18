@@ -1,0 +1,81 @@
+{
+  "data": [
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 1,
+      "cfbdTeamId": 900201
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 2,
+      "cfbdTeamId": 900109
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 3,
+      "cfbdTeamId": 2390
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 4,
+      "cfbdTeamId": 900202
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 5,
+      "cfbdTeamId": 900102
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 6,
+      "cfbdTeamId": 900203
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 7,
+      "cfbdTeamId": 900204
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 8,
+      "cfbdTeamId": 900101
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 9,
+      "cfbdTeamId": 900205
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 10,
+      "cfbdTeamId": 900206
+    },
+    {
+      "season": 2026,
+      "week": 7,
+      "poll": "AP",
+      "rank": 11,
+      "cfbdTeamId": 900107
+    }
+  ]
+}
