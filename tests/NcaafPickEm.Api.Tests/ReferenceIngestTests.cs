@@ -1,0 +1,286 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
+using NcaafPickEm.Api.Tests.Infrastructure;
+using NcaafPickEm.Domain.Operations;
+using NcaafPickEm.Domain.Seasons;
+using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Providers;
+using NcaafPickEm.Infrastructure.Providers.Fixture;
+using NcaafPickEm.Infrastructure.Providers.Models;
+using NcaafPickEm.Infrastructure.Services;
+using NcaafPickEm.Shared.Enums;
+
+namespace NcaafPickEm.Api.Tests;
+
+/// <summary>
+/// <see cref="ReferenceDataIngestService"/> (P2-02), driven by the same
+/// <see cref="FixtureReferenceDataProvider"/> the app boots with — the card's "using the fixture
+/// payloads" — plus small decorator wrappers below that simulate a dropped game and a failing
+/// provider call, which the real CFBD provider cannot be made to do deterministically in a test.
+/// </summary>
+/// <remarks>
+/// Deliberately does <em>not</em> use the shared <see cref="ApiTestFixture"/> database: every
+/// test here writes <c>DataRefreshStatus</c> rows with non-null <c>LastSuccessUtc</c>, which
+/// would break <c>AdminDataStatusTests</c>' "every slice reports nulls" assertion (a placeholder
+/// for "P2-02 has not run yet") if the two shared state. Each test gets its own throwaway,
+/// migrated database via <see cref="SqlTestDatabase"/> instead — slower, but independent of test
+/// order and of every other test class.
+/// </remarks>
+public sealed class ReferenceIngestTests : IAsyncLifetime
+{
+    private const int Season = FixtureReferenceDataProvider.FixtureSeason;
+    private const int Week = FixtureReferenceDataProvider.FixtureWeek;
+
+    private SqlTestDatabase _database = null!;
+
+    /// <inheritdoc />
+    public async Task InitializeAsync() => _database = await SqlTestDatabase.CreateAsync();
+
+    /// <inheritdoc />
+    public async Task DisposeAsync() => await _database.DisposeAsync();
+
+    [Fact]
+    public async Task GivenTeamsIngestedTwice_ThenNoDuplicateConferencesTeamsOrAliases()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var service = CreateService(database, new FixtureReferenceDataProvider());
+
+        TeamsIngestResult first = await service.IngestTeamsAsync(Season);
+        first.Success.Should().BeTrue();
+
+        int conferencesAfterFirst = await database.Conferences.CountAsync();
+        int teamsAfterFirst = await database.Teams.CountAsync();
+        int aliasesAfterFirst = await database.TeamAliases.CountAsync(a => a.Source == ProviderSource.Cfbd);
+
+        TeamsIngestResult second = await service.IngestTeamsAsync(Season);
+        second.Success.Should().BeTrue();
+
+        (await database.Conferences.CountAsync()).Should().Be(conferencesAfterFirst);
+        (await database.Teams.CountAsync()).Should().Be(teamsAfterFirst);
+        (await database.TeamAliases.CountAsync(a => a.Source == ProviderSource.Cfbd)).Should().Be(aliasesAfterFirst);
+
+        DataRefreshStatus status = await database.DataRefreshStatuses.SingleAsync(s => s.DataType == RefreshDataType.Teams);
+        status.LastSuccessUtc.Should().NotBeNull();
+        status.LastError.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GivenFcsOpponents_WhenTeamsIngested_ThenClassificationStoredAsFcs()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var service = CreateService(database, new FixtureReferenceDataProvider());
+
+        await service.IngestTeamsAsync(Season);
+
+        Team youngstownState = await database.Teams.SingleAsync(t => t.School == "Youngstown State");
+        Team indianaState = await database.Teams.SingleAsync(t => t.School == "Indiana State");
+
+        youngstownState.Classification.Should().Be(TeamClassification.Fcs);
+        indianaState.Classification.Should().Be(TeamClassification.Fcs);
+    }
+
+    [Fact]
+    public async Task GivenScheduleIngested_ThenSaturdayEasternIsComputedFromKickoffUtc()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var service = CreateService(database, new FixtureReferenceDataProvider());
+
+        await service.IngestTeamsAsync(Season);
+        ScheduleIngestResult result = await service.IngestScheduleAsync(Season, Week);
+        result.Success.Should().BeTrue();
+
+        // 700016: USC/Stanford, kicks 2026-10-17T04:30Z = Saturday 00:30 ET (Friday-Pacific,
+        // Saturday-Eastern).
+        Game fridayPacific = await database.Games.SingleAsync(g => g.CfbdGameId == 700016);
+        fridayPacific.IsSaturdayEastern.Should().BeTrue();
+        fridayPacific.KickoffEasternDate.Should().Be(new DateOnly(2026, 10, 17));
+
+        // 700015: kicks 2026-10-16T23:30Z = Friday 19:30 ET, a genuine Friday game.
+        Game friday = await database.Games.SingleAsync(g => g.CfbdGameId == 700015);
+        friday.IsSaturdayEastern.Should().BeFalse();
+        friday.KickoffEasternDate.Should().Be(new DateOnly(2026, 10, 16));
+    }
+
+    [Fact]
+    public async Task GivenGameMissingFromPayload_ThenPostponed_AndRestoredWhenItReappears()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider);
+        var service = CreateService(database, decorated);
+
+        await service.IngestTeamsAsync(Season);
+
+        // First fetch: the game is present, as usual.
+        ScheduleIngestResult present = await service.IngestScheduleAsync(Season, Week);
+        present.Success.Should().BeTrue();
+        (await database.Games.SingleAsync(g => g.CfbdGameId == 700016)).Status.Should().Be(GameStatus.Scheduled);
+
+        // Second fetch: CFBD's payload no longer carries game 700016 (it disappeared, which is
+        // how a Postponed game shows up on CFBD's schedule endpoint — see DECISIONS.md).
+        decorated.DroppedCfbdGameIds.Add(700016);
+        ScheduleIngestResult missing = await service.IngestScheduleAsync(Season, Week);
+        missing.Success.Should().BeTrue();
+        missing.Postponed.Should().Be(1);
+        (await database.Games.SingleAsync(g => g.CfbdGameId == 700016)).Status.Should().Be(GameStatus.Postponed);
+
+        // Third fetch: the game reappears, so it goes back to Scheduled.
+        decorated.DroppedCfbdGameIds.Clear();
+        ScheduleIngestResult restored = await service.IngestScheduleAsync(Season, Week);
+        restored.Success.Should().BeTrue();
+        restored.Restored.Should().Be(1);
+        (await database.Games.SingleAsync(g => g.CfbdGameId == 700016)).Status.Should().Be(GameStatus.Scheduled);
+    }
+
+    [Fact]
+    public async Task GivenProviderThrows_ThenLastErrorIsSetAndPriorDataIsUntouched()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider);
+        var service = CreateService(database, decorated);
+
+        await service.IngestTeamsAsync(Season);
+        await service.IngestScheduleAsync(Season, Week);
+
+        int gamesBefore = await database.Games.CountAsync(g => g.SeasonYear == Season && g.Week == Week);
+        GameStatus statusBefore = (await database.Games.SingleAsync(g => g.CfbdGameId == 700001)).Status;
+
+        decorated.Games = (_, _, _) => throw new InvalidOperationException("simulated CFBD outage");
+
+        ScheduleIngestResult failed = await service.IngestScheduleAsync(Season, Week);
+
+        failed.Success.Should().BeFalse();
+        failed.Error.Should().Contain("simulated CFBD outage");
+
+        (await database.Games.CountAsync(g => g.SeasonYear == Season && g.Week == Week)).Should().Be(gamesBefore);
+        (await database.Games.SingleAsync(g => g.CfbdGameId == 700001)).Status.Should().Be(statusBefore);
+
+        DataRefreshStatus status = await database.DataRefreshStatuses.SingleAsync(s => s.DataType == RefreshDataType.Schedule);
+        status.LastError.Should().Contain("simulated CFBD outage");
+        status.LastAttemptUtc.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task GivenRankingsIngestedTwice_ThenNoDuplicateRankingRows()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var service = CreateService(database, new FixtureReferenceDataProvider());
+
+        await service.IngestTeamsAsync(Season);
+        await service.IngestScheduleAsync(Season, Week);
+
+        RankingsIngestResult first = await service.IngestRankingsAsync(Season, Week);
+        first.Success.Should().BeTrue();
+        int countAfterFirst = await database.Rankings.CountAsync(r => r.SeasonYear == Season && r.Week == Week);
+
+        RankingsIngestResult second = await service.IngestRankingsAsync(Season, Week);
+        second.Success.Should().BeTrue();
+        int countAfterSecond = await database.Rankings.CountAsync(r => r.SeasonYear == Season && r.Week == Week);
+
+        countAfterSecond.Should().Be(countAfterFirst);
+    }
+
+    [Fact]
+    public async Task GivenLinesIngestedTwice_ThenGameLinesGrowsOnlyWhenSpreadChanges()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider);
+        var service = CreateService(database, decorated);
+
+        await service.IngestTeamsAsync(Season);
+        await service.IngestScheduleAsync(Season, Week);
+
+        LinesIngestResult first = await service.IngestLinesAsync(Season, Week);
+        first.Success.Should().BeTrue();
+        first.Lines.Should().BeGreaterThan(0);
+
+        Guid gameId = (await database.Games.SingleAsync(g => g.CfbdGameId == 700001)).Id;
+        int lineCountAfterFirst = await database.GameLines.CountAsync(l => l.GameId == gameId);
+
+        // Same spreads again: no new history rows.
+        LinesIngestResult second = await service.IngestLinesAsync(Season, Week);
+        second.Success.Should().BeTrue();
+        second.Lines.Should().Be(0);
+        (await database.GameLines.CountAsync(l => l.GameId == gameId)).Should().Be(lineCountAfterFirst);
+
+        // The spread on 700001 moves: exactly one new history row for that game.
+        decorated.Lines = async (season, week, ct) =>
+        {
+            IReadOnlyList<ProviderLine> original = await baseProvider.GetLinesAsync(season, week, ct);
+            return
+            [
+                .. original.Select(line => line.CfbdGameId == 700001
+                    ? line with { Spread = line.Spread - 1, FetchedUtc = line.FetchedUtc.AddHours(1) }
+                    : line),
+            ];
+        };
+
+        LinesIngestResult third = await service.IngestLinesAsync(Season, Week);
+        third.Success.Should().BeTrue();
+        third.Lines.Should().Be(1);
+        (await database.GameLines.CountAsync(l => l.GameId == gameId)).Should().Be(lineCountAfterFirst + 1);
+    }
+
+    private static ReferenceDataIngestService CreateService(AppDbContext database, IReferenceDataProvider provider) =>
+        new(database, provider, TimeProvider.System, NullLogger<ReferenceDataIngestService>.Instance);
+
+    /// <summary>
+    /// Wraps a real <see cref="IReferenceDataProvider"/> and lets a test override one method, or
+    /// drop specific games from the schedule — the shapes the card's postponement and
+    /// provider-failure cases need and that the fixture provider alone cannot produce.
+    /// </summary>
+    private sealed class DecoratingReferenceDataProvider : IReferenceDataProvider
+    {
+        private readonly IReferenceDataProvider _inner;
+
+        public DecoratingReferenceDataProvider(IReferenceDataProvider inner)
+        {
+            _inner = inner;
+        }
+
+        public HashSet<long> DroppedCfbdGameIds { get; } = [];
+
+        public Func<int, int, CancellationToken, Task<IReadOnlyList<ProviderGame>>>? Games { get; set; }
+
+        public Func<int, int, CancellationToken, Task<IReadOnlyList<ProviderLine>>>? Lines { get; set; }
+
+        public Task<IReadOnlyList<ProviderConference>> GetConferencesAsync(
+            int season, CancellationToken cancellationToken = default) =>
+            _inner.GetConferencesAsync(season, cancellationToken);
+
+        public Task<IReadOnlyList<ProviderTeam>> GetTeamsAsync(
+            int season, CancellationToken cancellationToken = default) =>
+            _inner.GetTeamsAsync(season, cancellationToken);
+
+        public async Task<IReadOnlyList<ProviderGame>> GetGamesAsync(
+            int season, int week, CancellationToken cancellationToken = default)
+        {
+            if (Games is not null)
+            {
+                return await Games(season, week, cancellationToken).ConfigureAwait(false);
+            }
+
+            IReadOnlyList<ProviderGame> games = await _inner.GetGamesAsync(season, week, cancellationToken)
+                .ConfigureAwait(false);
+            return DroppedCfbdGameIds.Count == 0
+                ? games
+                : [.. games.Where(g => !DroppedCfbdGameIds.Contains(g.CfbdGameId))];
+        }
+
+        public Task<IReadOnlyList<ProviderRanking>> GetRankingsAsync(
+            int season, int week, CancellationToken cancellationToken = default) =>
+            _inner.GetRankingsAsync(season, week, cancellationToken);
+
+        public Task<IReadOnlyList<ProviderLine>> GetLinesAsync(
+            int season, int week, CancellationToken cancellationToken = default) =>
+            Lines is not null
+                ? Lines(season, week, cancellationToken)
+                : _inner.GetLinesAsync(season, week, cancellationToken);
+
+        public Task<IReadOnlyList<ProviderCalendarWeek>> GetCalendarAsync(
+            int season, CancellationToken cancellationToken = default) =>
+            _inner.GetCalendarAsync(season, cancellationToken);
+    }
+}
