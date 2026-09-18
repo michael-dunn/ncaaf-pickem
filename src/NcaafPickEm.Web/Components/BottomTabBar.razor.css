@@ -1,0 +1,55 @@
+/* Fixed bottom tab bar. Four equal thumb-sized targets, clear of the home indicator.
+   The tabs are <NavLink> components, so their anchors are outside this component's CSS
+   scope: every rule that targets them goes through ::deep. */
+.tab-bar {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    padding-bottom: var(--safe-bottom);
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+}
+
+.tab-bar ::deep .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    /* 44px minimum tap target (Feature 10); the bar itself is taller. */
+    min-height: var(--tab-bar-height);
+    min-width: var(--tap-min);
+    padding: var(--space-2) var(--space-1);
+    color: var(--color-text-muted);
+    text-decoration: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.tab-bar ::deep .tab-icon {
+    width: 24px;
+    height: 24px;
+    fill: currentColor;
+}
+
+.tab-bar ::deep .tab-label {
+    font-size: 0.6875rem;
+    font-weight: 600;
+    line-height: 1;
+    /* Longest label ("Leaderboard") must not wrap at 375px. */
+    letter-spacing: -0.01em;
+}
+
+/* NavLink adds `active` on the matching route. */
+.tab-bar ::deep .tab.active {
+    color: var(--color-brand);
+}
+
+.tab-bar ::deep .tab.active .tab-label {
+    font-weight: 700;
+}

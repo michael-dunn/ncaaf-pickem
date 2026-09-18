@@ -3,16 +3,29 @@
   <!-- Blazor WebAssembly PWA. Hosted by NcaafPickEm.Api. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <!-- index.html carries no `#[.{fingerprint}]` placeholders (D-013): the SDK only rewrites
+         them when this project is published on its own, and it is always published as a hosted
+         reference from the Api. Stable URLs there, fingerprinting everywhere else. -->
+    <OverrideHtmlAssetPlaceholders>false</OverrideHtmlAssetPlaceholders>
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
+    <!-- P0-04 / D-012: the client never resolves a named time zone or a non-invariant culture.
+         Eastern-time logic and its display strings are computed server-side (SeasonCalendar,
+         LockAtEasternDisplay); the client only renders the browser's local time. Dropping ICU
+         saves ~1.5 MB of the first-load payload. The Api project must stay
+         InvariantGlobalization=false - it does call FindSystemTimeZoneById("America/New_York"). -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <BlazorWebAssemblyLoadAllGlobalizationData>false</BlazorWebAssemblyLoadAllGlobalizationData>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <!-- 01-Architecture.md: WASM first-load budget. Trimming and Brotli precompression are SDK
-         defaults for Release publish; P0-04 tunes them and records the load-time spike.
+         defaults for Release publish; P0-04 tunes them and records the load-time spike
+         (Implementation/spikes/wasm-load-time.md). Both are set explicitly so a future SDK
+         default change cannot silently blow the budget.
          AOT (RunAOTCompilation) would additionally require the wasm-tools workload, which is not
          installed on this machine. -->
     <PublishTrimmed>true</PublishTrimmed>
+    <CompressionEnabled>true</CompressionEnabled>
   </PropertyGroup>
 
   <ItemGroup>

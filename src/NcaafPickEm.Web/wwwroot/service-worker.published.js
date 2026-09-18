@@ -53,3 +53,14 @@ async function onFetch(event) {
 
     return cachedResponse || fetch(event.request);
 }
+
+// ---------------------------------------------------------------- web push
+// Stubs only (P0-04). P7-02 fills these in: render the notification from the payload
+// (pick reminder, game added/removed, week scored) and route the click to the right page.
+self.addEventListener('push', event => {
+    // TODO P7-02: event.waitUntil(self.registration.showNotification(title, options)) from event.data.json().
+});
+
+self.addEventListener('notificationclick', event => {
+    // TODO P7-02: event.notification.close() then focus an existing client or open the deep link.
+});

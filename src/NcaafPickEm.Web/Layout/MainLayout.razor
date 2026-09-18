@@ -1,16 +1,32 @@
-﻿@inherits LayoutComponentBase
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AppShellState Shell
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
-        </div>
+<CascadingValue Value="Shell" IsFixed="true">
+    <div class="app-shell">
+        <header class="top-bar">
+            <div class="top-bar-inner">
+                <span class="top-bar-title">@Shell.HeaderText</span>
+                @if (!string.IsNullOrEmpty(Shell.Title) && Shell.Title != Shell.HeaderText)
+                {
+                    <span class="top-bar-subtitle">@Shell.Title</span>
+                }
+            </div>
+        </header>
 
-        <article class="content px-4">
+        <main class="app-main">
             @Body
-        </article>
-    </main>
-</div>
+        </main>
+
+        <BottomTabBar />
+    </div>
+</CascadingValue>
+
+@code {
+    protected override void OnInitialized() => Shell.Changed += OnShellChanged;
+
+    private void OnShellChanged() => StateHasChanged();
+
+    /// <inheritdoc />
+    public void Dispose() => Shell.Changed -= OnShellChanged;
+}

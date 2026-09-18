@@ -1,0 +1,51 @@
+@page "/more"
+@inject AppShellState Shell
+
+@*
+    PLACEHOLDER (P0-04). The "More" tab's destination: account, notification settings, sign out.
+    P0-03 adds the sign-out control, P7-02 adds notification settings.
+*@
+
+<PageTitle>More - NCAAF Pick Em</PageTitle>
+
+<h1>More</h1>
+
+<div class="card">
+    <h2>Account</h2>
+    <p class="muted">Display name and sign out land here.</p>
+    <p class="placeholder-note">Placeholder from P0-04. P0-03 adds sign out, P7-02 notification settings.</p>
+</div>
+
+<div class="card">
+    <h2>Time zone</h2>
+    <p class="muted text-sm">
+        Times are shown in your device time zone. Lock times also show the Eastern time the
+        league runs on.
+    </p>
+    <p class="text-sm">
+        This device: <strong>@_localZone</strong> &mdash; now @_localNow
+    </p>
+    <p class="placeholder-note">
+        Placeholder from P0-04. Zone <em>abbreviations</em> ("MDT") must come from the browser's
+        Intl API, not .NET: the client runs with invariant globalization (D-012).
+    </p>
+</div>
+
+@code {
+    private string _localZone = string.Empty;
+    private string _localNow = string.Empty;
+
+    protected override void OnInitialized()
+    {
+        Shell.ClearLeague();
+        Shell.SetTitle("More");
+
+        // Also a live check that the trimmed, invariant-globalization client still resolves the
+        // browser's zone and renders local time (see DECISIONS D-012). Under invariant
+        // globalization TimeZoneInfo has no friendly names, so show the offset.
+        DateTimeOffset now = DateTimeOffset.Now;
+        string sign = now.Offset < TimeSpan.Zero ? "-" : "+";
+        _localZone = $"UTC{sign}{now.Offset.Duration():hh\\:mm}";
+        _localNow = now.ToString("ddd h:mm tt");
+    }
+}

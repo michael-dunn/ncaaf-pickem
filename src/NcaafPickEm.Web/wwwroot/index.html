@@ -3,27 +3,38 @@
 
 <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NcaafPickEm.Web</title>
+    <!-- viewport-fit=cover is what makes env(safe-area-inset-*) report real values on iPhone. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>NCAAF Pick Em</title>
     <base href="/" />
-    <link rel="preload" id="webassembly" />
-    <link rel="stylesheet" href="lib/bootstrap/dist/css/bootstrap.min.css" />
+    <meta name="theme-color" content="#0b2545" />
+    <meta name="description" content="Family college football pick em league." />
+    <!-- iOS home-screen app: no browser chrome, status bar tinted to the top bar. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Pick Em" />
     <link rel="stylesheet" href="css/app.css" />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link href="NcaafPickEm.Web.styles.css" rel="stylesheet" />
     <link href="manifest.webmanifest" rel="manifest" />
-    <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="apple-touch-icon.png" />
     <link rel="apple-touch-icon" sizes="192x192" href="icon-192.png" />
-    <script type="importmap"></script>
+    <link rel="apple-touch-icon" sizes="512x512" href="icon-512.png" />
 </head>
 
 <body>
     <div id="app">
-        <svg class="loading-progress">
-            <circle r="40%" cx="50%" cy="50%" />
-            <circle r="40%" cx="50%" cy="50%" />
-        </svg>
-        <div class="loading-progress-text"></div>
+        <!-- Branded splash. Replaced by <App/> as soon as the runtime is ready. -->
+        <div class="splash">
+            <div class="splash-mark">NCAAF<span>Pick Em</span></div>
+            <svg class="loading-progress" viewBox="0 0 100 100" role="img" aria-label="Loading">
+                <circle r="40%" cx="50%" cy="50%" />
+                <circle r="40%" cx="50%" cy="50%" />
+            </svg>
+            <div class="loading-progress-text"></div>
+            <p class="splash-tagline">Pick the games. Beat the family.</p>
+        </div>
     </div>
 
     <div id="blazor-error-ui">
@@ -31,7 +42,12 @@
         <a href="." class="reload">Reload</a>
         <span class="dismiss">🗙</span>
     </div>
-    <script src="_framework/blazor.webassembly#[.{fingerprint}].js"></script>
+    <!-- Stable, non-fingerprinted URL (D-013). The host's static-asset manifest serves this path
+         from the fingerprinted file; the multi-MB runtime files are still fingerprinted and
+         immutably cached because the boot manifest, not this page, names them. The SDK's
+         `#[.{fingerprint}]` placeholder is only rewritten when the Blazor project itself is
+         published, never when the Api publishes it as a hosted reference. -->
+    <script src="_framework/blazor.webassembly.js"></script>
     <script>navigator.serviceWorker.register('service-worker.js', { updateViaCache: 'none' });</script>
 </body>
 
