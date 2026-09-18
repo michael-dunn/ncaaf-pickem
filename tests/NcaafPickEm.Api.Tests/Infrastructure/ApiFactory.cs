@@ -1,6 +1,9 @@
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
+using NcaafPickEm.Api.Auth;
 using NcaafPickEm.Infrastructure.Data;
 
 namespace NcaafPickEm.Api.Tests.Infrastructure;
@@ -15,11 +18,47 @@ namespace NcaafPickEm.Api.Tests.Infrastructure;
 public class ApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString;
+    private readonly bool _useTestAuth;
 
     /// <summary>Creates a factory bound to a database created by <see cref="SqlTestDatabase"/>.</summary>
-    public ApiFactory(string connectionString)
+    /// <param name="connectionString">The test database.</param>
+    /// <param name="useTestAuth">
+    /// When true (the default) <see cref="TestAuthHandler"/> becomes the default scheme, so tests
+    /// sign in with a header. Pass false to leave the real cookie scheme in charge, which is what
+    /// the Google sign-in tests need.
+    /// </param>
+    public ApiFactory(string connectionString, bool useTestAuth = true)
     {
         _connectionString = connectionString;
+        _useTestAuth = useTestAuth;
+    }
+
+    /// <summary>A client that is signed in as <paramref name="userId"/> on every request.</summary>
+    public HttpClient CreateClientAs(Guid userId, string? displayName = null)
+    {
+        if (!_useTestAuth)
+        {
+            throw new InvalidOperationException(
+                "This factory runs the real cookie scheme; sign in through /auth instead.");
+        }
+
+        HttpClient client = CreateClient();
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, userId.ToString());
+
+        if (displayName is not null)
+        {
+            client.DefaultRequestHeaders.Add(TestAuthHandler.NameHeader, displayName);
+        }
+
+        return client;
+    }
+
+    /// <summary>A client that always sends the CSRF header, for tests about something else.</summary>
+    public HttpClient CreateMutatingClientAs(Guid userId)
+    {
+        HttpClient client = CreateClientAs(userId);
+        client.DefaultRequestHeaders.Add(AuthDefaults.CsrfHeaderName, AuthDefaults.CsrfHeaderValue);
+        return client;
     }
 
     /// <summary>Runs <paramref name="action"/> against the test database inside its own scope.</summary>
@@ -57,5 +96,16 @@ public class ApiFactory : WebApplicationFactory<Program>
 
         // SqlTestDatabase already migrated; the app must not race it at startup (D-013).
         builder.UseSetting(DatabaseDefaults.MigrateOnStartupKey, "false");
+
+        if (_useTestAuth)
+        {
+            // Runs after the app's own registration, so this Configure wins and TestAuth becomes
+            // the default authenticate/challenge scheme. The cookie scheme stays registered.
+            builder.ConfigureTestServices(services =>
+                services.AddAuthentication(TestAuthHandler.SchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                        TestAuthHandler.SchemeName,
+                        _ => { }));
+        }
     }
 }
