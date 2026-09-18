@@ -1,0 +1,38 @@
+@* A general-purpose bottom sheet for forms that don't fit ConfirmSheet's fixed title/body/confirm
+   shape (add-rule pickers, add-game search). Renders nothing when IsOpen is false. Content
+   scrolls internally; the sheet itself never exceeds the viewport height. *@
+
+@if (IsOpen)
+{
+    <div class="bottom-sheet-backdrop" @onclick="Close">
+        <div class="bottom-sheet" @onclick:stopPropagation="true" role="dialog" aria-modal="true" aria-label="@Title">
+            <div class="bottom-sheet-header">
+                <h2>@Title</h2>
+                <button type="button" class="bottom-sheet-close" @onclick="Close" aria-label="Close">&#10005;</button>
+            </div>
+            <div class="bottom-sheet-body">
+                @ChildContent
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Whether the sheet is visible.</summary>
+    [Parameter]
+    public bool IsOpen { get; set; }
+
+    /// <summary>Sheet heading.</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Sheet content.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Raised when the close button or the backdrop is tapped.</summary>
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+
+    private Task Close() => OnClose.InvokeAsync();
+}

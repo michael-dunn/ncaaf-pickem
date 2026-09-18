@@ -1,0 +1,5 @@
+.kickoff-time {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}

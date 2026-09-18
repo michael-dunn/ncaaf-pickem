@@ -1,0 +1,12 @@
+@* A single game's kickoff, in the device's local time zone (no Eastern hint - that pairing is
+   LockTime's job for a week's lock instant, not one game in a list). *@
+
+<span class="kickoff-time">@FormatLocal(Utc)</span>
+
+@code {
+    /// <summary>Kickoff instant in UTC.</summary>
+    [Parameter, EditorRequired]
+    public DateTimeOffset Utc { get; set; }
+
+    private static string FormatLocal(DateTimeOffset utc) => utc.ToLocalTime().ToString("ddd h:mm tt");
+}
