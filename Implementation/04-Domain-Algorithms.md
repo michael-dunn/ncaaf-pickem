@@ -19,20 +19,22 @@ Owner: `Seasons/SeasonCalendar`. Tests: `SeasonCalendarTests`.
 
 Owner: `GameSets/GameSetGenerator`. Tests: `GameSetGeneratorTests`. Input: league rules for the week (default or override), all `Games` for (season, week), rankings for (season, week, AP), current set rows (for manual adds/removes). Output: list of `(GameId, Source)` plus `ExceedsMax`.
 
-1. Eligible pool = games where `IsSaturdayEastern`, both teams `Classification == FBS`, `Status not in (Postponed, Cancelled)`.
+The generator is pure and takes flattened records, not entities: `GameSetGenerationRequest { Week, Games: GameInfo[], Rules: RuleInfo[], Rankings: RankingSet[], ExistingGames: ExistingSetGame[], IsLocked }` in, `GenerationResult { Games: GeneratedGame[], Added, Removed, RemovedIneligible, ExceedsMax, UsedFallbackRankings, LockAtUtc, IsLocked }` out. The service projects rows into them and decides what to persist, raise, and refuse.
+
+1. Eligible pool = games where `IsSaturdayEastern`, both teams `Classification == FBS`, `Status not in (Postponed, Cancelled)`. The pool gates every source, manual adds included: the story excludes non-Saturday and non-FBS games "regardless of rule" and requires cancelled or postponed games out of the set even when they are already in it.
 2. For each rule, select from the pool:
    - `Top25`: either team has an AP rank for this week. Use the rankings row set with the latest `FetchedUtc` for the week; if none for this week, fall back to the most recent prior week's poll and flag `UsedFallbackRankings`.
    - `Conference(C, conferenceGamesOnly)`: if `conferenceGamesOnly`, both teams in C; else either team in C.
    - `Team(T)`: T is home or away. Bye week yields nothing.
 3. Result = UNION of rule selections (distinct by GameId), `Source = Rule`.
-4. Add existing rows with `Source = Manual AND IsRemoved = 0` even if they match no rule.
+4. Add existing rows with `Source = Manual AND IsRemoved = 0` even if they match no rule, provided the game is still in the step 1 pool. A game that is both a manual row and a rule match keeps `Source = Manual`, so it stays immune to later regeneration.
 5. Exclude any GameId whose existing row has `IsRemoved = 1` (sticky removal).
-6. `ExceedsMax = Count > 50`. Generation is refused (409) when true; preview reports it.
-7. Regeneration diff: `Added = new - old active`, `Removed = old active - new` (only rule-sourced rows may be auto-removed; manual rows are never auto-removed). Emit `GameAddedToSet` and `GameRemovedFromSet` events per diff item. Removed rows are marked `IsRemoved = 1, RemovedReason = "Rule regeneration"` rather than deleted so picks remain.
-8. After lock (`LockedUtc != null`) generation is a no-op and returns 409.
-9. `LockAtUtc` = min `KickoffUtc` over active games, or null.
+6. `ExceedsMax = Count > 50`. Generation is refused (409) when true; preview reports it. The full list is still returned so the preview can show what the rules produced.
+7. Regeneration diff: `Added = new - old active`, `Removed = old active rule-sourced rows the rules no longer select` (manual rows are never in `Removed`), `RemovedIneligible = old active rows of either source whose game left the step 1 pool`. Emit `GameAddedToSet` and `GameRemovedFromSet` events per diff item. Removed rows are marked `IsRemoved = 1` rather than deleted so picks remain, with `RemovedReason = "Rule regeneration"` for `Removed` and `"Schedule change"` for `RemovedIneligible`.
+8. After lock (`LockedUtc != null`) generation is a no-op. The domain function returns `GenerationResult.Locked` - `IsLocked = true`, empty games and empty diff - and the caller turns that into the 409; the Tuesday regeneration job just skips the week.
+9. `LockAtUtc` = min `KickoffUtc` over active games, or null. Games are returned ordered by `KickoffUtc` then `GameId`, so two runs over the same inputs produce the same list.
 
-Preview runs steps 1 to 6 with candidate rules without persisting.
+Preview runs steps 1 to 7 with candidate rules and without persisting, and ignores lock: only saving is refused after lock.
 
 ## 3. Point value resolution (Feature 03)
 
