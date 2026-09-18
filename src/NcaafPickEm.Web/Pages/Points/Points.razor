@@ -1,0 +1,339 @@
+@page "/leagues/{LeagueId:guid}/config/points"
+@inject ILeaguesApi LeaguesApi
+@inject IGameSetsApi GameSetsApi
+@inject IPointRulesApi PointRulesApi
+@inject AppShellState Shell
+
+@*
+    Point rules (P3-05). Commissioner-only: the league default point value, and an ordered list of
+    point rules (lower Priority wins) with Up/Down reordering (no drag - 05-Conventions.md, tap
+    only) and an add-rule sheet per PointRuleType. PointRuleDto carries no name echoes, so
+    conference/team names for display come from a client-side lookup built once from
+    /api/reference/{conferences,teams}.
+*@
+
+<PageTitle>Point rules - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else if (_league.MyRole != MembershipRole.Commissioner)
+{
+    <p class="muted">Commissioners only.</p>
+}
+else
+{
+    <h1>Point rules</h1>
+
+    <div class="card">
+        <h2>Default point value</h2>
+        <p class="muted">Points for a correct pick when no rule applies.</p>
+        <NumberStepper Value="_defaultPointValue" ValueChanged="v => _defaultPointValue = v" />
+        <button type="button" class="btn btn-primary rule-add-btn" disabled="@_savingDefault" @onclick="SaveDefaultAsync">
+            @(_savingDefault ? "Saving..." : "Save default")
+        </button>
+    </div>
+
+    <div class="card">
+        <h2>Rules</h2>
+        @if (_rules.Count == 0)
+        {
+            <p class="muted">No point rules yet. Add one below.</p>
+        }
+        else
+        {
+            @for (int i = 0; i < _rules.Count; i++)
+            {
+                int index = i;
+                PointRuleDto rule = _rules[index];
+                <div class="point-rule-row">
+                    <div class="point-rule-reorder">
+                        <button type="button" class="reorder-btn" aria-label="Move up" disabled="@(index == 0)" @onclick="() => MoveUp(index)">&#8593;</button>
+                        <button type="button" class="reorder-btn" aria-label="Move down" disabled="@(index == _rules.Count - 1)" @onclick="() => MoveDown(index)">&#8595;</button>
+                    </div>
+                    <div class="point-rule-description">
+                        <span>@RuleDescription(rule)</span>
+                        @if (_rowErrors.TryGetValue(index, out string? message))
+                        {
+                            <span class="validation-message text-sm">@message</span>
+                        }
+                    </div>
+                    <NumberStepper Value="rule.PointValue" ValueChanged="v => SetRulePointValue(index, v)" />
+                    <button type="button" class="rule-remove" aria-label="Remove rule" @onclick="() => _rules.RemoveAt(index)">&#10005;</button>
+                </div>
+            }
+        }
+        <button type="button" class="btn btn-secondary rule-add-btn" @onclick="OpenAddRuleSheet">Add rule</button>
+        <button type="button" class="btn btn-primary rule-add-btn" disabled="@_savingRules" @onclick="SaveRulesAsync">
+            @(_savingRules ? "Saving..." : "Save rules")
+        </button>
+    </div>
+}
+
+<BottomSheet IsOpen="_showAddRule" Title="Add point rule" OnClose="() => _showAddRule = false">
+    <div class="segmented">
+        <button type="button" class="segmented-option @(_addRuleType == PointRuleType.ConferenceGame ? "is-selected" : "")"
+                @onclick="() => _addRuleType = PointRuleType.ConferenceGame">
+            Conference game
+        </button>
+        <button type="button" class="segmented-option @(_addRuleType == PointRuleType.CloseSpread ? "is-selected" : "")"
+                @onclick="() => _addRuleType = PointRuleType.CloseSpread">
+            Close spread
+        </button>
+        <button type="button" class="segmented-option @(_addRuleType == PointRuleType.Team ? "is-selected" : "")"
+                @onclick="() => _addRuleType = PointRuleType.Team">
+            Team
+        </button>
+    </div>
+
+    @switch (_addRuleType)
+    {
+        case PointRuleType.ConferenceGame:
+            <div class="sheet-field">
+                <label for="conf-select">Conference (optional - any conference game if blank)</label>
+                <select id="conf-select" class="input" @bind="_selectedConferenceId">
+                    <option value="">Any conference</option>
+                    @foreach (ConferenceDto conference in _conferences)
+                    {
+                        <option value="@conference.ConferenceId">@conference.Name</option>
+                    }
+                </select>
+            </div>
+            <button type="button" class="btn btn-primary" @onclick="AddConferenceGameRule">Add</button>
+            break;
+
+        case PointRuleType.CloseSpread:
+            <div class="sheet-field">
+                <label for="spread-threshold">Spread threshold (points, matches when strictly below)</label>
+                <input id="spread-threshold" class="input" type="number" step="0.5" min="0" @bind="_spreadThreshold" />
+            </div>
+            <button type="button" class="btn btn-primary" @onclick="AddCloseSpreadRule">Add</button>
+            break;
+
+        case PointRuleType.Team:
+            <div class="sheet-field">
+                <label for="point-team-search">Team</label>
+                <input id="point-team-search" class="input" type="search" placeholder="Search teams..." @bind="_teamSearchText" @bind:event="oninput" @bind:after="OnTeamSearchInput" />
+            </div>
+            @foreach (TeamDto team in _teamResults)
+            {
+                <div class="search-result-row">
+                    <span>@team.School</span>
+                    <button type="button" class="btn btn-secondary" @onclick="() => AddTeamRule(team)">Add</button>
+                </div>
+            }
+            break;
+    }
+</BottomSheet>
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private LeagueDetail? _league;
+    private int _defaultPointValue = 10;
+    private bool _savingDefault;
+    private bool _savingRules;
+    private string? _error;
+    private readonly Dictionary<int, string> _rowErrors = [];
+
+    private readonly List<PointRuleDto> _rules = [];
+    private readonly Dictionary<Guid, string> _conferenceNames = [];
+    private readonly Dictionary<Guid, string> _teamNames = [];
+    private ConferenceDto[] _conferences = [];
+
+    private bool _showAddRule;
+    private PointRuleType _addRuleType = PointRuleType.ConferenceGame;
+    private string _selectedConferenceId = string.Empty;
+    private decimal _spreadThreshold = 7m;
+    private string _teamSearchText = string.Empty;
+    private TeamDto[] _teamResults = [];
+    private CancellationTokenSource? _teamSearchDebounce;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Point rules");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, _league.CurrentWeek);
+            _defaultPointValue = _league.DefaultPointValue;
+            if (_league.MyRole != MembershipRole.Commissioner)
+            {
+                return;
+            }
+
+            _conferences = await GameSetsApi.GetConferencesAsync();
+            foreach (ConferenceDto conference in _conferences)
+            {
+                _conferenceNames[conference.ConferenceId] = conference.Name;
+            }
+
+            TeamDto[] allTeams = await GameSetsApi.SearchTeamsAsync(null);
+            foreach (TeamDto team in allTeams)
+            {
+                _teamNames[team.TeamId] = team.School;
+            }
+
+            PointRuleDto[] rules = await PointRulesApi.GetRulesAsync(LeagueId);
+            _rules.Clear();
+            _rules.AddRange(rules.OrderBy(r => r.Priority));
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task SaveDefaultAsync()
+    {
+        if (_league is null)
+        {
+            return;
+        }
+
+        _savingDefault = true;
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.UpdateSettingsAsync(
+                LeagueId,
+                new UpdateLeagueSettingsRequest(_league.Name, _league.FirstWeek, _league.LastWeek, _defaultPointValue));
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _savingDefault = false;
+        }
+    }
+
+    private void MoveUp(int index)
+    {
+        if (index <= 0)
+        {
+            return;
+        }
+
+        (_rules[index - 1], _rules[index]) = (_rules[index], _rules[index - 1]);
+    }
+
+    private void MoveDown(int index)
+    {
+        if (index >= _rules.Count - 1)
+        {
+            return;
+        }
+
+        (_rules[index + 1], _rules[index]) = (_rules[index], _rules[index + 1]);
+    }
+
+    private void SetRulePointValue(int index, int value) =>
+        _rules[index] = _rules[index] with { PointValue = value };
+
+    private void OpenAddRuleSheet()
+    {
+        _addRuleType = PointRuleType.ConferenceGame;
+        _selectedConferenceId = string.Empty;
+        _spreadThreshold = 7m;
+        _teamSearchText = string.Empty;
+        _teamResults = [];
+        _showAddRule = true;
+    }
+
+    private void AddConferenceGameRule()
+    {
+        Guid? conferenceId = Guid.TryParse(_selectedConferenceId, out Guid id) ? id : null;
+        _rules.Add(new PointRuleDto(null, _rules.Count, PointRuleType.ConferenceGame, conferenceId, null, null, _league?.DefaultPointValue ?? 10));
+        _showAddRule = false;
+    }
+
+    private void AddCloseSpreadRule()
+    {
+        _rules.Add(new PointRuleDto(null, _rules.Count, PointRuleType.CloseSpread, null, null, _spreadThreshold, _league?.DefaultPointValue ?? 10));
+        _showAddRule = false;
+    }
+
+    private void AddTeamRule(TeamDto team)
+    {
+        _teamNames[team.TeamId] = team.School;
+        _rules.Add(new PointRuleDto(null, _rules.Count, PointRuleType.Team, null, team.TeamId, null, _league?.DefaultPointValue ?? 10));
+        _showAddRule = false;
+    }
+
+    private void OnTeamSearchInput()
+    {
+        _teamSearchDebounce?.Cancel();
+        var cts = new CancellationTokenSource();
+        _teamSearchDebounce = cts;
+        _ = DebouncedSearchAsync(_teamSearchText, cts.Token);
+    }
+
+    private async Task DebouncedSearchAsync(string query, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(300, cancellationToken);
+            _teamResults = await GameSetsApi.SearchTeamsAsync(query, cancellationToken);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
+        catch (LeaguesApiException)
+        {
+            _teamResults = [];
+        }
+    }
+
+    private async Task SaveRulesAsync()
+    {
+        _savingRules = true;
+        _error = null;
+        _rowErrors.Clear();
+        try
+        {
+            PointRuleDto[] renumbered = [.. _rules.Select((r, i) => r with { Priority = i })];
+            PointRuleDto[] saved = await PointRulesApi.SaveRulesAsync(LeagueId, renumbered);
+            _rules.Clear();
+            _rules.AddRange(saved.OrderBy(r => r.Priority));
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+            if (ex.Errors is not null)
+            {
+                foreach ((string field, string[] messages) in ex.Errors)
+                {
+                    System.Text.RegularExpressions.Match match = System.Text.RegularExpressions.Regex.Match(field, @"Rules\[(\d+)\]");
+                    if (match.Success && int.TryParse(match.Groups[1].Value, out int index))
+                    {
+                        _rowErrors[index] = messages.FirstOrDefault() ?? "Invalid.";
+                    }
+                }
+            }
+        }
+        finally
+        {
+            _savingRules = false;
+        }
+    }
+
+    private string RuleDescription(PointRuleDto rule) => rule.RuleType switch
+    {
+        PointRuleType.ConferenceGame when rule.ConferenceId is { } id =>
+            $"Conference game · {_conferenceNames.GetValueOrDefault(id, "Conference")}",
+        PointRuleType.ConferenceGame => "Any conference game",
+        PointRuleType.CloseSpread => $"Close spread · under {rule.SpreadThreshold} points",
+        PointRuleType.Team => _teamNames.GetValueOrDefault(rule.TeamId ?? Guid.Empty, "Team"),
+        _ => "Rule",
+    };
+}

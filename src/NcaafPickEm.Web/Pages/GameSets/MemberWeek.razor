@@ -1,0 +1,73 @@
+@page "/leagues/{LeagueId:guid}/weeks/{Week:int}/games"
+@inject ILeaguesApi LeaguesApi
+@inject IGameSetsApi GameSetsApi
+@inject AppShellState Shell
+
+@*
+    Member week view (P3-05): a read-only list of the week's games, ordered by kickoff, with
+    ranks, local kickoff time, and an elevated point badge. Every member (not just the
+    commissioner) can see this page.
+*@
+
+<PageTitle>Week @Week games - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null || _set is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else
+{
+    WeekGameSetResponse set = _set;
+
+    <h1>Week @Week</h1>
+
+    <div class="card">
+        <LockTime LockAtUtc="set.LockAtUtc" EasternDisplay="@set.LockAtEasternDisplay" NoLockText="No games yet" />
+    </div>
+
+    @if (set.Games.Length == 0)
+    {
+        <EmptyState Title="No games yet" Body="The commissioner has not set up this week's games." />
+    }
+    else
+    {
+        <div class="card">
+            @foreach (GameSetGameDto game in set.Games)
+            {
+                <GameRow Game="game" />
+            }
+        </div>
+    }
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    /// <summary>Week from the route.</summary>
+    [Parameter]
+    public int Week { get; set; }
+
+    private LeagueDetail? _league;
+    private WeekGameSetResponse? _set;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle($"Week {Week}");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, Week);
+            _set = await GameSetsApi.GetWeekGameSetAsync(LeagueId, Week);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}
