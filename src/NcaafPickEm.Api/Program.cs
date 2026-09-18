@@ -15,13 +15,20 @@ try
     builder.Host.UseSerilog(SerilogConfiguration.Configure);
 
     builder.Services.AddInfrastructure(builder.Configuration);
-    builder.Services.AddApiServices();
+    builder.Services.AddApiServices(builder.Configuration);
 
     WebApplication app = builder.Build();
 
     app.UseSerilogRequestLogging();
     app.UseExceptionHandler();
     app.UseStatusCodePages();
+
+    // Called explicitly, and deliberately after UseStatusCodePages: WebApplication would otherwise
+    // insert both before any user middleware, and a 401 raised out there would come back with an
+    // empty body instead of ProblemDetails JSON. Routing is still auto-inserted first, so the
+    // authorization middleware sees the endpoint's metadata.
+    app.UseAuthentication();
+    app.UseAuthorization();
 
     // Hosting of the Blazor WebAssembly PWA (NcaafPickEm.Web) as one deployable unit.
     // MapStaticAssets serves the Web project's wwwroot *and* its _framework payload from the

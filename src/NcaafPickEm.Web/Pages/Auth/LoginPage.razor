@@ -1,0 +1,26 @@
+@page "/login"
+@inject NavigationManager Navigation
+
+<PageTitle>Sign in</PageTitle>
+
+<h1>NCAAF Pick Em</h1>
+
+<p>Sign in with the Google account your league knows you by.</p>
+
+@* A plain anchor would be intercepted by the Blazor router and routed to a page that does not
+   exist. The Google challenge is a server round trip, so force a full navigation. *@
+<a class="login-google" href="@LoginUrl" @onclick="SignIn" @onclick:preventDefault>
+    Sign in with Google
+</a>
+
+@code {
+    /// <summary>Where to land after signing in. Server-side sanitized to a relative path.</summary>
+    [Parameter]
+    [SupplyParameterFromQuery(Name = "returnUrl")]
+    public string? ReturnUrl { get; set; }
+
+    private string LoginUrl =>
+        $"/auth/login/google?returnUrl={Uri.EscapeDataString(string.IsNullOrWhiteSpace(ReturnUrl) ? "/" : ReturnUrl)}";
+
+    private void SignIn() => Navigation.NavigateTo(LoginUrl, forceLoad: true);
+}

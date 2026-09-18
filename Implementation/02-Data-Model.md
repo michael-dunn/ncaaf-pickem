@@ -198,7 +198,9 @@ Status derivation rules are in `04-Domain-Algorithms.md` section 4. `Locked` and
 
 ## Notifications (Feature 11)
 
-**PushSubscriptions**: Id, UserId FK, Endpoint nvarchar(2048) UQ, P256dh, Auth, UserAgent, CreatedUtc, LastSuccessUtc, FailureCount.
+**PushSubscriptions**: Id, UserId FK, Endpoint nvarchar(2048), EndpointHash binary(32) UQ, P256dh, Auth, UserAgent, CreatedUtc, LastSuccessUtc, FailureCount.
+
+`EndpointHash` is a persisted computed column, `CONVERT(binary(32), HASHBYTES('SHA2_256', [Endpoint]))`. It carries the unique index because SQL Server caps an index key at 1700 bytes and `nvarchar(2048)` is 4096 (D-017). Write `Endpoint`; look a device up by hash.
 
 **NotificationLog**: Id, UserId, LeagueId, Week, Type tinyint (FridayReminder, CommissionerSummary, SaturdayReminder, GamesAdded, GameRemoved), SubscriptionId null, Result (Sent, Failed, Expired, Skipped), Error nvarchar(500) null, CreatedUtc. Filtered unique index on (UserId, LeagueId, Week, Type) WHERE Type IN (FridayReminder, CommissionerSummary, SaturdayReminder) enforces once per week.
 
@@ -218,4 +220,14 @@ Status derivation rules are in `04-Domain-Algorithms.md` section 4. `Locked` and
 - `Games (Status)` filtered WHERE Status IN (Scheduled, InProgress) for the poller.
 - `Picks (WeekGameSetGameId)` for dashboard and grid.
 - `WeekResults (WeekGameSetId)` and `Memberships (LeagueId, RemovedUtc)` for leaderboards.
-- `NotificationLog` filtered unique index as above.
+- `NotificationLog` filtered unique index as above, named `UX_NotificationLog_WeeklyReminderOncePerWeek`.
+- `Games (EspnEventId)` unique, filtered `WHERE [EspnEventId] IS NOT NULL` — the column is null until the matcher runs, and SQL Server would otherwise allow only one unmatched game in the table.
+
+## How this is implemented (P0-02)
+
+- Entities are plain classes in `src/NcaafPickEm.Domain/<Feature>/` with no EF attributes; all mapping is Fluent, one file per table in `src/NcaafPickEm.Infrastructure/Data/Configurations/<Entity>Configuration.cs`. The initial migration is `Phase0_02_InitialSchema`.
+- Two entity names differ from the table name to leave the DTO name free: `AuditLogEntry` maps to `AuditLog`, `NotificationLogEntry` maps to `NotificationLog`.
+- Enums listed as `tinyint` are `byte`-backed enums in `NcaafPickEm.Shared/Enums` (D-014) mapped with `HasConversion<byte>()`. The one exception is `AuditLog.Action`, stored by name in `nvarchar(40)` so the table stays readable and renumbering the enum cannot rewrite history.
+- `datetime2` UTC columns are `DateTime` with a global `UtcDateTimeConverter` (D-016). `Games.KickoffEasternDate` and `UnmatchedGames.GameDate` are `DateOnly`/`date`.
+- Guid keys are `ValueGenerated.Never`: IDs are created in code with `Guid.CreateVersion7()`.
+- Every foreign key is `DeleteBehavior.Restrict` (D-018).

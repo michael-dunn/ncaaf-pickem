@@ -94,3 +94,6 @@ desktop.ini
 
 ## Node (Blazor tooling, if ever added)
 node_modules/
+
+# Claude Code session files and agent worktrees
+.claude/

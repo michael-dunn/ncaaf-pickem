@@ -1,0 +1,14 @@
+# EF Core writes these files; their shape is the tool's, not ours.
+# `dotnet ef migrations add` would otherwise fail the build on IDE0005/IDE0161 and friends, and
+# reformatting them by hand makes every later `dotnet ef` run produce a diff.
+# Do not add hand-written code to this folder.
+
+[*.cs]
+generated_code = true
+
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.IDE0055.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.IDE0300.severity = none
+dotnet_diagnostic.IDE0301.severity = none
+dotnet_diagnostic.IDE1006.severity = none

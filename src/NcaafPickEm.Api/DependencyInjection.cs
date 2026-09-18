@@ -1,3 +1,5 @@
+using NcaafPickEm.Api.Auth;
+
 namespace NcaafPickEm.Api;
 
 /// <summary>
@@ -10,19 +12,20 @@ public static class DependencyInjection
     /// Registers everything the HTTP layer needs.
     /// </summary>
     /// <remarks>
-    /// Intentionally minimal in P0-01. Later phases add:
+    /// Later phases add:
     /// <list type="bullet">
-    ///   <item>P0-03 — cookie authentication + the Google handler, the three authorization policies
-    ///         (<c>Authenticated</c>, <c>LeagueMember</c>, <c>LeagueCommissioner</c>),
-    ///         <c>LeagueMembershipEndpointFilter</c> and the CSRF filter.</item>
     ///   <item>P1-01 onwards — FluentValidation validators from <c>Api/Validation</c>.</item>
     /// </list>
     /// </remarks>
-    public static IServiceCollection AddApiServices(this IServiceCollection services)
+    public static IServiceCollection AddApiServices(this IServiceCollection services, IConfiguration configuration)
     {
         ArgumentNullException.ThrowIfNull(services);
+        ArgumentNullException.ThrowIfNull(configuration);
 
         services.AddProblemDetails();
+
+        // Cookie scheme + Google handler + the three policies (Feature 08, Option A).
+        services.AddAppAuthentication(configuration);
 
         return services;
     }

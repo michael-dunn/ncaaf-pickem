@@ -26,7 +26,7 @@ Brotli precompression work without it.
 ```
 NcaafPickEm.slnx
 src/
-  NcaafPickEm.Domain/          Entities, value objects, pure domain services. References nothing.
+  NcaafPickEm.Domain/          Entities, value objects, pure domain services.  -> Shared (enums only)
   NcaafPickEm.Shared/          DTOs and enums shared by Api and Web. No logic.
   NcaafPickEm.Infrastructure/  EF Core, migrations, providers, push, jobs.  -> Domain, Shared
   NcaafPickEm.Api/             Composition root, minimal endpoints, auth, hosts the Web app.
@@ -41,8 +41,8 @@ Implementation/  WorkItems/    Plan and requirements.
 ```
 
 Dependency direction is enforced by project references: `Web -> Shared`;
-`Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared`.
-`Domain` references nothing.
+`Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared`;
+`Domain -> Shared` (enums only — see D-014). `Shared` references nothing.
 
 ## Run locally with fixtures
 
@@ -101,7 +101,57 @@ Jobs__Enabled = true | false
 No secrets go in the repo. `deploy/appsettings.Production.template.json` documents every key with a
 placeholder for the home server.
 
-Google sign-in setup for local development is documented by **P0-03**.
+## Google OAuth dev setup
+
+Sign-in is ASP.NET Core cookie authentication plus the Google handler, with no Identity (D-004).
+The app boots and every test passes **without** an OAuth client — the handler falls back to
+placeholder credentials, and API tests replace Google's backchannel entirely. You only need the
+steps below to click through a real Google login on your own machine.
+
+1. Open the [Google Cloud console](https://console.cloud.google.com/), create (or pick) a project.
+2. **APIs & Services -> OAuth consent screen**: user type *External*, fill in the app name and your
+   own email, and add yourself under *Test users*. It can stay in *Testing*; publishing is not
+   needed for a handful of family accounts.
+3. **APIs & Services -> Credentials -> Create credentials -> OAuth client ID**, type
+   *Web application*. Add the authorized redirect URI exactly:
+
+   ```
+   https://localhost:7092/auth/callback/google
+   ```
+
+   For the home server, add its Tailscale HTTPS hostname too:
+   `https://<tailnet-host>/auth/callback/google`. Google requires HTTPS for anything but
+   `localhost`, which is why the server needs a Tailscale-issued certificate.
+4. Put the client ID and secret in user secrets — never in a file in the repo:
+
+   ```bash
+   dotnet user-secrets --project src/NcaafPickEm.Api set "Google:ClientId"     "<client-id>"
+   dotnet user-secrets --project src/NcaafPickEm.Api set "Google:ClientSecret" "<client-secret>"
+   ```
+
+   (`appsettings.Development.json` works too and is gitignored; `Google__ClientId` /
+   `Google__ClientSecret` environment variables work in production.)
+5. Run with the `https` profile and visit <https://localhost:7092/login>:
+
+   ```bash
+   dotnet run --project src/NcaafPickEm.Api
+   ```
+
+   "Sign in with Google" does a full-page redirect to Google and comes back to
+   `/auth/callback/google`, which upserts `Users` by Google subject, issues the `ncaaf.auth` cookie
+   and redirects to `returnUrl`. `GET /api/me` then returns your account.
+
+The cookie is `HttpOnly`, `Secure`, `SameSite=Lax`, named `ncaaf.auth`, with a 90-day sliding
+expiration (Feature 08). `POST /auth/logout` clears it.
+
+### Calling the API
+
+- Unauthenticated `/api/*` returns **401 ProblemDetails**, never a redirect; the SPA handles it.
+- Every mutating `/api` call must send `X-Requested-With: NcaafPickEm` or it is rejected with 400.
+- League-scoped routes use `RequireLeagueMember()` / `RequireLeagueCommissioner()` on the group;
+  the endpoint filter resolves `{leagueId}` once per request and handlers read it back with
+  `HttpContext.GetMembership()`. Non-member is 404 (existence is not revealed); a member on a
+  commissioner route is 403.
 
 ## Run the tests
 
@@ -110,15 +160,32 @@ dotnet test
 ```
 
 - `NcaafPickEm.Domain.Tests` is pure: no database, no network.
-- `NcaafPickEm.Api.Tests` boots the real app with `WebApplicationFactory<Program>`. From P0-02
-  onwards it creates a throwaway database `NcaafPickEm_Test_<guid>`, migrates it, and drops it.
-  The server comes from the `TEST_SQL_CONNECTION` environment variable and defaults to LocalDB:
+- `NcaafPickEm.Api.Tests` boots the real app with `WebApplicationFactory<Program>`. `SqlTestDatabase`
+  creates a throwaway database `NcaafPickEm_Test_<guid>`, migrates it, and drops it at the end of
+  the run — one database per run, not per test, shared through the `ApiTestFixture` collection
+  fixture. The server comes from the `TEST_SQL_CONNECTION` environment variable and defaults to
+  LocalDB:
 
   ```bash
   TEST_SQL_CONNECTION="Server=(localdb)\\MSSQLLocalDB;Trusted_Connection=True;TrustServerCertificate=True"
   ```
 
   API tests run with `Jobs__Enabled=false` and `Providers__*=Fixture`.
+
+No test ever talks to Google. `TestAuthHandler` registers a `TestAuth` scheme that signs a request
+in as whatever user id the `X-Test-User` header names — use `ApiFactory.CreateClientAs(userId)` (or
+`CreateMutatingClientAs`, which adds the CSRF header) after seeding rows with `TestUsers`. The
+Google pipeline itself is covered by `AuthTests`, which swaps in `FakeGoogleBackchannel` and drives
+the real challenge/callback round trip offline.
+
+Every league-scoped endpoint group must have an authorization-matrix test. The harness is one call:
+
+```csharp
+await AuthMatrix.RunAsync(fixture, HttpMethod.Get, "/api/leagues/{leagueId}/x", "/api/leagues/{leagueId}/x/settings");
+```
+
+It seeds its own league, commissioner, member, and stranger, and asserts anonymous -> 401,
+non-member -> 404, member on a commissioner route -> 403, commissioner -> 2xx.
 
 Run a single project or a single test:
 
@@ -139,23 +206,58 @@ dotnet format --verify-no-changes   # what CI / review checks
 The build runs code-style analyzers (`EnforceCodeStyleInBuild`) with
 `TreatWarningsAsErrors`, so an unused `using` fails the build rather than lingering.
 
-## EF Core migrations
+## Database and EF Core migrations
 
-Placeholder — **P0-02** creates `AppDbContext`, the `Phase0_02_InitialSchema` migration, and fills
-this section in. The shape the commands will take:
+The schema is `src/NcaafPickEm.Infrastructure/Data/AppDbContext.cs` plus one file per table in
+`Data/Configurations/`. Entities live in `NcaafPickEm.Domain` and carry no EF attributes; all
+mapping is Fluent. The whole schema from `Implementation/02-Data-Model.md` exists as of the
+`Phase0_02_InitialSchema` migration.
+
+Install the tool once (it must be at least as new as the EF Core packages in
+`Directory.Packages.props`):
+
+```bash
+dotnet tool install --global dotnet-ef
+dotnet tool update  --global dotnet-ef
+```
+
+Add a migration (append-only, named `Phase<N>_<Task>_<What>`; never edit one another task
+committed):
 
 ```bash
 dotnet ef migrations add Phase<N>_<Task>_<What> \
   --project src/NcaafPickEm.Infrastructure \
   --startup-project src/NcaafPickEm.Api \
   --output-dir Data/Migrations
-
-dotnet ef database update \
-  --project src/NcaafPickEm.Infrastructure \
-  --startup-project src/NcaafPickEm.Api
 ```
 
-Migrations are append-only; never edit one another task has committed.
+Apply migrations by hand:
+
+```bash
+# bash
+ConnectionStrings__Default="Server=(localdb)\\MSSQLLocalDB;Database=NcaafPickEm;Trusted_Connection=True;TrustServerCertificate=True" \
+  dotnet ef database update --project src/NcaafPickEm.Infrastructure --startup-project src/NcaafPickEm.Api
+```
+
+```powershell
+# Windows PowerShell
+$env:ConnectionStrings__Default = "Server=(localdb)\MSSQLLocalDB;Database=NcaafPickEm;Trusted_Connection=True;TrustServerCertificate=True"
+dotnet ef database update --project src/NcaafPickEm.Infrastructure --startup-project src/NcaafPickEm.Api
+```
+
+`NcaafPickEm.Infrastructure` contains an `IDesignTimeDbContextFactory<AppDbContext>`, so the tools
+never boot the API host. It reads `ConnectionStrings__Default` and falls back to LocalDB, which is
+why `dotnet ef migrations add` works on a clean clone with no configuration at all.
+
+**Migrating on startup** (D-015): the app applies pending migrations at startup when
+`Database__MigrateOnStartup` is true. The default is **on in Development and off everywhere else**,
+so a developer never has to remember `database update` and a production deploy never migrates
+itself by surprise. Set the key explicitly to override either way. Tests set it to false and
+migrate their own throwaway database instead.
+
+Generated migration files are exempt from the code-style analyzers through
+`src/NcaafPickEm.Infrastructure/Data/Migrations/.editorconfig`. Do not hand-write code in that
+folder.
 
 ## Publish
 
