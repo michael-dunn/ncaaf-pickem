@@ -1,0 +1,8 @@
+.join-card {
+    text-align: center;
+}
+
+.join-card .btn {
+    width: 100%;
+    margin-top: var(--space-2);
+}

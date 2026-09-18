@@ -1,0 +1,160 @@
+@page "/leagues/{LeagueId:guid}/invites"
+@implements IAsyncDisposable
+@inject ILeaguesApi LeaguesApi
+@inject AppShellState Shell
+@inject IJSRuntime JsRuntime
+
+@*
+    Invites (P1-02). Create, list, revoke; "Share" uses navigator.share when available, else
+    copies the link to the clipboard (wwwroot/js/invites.js).
+*@
+
+<PageTitle>Invites - NCAAF Pick Em</PageTitle>
+
+<h1>Invites</h1>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_shareResult is not null)
+{
+    <div class="card share-toast">@_shareResult</div>
+}
+
+<button type="button" class="btn btn-primary" @onclick="CreateAsync" disabled="@_creating">
+    @(_creating ? "Creating..." : "Create invite")
+</button>
+
+@if (_invites is null)
+{
+    <LoadingSkeleton Rows="2" />
+}
+else if (_invites.Length == 0)
+{
+    <EmptyState Title="No active invites" Body="Create one to bring a family member into the league." />
+}
+else
+{
+    <ul class="invite-list">
+        @foreach (InviteResponse invite in _invites)
+        {
+            <li class="invite-row">
+                <div class="invite-row-main">
+                    <span class="invite-row-code">@invite.Code</span>
+                    <span class="text-sm muted">
+                        @invite.Uses/@invite.MaxUses used &middot; expires @invite.ExpiresUtc.ToLocalTime().ToString("MMM d")
+                    </span>
+                </div>
+                <div class="invite-row-actions">
+                    <button type="button" class="btn btn-secondary" @onclick="() => ShareAsync(invite)">Share</button>
+                    <button type="button" class="btn btn-danger" @onclick="() => Ask(invite)">Revoke</button>
+                </div>
+            </li>
+        }
+    </ul>
+}
+
+<ConfirmSheet IsOpen="_pendingRevoke is not null"
+              Title="Revoke this invite?"
+              Body="Anyone with the link will no longer be able to join with it."
+              ConfirmLabel="Revoke"
+              IsDestructive="true"
+              OnConfirm="ConfirmRevokeAsync"
+              OnCancel="() => _pendingRevoke = null" />
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private InviteResponse[]? _invites;
+    private InviteResponse? _pendingRevoke;
+    private IJSObjectReference? _module;
+    private bool _creating;
+    private string? _shareResult;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Invites");
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _invites = await LeaguesApi.GetInvitesAsync(LeagueId);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+            _invites = [];
+        }
+    }
+
+    private async Task CreateAsync()
+    {
+        _creating = true;
+        try
+        {
+            await LeaguesApi.CreateInviteAsync(LeagueId);
+            await ReloadAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _creating = false;
+        }
+    }
+
+    private void Ask(InviteResponse invite) => _pendingRevoke = invite;
+
+    private async Task ConfirmRevokeAsync()
+    {
+        if (_pendingRevoke is not { } invite)
+        {
+            return;
+        }
+
+        _pendingRevoke = null;
+        try
+        {
+            await LeaguesApi.RevokeInviteAsync(LeagueId, invite.InviteId);
+            await ReloadAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task ShareAsync(InviteResponse invite)
+    {
+        _module ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/invites.js");
+
+        string outcome = await _module.InvokeAsync<string>(
+            "share",
+            "Join my NCAAF Pick Em league",
+            "Tap to join the league.",
+            invite.Url);
+
+        _shareResult = outcome switch
+        {
+            "shared" => "Shared.",
+            "copied" => "Link copied to clipboard.",
+            _ => $"Copy this link: {invite.Url}",
+        };
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.DisposeAsync();
+        }
+    }
+}

@@ -38,12 +38,12 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | GET | `/api/leagues/{leagueId}` | Member | `LeagueDetail { LeagueId, Name, SeasonYear, FirstWeek, LastWeek, DefaultPointValue, CurrentWeek, IsComplete, MyRole, MyCurrentWeekStatus, CurrentWeekLockAtUtc?, LockAtEasternDisplay? }` |
 | PUT | `/api/leagues/{leagueId}/settings` | Commish | `UpdateLeagueSettingsRequest { Name, FirstWeek, LastWeek, DefaultPointValue }` |
 | GET | `/api/leagues/{leagueId}/members` | Member | `MemberRow[] { MembershipId, DisplayName, Role, JoinedWeek, IsFormer, CurrentWeekStatus? }` (status only populated for Commish callers) |
-| PUT | `/api/leagues/{leagueId}/members/me/display-name` | Member | `SetLeagueDisplayNameRequest { DisplayName }`; 409 if taken in league |
+| PUT | `/api/leagues/{leagueId}/members/me/display-name` | Member | `SetLeagueDisplayNameRequest { DisplayName }` -> caller's own updated `MemberRow`; 409 if taken by another **active** member (case-insensitive; a removed member's old name is free, D-039) |
 | POST | `/api/leagues/{leagueId}/invites` | Commish | -> `InviteResponse { Code, Url, ExpiresUtc }` |
 | GET | `/api/leagues/{leagueId}/invites` | Commish | `InviteResponse[]` (active only) |
 | DELETE | `/api/leagues/{leagueId}/invites/{inviteId}` | Commish | revoke |
-| GET | `/api/invites/{code}` | Auth | `InvitePreview { LeagueName, SeasonYear, MemberCount, State: Valid/Expired/Revoked/Full/AlreadyMember }` |
-| POST | `/api/invites/{code}/accept` | Auth | -> `LeagueDetail`; 409 with State on any non-Valid state |
+| GET | `/api/invites/{code}` | Auth | `InvitePreview { LeagueName, SeasonYear, MemberCount, State: Valid/Expired/Revoked/Full/AlreadyMember }`; 404 for an unknown code |
+| POST | `/api/invites/{code}/accept` | Auth | -> `LeagueDetail`; 409 with State on any non-Valid state. When several states apply, priority is Revoked > Expired > AlreadyMember > Full (D-038). A caller who was previously a member and was removed reactivates their existing membership row rather than getting a second one (D-037). An unknown code (`GET`/`POST /api/invites/{code}*`) is 404. |
 | DELETE | `/api/leagues/{leagueId}/members/{membershipId}` | Commish | soft remove; 409 if target is self or would leave zero commissioners |
 | POST | `/api/leagues/{leagueId}/members/{membershipId}/promote` | Commish | -> Commissioner |
 | POST | `/api/leagues/{leagueId}/members/{membershipId}/demote` | Commish | 409 if last commissioner |
@@ -74,6 +74,8 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | GET | `/api/reference/teams?search=` | Auth | `TeamDto[]` FBS only |
 
 `GameSetGameDto { GameSetGameId, GameId, HomeTeam: TeamDto, AwayTeam: TeamDto, HomeRank?, AwayRank?, KickoffUtc, PointValue, IsPointValueElevated, Source, Status, HomeScore?, AwayScore?, Period?, Clock?, IsVoided, WinnerTeamId? }`
+
+`TeamDto { TeamId, School, Abbreviation?, ConferenceId?, LogoUrl? }`, `ConferenceDto { ConferenceId, Name, Abbreviation }`, `GameCandidate { GameId, HomeTeam, AwayTeam, HomeRank?, AwayRank?, KickoffUtc, IsConferenceGame }`. `GameSetPreview` also carries `UsedFallbackRankings`. `GameSetGameId` is null in previews. Record definitions live in `Shared/Contracts/{GameSets,Points,Reference}`.
 
 ## Point values (Feature 03)
 

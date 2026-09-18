@@ -19,6 +19,7 @@ public class ApiFactory : WebApplicationFactory<Program>
 {
     private readonly string _connectionString;
     private readonly bool _useTestAuth;
+    private readonly TimeProvider? _timeProvider;
 
     /// <summary>Creates a factory bound to a database created by <see cref="SqlTestDatabase"/>.</summary>
     /// <param name="connectionString">The test database.</param>
@@ -27,10 +28,19 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// sign in with a header. Pass false to leave the real cookie scheme in charge, which is what
     /// the Google sign-in tests need.
     /// </param>
-    public ApiFactory(string connectionString, bool useTestAuth = true)
+    /// <param name="timeProvider">
+    /// When given, replaces <c>TimeProvider.System</c> for the whole app (P1-01 hook: a test that
+    /// needs a specific "now" — e.g. a fixed instant inside the 2026 fixture season — passes a
+    /// <c>Microsoft.Extensions.Time.Testing.FakeTimeProvider</c> or any other <see cref="TimeProvider"/>
+    /// here). <c>AddInfrastructure</c> registers the real clock with <c>TryAddSingleton</c>; this
+    /// registers the fake one afterwards in <c>ConfigureTestServices</c>, which runs after the
+    /// app's own <c>ConfigureServices</c> and therefore wins.
+    /// </param>
+    public ApiFactory(string connectionString, bool useTestAuth = true, TimeProvider? timeProvider = null)
     {
         _connectionString = connectionString;
         _useTestAuth = useTestAuth;
+        _timeProvider = timeProvider;
     }
 
     /// <summary>A client that is signed in as <paramref name="userId"/> on every request.</summary>
@@ -106,6 +116,11 @@ public class ApiFactory : WebApplicationFactory<Program>
                     .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
                         TestAuthHandler.SchemeName,
                         _ => { }));
+        }
+
+        if (_timeProvider is not null)
+        {
+            builder.ConfigureTestServices(services => services.AddSingleton(_timeProvider));
         }
     }
 }

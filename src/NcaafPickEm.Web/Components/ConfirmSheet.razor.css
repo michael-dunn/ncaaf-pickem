@@ -1,0 +1,28 @@
+.confirm-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 37, 69, 0.45);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 900;
+}
+
+.confirm-sheet {
+    width: 100%;
+    max-width: 480px;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding: var(--space-5) var(--space-4) calc(var(--space-5) + var(--safe-bottom));
+    box-shadow: var(--shadow-md);
+}
+
+.confirm-sheet-actions {
+    display: flex;
+    gap: var(--space-3);
+    margin-top: var(--space-4);
+}
+
+.confirm-sheet-actions .btn {
+    flex: 1 1 0;
+}

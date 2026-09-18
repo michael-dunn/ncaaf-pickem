@@ -71,6 +71,10 @@ public static class DependencyInjection
         services.TryAddSingleton<SeasonCalendar>();
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
 
+        // Leagues and members (P1-01). Scoped: both take AppDbContext.
+        services.AddScoped<LeagueService>();
+        services.AddScoped<InviteService>();
+
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
         // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.

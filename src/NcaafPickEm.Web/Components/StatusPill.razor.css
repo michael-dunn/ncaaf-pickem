@@ -1,0 +1,34 @@
+.status-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-pill-neutral {
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+}
+
+.status-pill-warning {
+    background: #fff3d6;
+    color: var(--color-warning);
+}
+
+.status-pill-success {
+    background: #e3f4ea;
+    color: var(--color-success);
+}
+
+.status-pill-brand {
+    background: var(--color-surface-alt);
+    color: var(--color-brand);
+}
+
+.status-pill-danger {
+    background: var(--color-accent-soft);
+    color: var(--color-danger);
+}

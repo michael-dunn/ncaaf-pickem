@@ -1,0 +1,35 @@
+@* Renders a lock instant in the device's local time zone, with the server's Eastern rendering as
+   a hint underneath. Shared by Phase 1 (league home), Phase 4 (picks), and Phase 6 (dashboard)
+   per the P1-02 task card; the client cannot produce a zone abbreviation itself (D-023), so the
+   Eastern string always comes from the server's LockAtEasternDisplay. *@
+
+@if (LockAtUtc is { } utc)
+{
+    <span class="lock-time">
+        <span class="lock-time-local">@FormatLocal(utc)</span>
+        @if (!string.IsNullOrWhiteSpace(EasternDisplay))
+        {
+            <span class="lock-time-eastern text-sm muted">(@EasternDisplay)</span>
+        }
+    </span>
+}
+else if (!string.IsNullOrWhiteSpace(NoLockText))
+{
+    <span class="lock-time-none muted">@NoLockText</span>
+}
+
+@code {
+    /// <summary>Lock instant in UTC, or null when the week has no game set yet.</summary>
+    [Parameter]
+    public DateTimeOffset? LockAtUtc { get; set; }
+
+    /// <summary>The server's Eastern rendering, e.g. "Sat 12:00 PM ET".</summary>
+    [Parameter]
+    public string? EasternDisplay { get; set; }
+
+    /// <summary>Text shown instead when <see cref="LockAtUtc"/> is null.</summary>
+    [Parameter]
+    public string? NoLockText { get; set; }
+
+    private static string FormatLocal(DateTimeOffset utc) => utc.ToLocalTime().ToString("ddd MMM d, h:mm tt");
+}
