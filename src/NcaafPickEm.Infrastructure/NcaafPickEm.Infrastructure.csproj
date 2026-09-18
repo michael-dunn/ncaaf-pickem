@@ -10,6 +10,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Cron parsing and time-zone-aware occurrence enumeration for the job scheduler (D-005). -->
+    <PackageReference Include="Cronos" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
     <!-- Design is a full (not private) reference so AppDbContextFactory can implement
          IDesignTimeDbContextFactory<AppDbContext> and `dotnet ef` can load it from the build
@@ -20,6 +22,12 @@
   <ItemGroup>
     <ProjectReference Include="..\NcaafPickEm.Domain\NcaafPickEm.Domain.csproj" />
     <ProjectReference Include="..\NcaafPickEm.Shared\NcaafPickEm.Shared.csproj" />
+    <!-- P2-05 (see DECISIONS.md): the fixture providers read their JSON from the embedded
+         resources in tests/NcaafPickEm.Fixtures, so Infrastructure takes a project reference on
+         what is otherwise a test-only classlib. It is a few hundred KB of embedded JSON plus a
+         loader with no test framework dependency, and P8-03's Simulate page needs it server-side
+         too, so this is not a test-into-production layering violation in practice. -->
+    <ProjectReference Include="..\..\tests\NcaafPickEm.Fixtures\NcaafPickEm.Fixtures.csproj" />
   </ItemGroup>
 
 </Project>

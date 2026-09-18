@@ -17,6 +17,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\NcaafPickEm.Domain\NcaafPickEm.Domain.csproj" />
+    <!-- P2-05: the fixture providers have no database or network access, so their tests belong
+         here alongside the rest of the pure Domain suite rather than in Api.Tests. -->
+    <ProjectReference Include="..\..\src\NcaafPickEm.Infrastructure\NcaafPickEm.Infrastructure.csproj" />
     <ProjectReference Include="..\NcaafPickEm.Fixtures\NcaafPickEm.Fixtures.csproj" />
   </ItemGroup>
 

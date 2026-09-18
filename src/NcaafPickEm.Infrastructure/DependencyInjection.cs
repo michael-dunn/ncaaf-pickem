@@ -2,9 +2,13 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Hosting;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Jobs;
+using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
+using NcaafPickEm.Infrastructure.Seeding;
 using NcaafPickEm.Infrastructure.Services;
 
 namespace NcaafPickEm.Infrastructure;
@@ -31,10 +35,12 @@ public static class DependencyInjection
     /// </remarks>
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(environment);
 
         // TimeProvider is the only clock the codebase may use (05-Conventions.md).
         // TryAdd so tests can register a FakeTimeProvider before calling this.
@@ -65,6 +71,104 @@ public static class DependencyInjection
         services.AddScoped<LeagueService>();
         services.AddScoped<InviteService>();
 
+        // Background jobs (P0-06). Registered after the migrator so the schema is in place before
+        // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
+        // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.
+        services.AddJobScheduler(configuration);
+        // Reference data and live scores (P2-02/P2-03/P2-05). Providers:ReferenceData and
+        // Providers:LiveScores select the implementation; Fixture is the only one today and is
+        // the default in Development when the key is unset. The snapshot state is always
+        // registered (cheap, and the admin endpoint needs it even if a real provider is chosen
+        // for reference data but Fixture for live scores).
+        services.TryAddSingleton<FixtureSnapshotState>();
+
+        string referenceDataProvider = configuration["Providers:ReferenceData"] ?? string.Empty;
+        RegisterReferenceDataProvider(services, referenceDataProvider, environment);
+
+        string liveScoreProvider = configuration["Providers:LiveScores"] ?? string.Empty;
+        RegisterLiveScoreProvider(services, liveScoreProvider, environment);
+
+        services.TryAddScoped<FixtureSeeder>();
+        services.AddHostedService<FixtureSeederHostedService>();
+
         return services;
+    }
+
+    private static void RegisterReferenceDataProvider(
+        IServiceCollection services,
+        string providerName,
+        IHostEnvironment environment)
+    {
+        if (string.IsNullOrWhiteSpace(providerName))
+        {
+            // Missing config = Fixture in Development (and Testing, which behaves like
+            // Development for provider purposes); anywhere else it is a misconfiguration, since a
+            // real provider needs an API key that is never assumed to be present.
+            if (!environment.IsDevelopment() && !environment.IsEnvironment("Testing"))
+            {
+                throw new InvalidOperationException(
+                    "Providers:ReferenceData is not set. Set it to 'Fixture' or 'Cfbd' explicitly " +
+                    $"outside Development (environment is '{environment.EnvironmentName}').");
+            }
+
+            services.TryAddSingleton<IReferenceDataProvider, FixtureReferenceDataProvider>();
+            return;
+        }
+
+        switch (providerName)
+        {
+            case "Fixture":
+                services.TryAddSingleton<IReferenceDataProvider, FixtureReferenceDataProvider>();
+                break;
+
+            // P2-02 registers Cfbd here:
+            // case "Cfbd":
+            //     services.TryAddSingleton<IReferenceDataProvider, CfbdReferenceDataProvider>();
+            //     break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"Providers:ReferenceData '{providerName}' is not a recognized provider. " +
+                    "Use 'Fixture' (or 'Cfbd' once P2-02 registers it).");
+        }
+    }
+
+    private static void RegisterLiveScoreProvider(
+        IServiceCollection services,
+        string providerName,
+        IHostEnvironment environment)
+    {
+        if (string.IsNullOrWhiteSpace(providerName))
+        {
+            if (!environment.IsDevelopment() && !environment.IsEnvironment("Testing"))
+            {
+                throw new InvalidOperationException(
+                    "Providers:LiveScores is not set. Set it to 'Fixture', 'Espn', or 'Cfbd' " +
+                    $"explicitly outside Development (environment is '{environment.EnvironmentName}').");
+            }
+
+            services.TryAddSingleton<ILiveScoreProvider, FixtureLiveScoreProvider>();
+            return;
+        }
+
+        switch (providerName)
+        {
+            case "Fixture":
+                services.TryAddSingleton<ILiveScoreProvider, FixtureLiveScoreProvider>();
+                break;
+
+            // P2-03 registers Espn/Cfbd here:
+            // case "Espn":
+            //     services.TryAddSingleton<ILiveScoreProvider, EspnLiveScoreProvider>();
+            //     break;
+            // case "Cfbd":
+            //     services.TryAddSingleton<ILiveScoreProvider, CfbdLiveScoreProvider>();
+            //     break;
+
+            default:
+                throw new InvalidOperationException(
+                    $"Providers:LiveScores '{providerName}' is not a recognized provider. " +
+                    "Use 'Fixture' (or 'Espn'/'Cfbd' once P2-03 registers them).");
+        }
     }
 }

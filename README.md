@@ -70,9 +70,38 @@ dotnet run --project src/NcaafPickEm.Api --launch-profile https
 Probes: `GET /health` (liveness) and `GET /health/ready` (readiness; P0-02 adds the database
 round-trip). Both return `{"status":"ok"}`.
 
-The fixture data itself (the "Week 7, 2026" sample week) arrives with **P2-05**. Until then
-`tests/NcaafPickEm.Fixtures/Data/` is empty and `FixtureLoader.Names` reports no fixtures — the
-provider switches are wired for it in advance so no UI or endpoint work ever needs a live key.
+The fixture data set (the "Week 7, 2026" sample week: 16 games, rankings, lines, and six
+live-score snapshots from kickoff to all-Final) lives under
+`tests/NcaafPickEm.Fixtures/Data/Week7_2026/`, loaded automatically at startup into an empty
+database whenever `Providers:ReferenceData` is `Fixture`.
+
+To get a signed-in demo league without a Google account, add:
+
+```bash
+Providers__ReferenceData=Fixture Providers__LiveScores=Fixture Seed__DemoLeague=true \
+  dotnet run --project src/NcaafPickEm.Api --launch-profile https
+```
+
+```powershell
+$env:Providers__ReferenceData = "Fixture"; $env:Providers__LiveScores = "Fixture"
+$env:Seed__DemoLeague = "true"
+dotnet run --project src/NcaafPickEm.Api --launch-profile https
+```
+
+This seeds the "Family League" demo league (members Michael, Alyson, Dance, Alex, Daniel; Michael
+is Commissioner). Then visit <https://localhost:7092/auth/dev-login?user=michael> (or `alyson`,
+`dance`, `alex`, `daniel`) to sign in as that member — no OAuth client needed. Seeding and
+dev-login are both Development/Testing only and never run in Production.
+
+Step through the live-score timeline (kickoff through all-Final, snapshots 1-6) with:
+
+```bash
+curl -X POST https://localhost:7092/api/admin/fixture/snapshot/3 --cookie-jar cookies.txt --cookie cookies.txt
+curl https://localhost:7092/api/admin/fixture/snapshot --cookie cookies.txt
+```
+
+(sign in through `/auth/dev-login` first so the cookie jar has a session; these two routes
+require `Authenticated` like the rest of `/api`).
 
 ### Local configuration
 
