@@ -1,0 +1,152 @@
+{
+  "_note": "TRIMMED capture of the real CFBD /lines?year=2025&week=3&seasonType=regular response. Captured by P2-01 on 2026-09-18. Full response carried 108 BettingGame objects; kept 3: LSU/Florida (home favoured, LSU -5.5/-5/-4.5 across providers), Tennessee/Georgia (away favoured, Georgia -3.5), Arizona/Kansas State (away favoured, Kansas State -1.5, and the same game as cfbd-games-2025-week3.json for cross-reference). All lines[] entries kept for each game (all providers).",
+  "data": [
+    {
+      "id": 401752699,
+      "season": 2025,
+      "seasonType": "regular",
+      "week": 3,
+      "startDate": "2025-09-13T23:30:00.000Z",
+      "homeTeamId": 99,
+      "homeTeam": "LSU",
+      "homeConference": "SEC",
+      "homeClassification": "fbs",
+      "homeScore": 20,
+      "awayTeamId": 57,
+      "awayTeam": "Florida",
+      "awayConference": "SEC",
+      "awayClassification": "fbs",
+      "awayScore": 10,
+      "lines": [
+        {
+          "provider": "ESPN Bet",
+          "spread": -5.5,
+          "formattedSpread": "LSU -5.5",
+          "spreadOpen": -5.5,
+          "overUnder": 47.5,
+          "overUnderOpen": 54.5,
+          "homeMoneyline": -210,
+          "awayMoneyline": 175
+        },
+        {
+          "provider": "Bovada",
+          "spread": -5,
+          "formattedSpread": "LSU -5.0",
+          "spreadOpen": -9.5,
+          "overUnder": 47,
+          "overUnderOpen": 50.5,
+          "homeMoneyline": -360,
+          "awayMoneyline": 280
+        },
+        {
+          "provider": "DraftKings",
+          "spread": -4.5,
+          "formattedSpread": "LSU -4.5",
+          "spreadOpen": -5.5,
+          "overUnder": 47.5,
+          "overUnderOpen": 54.5,
+          "homeMoneyline": -218,
+          "awayMoneyline": 180
+        }
+      ]
+    },
+    {
+      "id": 401752705,
+      "season": 2025,
+      "seasonType": "regular",
+      "week": 3,
+      "startDate": "2025-09-13T19:30:00.000Z",
+      "homeTeamId": 2633,
+      "homeTeam": "Tennessee",
+      "homeConference": "SEC",
+      "homeClassification": "fbs",
+      "homeScore": 41,
+      "awayTeamId": 61,
+      "awayTeam": "Georgia",
+      "awayConference": "SEC",
+      "awayClassification": "fbs",
+      "awayScore": 44,
+      "lines": [
+        {
+          "provider": "ESPN Bet",
+          "spread": 3.5,
+          "formattedSpread": "Georgia -3.5",
+          "spreadOpen": 7,
+          "overUnder": 50.5,
+          "overUnderOpen": 50.5,
+          "homeMoneyline": 145,
+          "awayMoneyline": -170
+        },
+        {
+          "provider": "DraftKings",
+          "spread": 3.5,
+          "formattedSpread": "Georgia -3.5",
+          "spreadOpen": 7.5,
+          "overUnder": 50.5,
+          "overUnderOpen": 50.5,
+          "homeMoneyline": 140,
+          "awayMoneyline": -166
+        },
+        {
+          "provider": "Bovada",
+          "spread": 3.5,
+          "formattedSpread": "Georgia -3.5",
+          "spreadOpen": 6.5,
+          "overUnder": 50.5,
+          "overUnderOpen": 50.5,
+          "homeMoneyline": 150,
+          "awayMoneyline": -210
+        }
+      ]
+    },
+    {
+      "id": 401756888,
+      "season": 2025,
+      "seasonType": "regular",
+      "week": 3,
+      "startDate": "2025-09-13T01:00:00.000Z",
+      "homeTeamId": 12,
+      "homeTeam": "Arizona",
+      "homeConference": "Big 12",
+      "homeClassification": "fbs",
+      "homeScore": 23,
+      "awayTeamId": 2306,
+      "awayTeam": "Kansas State",
+      "awayConference": "Big 12",
+      "awayClassification": "fbs",
+      "awayScore": 17,
+      "lines": [
+        {
+          "provider": "DraftKings",
+          "spread": 1.5,
+          "formattedSpread": "Kansas State -1.5",
+          "spreadOpen": null,
+          "overUnder": 55.5,
+          "overUnderOpen": null,
+          "homeMoneyline": -102,
+          "awayMoneyline": -118
+        },
+        {
+          "provider": "ESPN Bet",
+          "spread": 1.5,
+          "formattedSpread": "Kansas State -1.5",
+          "spreadOpen": 1.5,
+          "overUnder": 56.5,
+          "overUnderOpen": 54.5,
+          "homeMoneyline": 105,
+          "awayMoneyline": -120
+        },
+        {
+          "provider": "Bovada",
+          "spread": 1.5,
+          "formattedSpread": "Kansas State -1.5",
+          "spreadOpen": 0,
+          "overUnder": 55.5,
+          "overUnderOpen": 54.5,
+          "homeMoneyline": -110,
+          "awayMoneyline": -110
+        }
+      ]
+    }
+  ]
+}

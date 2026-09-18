@@ -1,0 +1,7 @@
+{
+  "_note": "Exact response body of GET https://api.collegefootballdata.com/scoreboard?classification=fbs on the CFBD free tier. Captured by P2-01 on 2026-09-18. HTTP status 401. Confirms the Live Scoreboard endpoint requires a Tier 1 ($1/month) Patreon subscription; the free tier does not include it.",
+  "httpStatus": 401,
+  "body": {
+    "message": "Unauthorized. This endpoint requires a Patreon subscription at Tier 1 or higher."
+  }
+}

@@ -1,146 +1,79 @@
 [
   {
     "source": "Espn",
-    "alias": "App State",
-    "school": "Appalachian State",
-    "note": "ESPN team.location and team.shortDisplayName are both 'App State'. Normalizes to 'app state', CFBD to 'appalachian state'. High confidence mismatch."
-  },
-  {
-    "source": "Espn",
     "alias": "App State Mountaineers",
-    "school": "Appalachian State",
-    "note": "ESPN team.displayName form of the row above."
-  },
-  {
-    "source": "Espn",
-    "alias": "UL Monroe",
-    "school": "Louisiana Monroe",
-    "note": "ESPN team.location 'UL Monroe' (abbreviation ULM). High confidence mismatch."
+    "school": "App State",
+    "note": "ESPN team.displayName form. CFBD school is 'App State' (not 'Appalachian State' as first guessed); 'Appalachian State' is only in CFBD alternateNames. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "UL Monroe Warhawks",
-    "school": "Louisiana Monroe",
-    "note": "ESPN team.displayName form of the row above."
-  },
-  {
-    "source": "Espn",
-    "alias": "Massachusetts",
-    "school": "UMass",
-    "note": "ESPN team.location 'Massachusetts', shortDisplayName 'UMass', abbreviation 'MASS'. High confidence mismatch."
+    "school": "UL Monroe",
+    "note": "ESPN team.displayName form. CFBD school is 'UL Monroe' (matches ESPN team.location exactly); 'Louisiana Monroe' is not a CFBD school or alternateNames value. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "Massachusetts Minutemen",
-    "school": "UMass",
-    "note": "ESPN team.displayName form of the row above."
-  },
-  {
-    "source": "Espn",
-    "alias": "UTSA",
-    "school": "UT San Antonio",
-    "note": "ESPN team.location 'UTSA'. CFBD school is believed to be 'UT San Antonio'. VERIFY against a real CFBD /teams/fbs payload."
+    "school": "Massachusetts",
+    "note": "ESPN team.displayName form. CFBD school is 'Massachusetts' (not 'UMass' as first guessed); 'UMass' is only in CFBD alternateNames. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "UTSA Roadrunners",
-    "school": "UT San Antonio",
-    "note": "ESPN team.displayName form of the row above."
-  },
-  {
-    "source": "Espn",
-    "alias": "UConn",
-    "school": "Connecticut",
-    "note": "ESPN team.location 'UConn'. CFBD may use either 'UConn' or 'Connecticut'. VERIFY; harmless if CFBD already uses 'UConn' (the row is then a no-op)."
+    "school": "UTSA",
+    "note": "ESPN team.displayName form. CFBD school is 'UTSA' (matches ESPN team.location exactly); 'UT San Antonio' is not a CFBD school or alternateNames value ('Texas-San Antonio' is). Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "UConn Huskies",
-    "school": "Connecticut",
-    "note": "ESPN team.displayName form of the row above."
-  },
-  {
-    "source": "Espn",
-    "alias": "Southern Miss",
-    "school": "Southern Mississippi",
-    "note": "ESPN team.location 'Southern Miss'. CFBD may use 'Southern Mississippi'. VERIFY; no-op if CFBD uses 'Southern Miss'."
+    "school": "UConn",
+    "note": "ESPN team.displayName form. CFBD school is 'UConn' (not 'Connecticut' as first guessed); 'Connecticut' is only in CFBD alternateNames. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "Southern Miss Golden Eagles",
-    "school": "Southern Mississippi",
-    "note": "ESPN team.displayName form of the row above."
+    "school": "Southern Miss",
+    "note": "ESPN team.displayName form. CFBD school is 'Southern Miss' (matches ESPN team.location exactly); 'Southern Mississippi' is only in CFBD alternateNames. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "San Jose State",
     "school": "San José State",
-    "note": "ESPN spells it 'San José State' with U+00E9. Diacritic-folded alias so a matcher that folds accents and one that does not both land on the CFBD school."
+    "note": "ESPN spells it 'San José State' with U+00E9. Diacritic-folded alias so a matcher that folds accents and one that does not both land on the CFBD school. CFBD school confirmed 'San José State' (also U+00E9); alternateNames are 'San Jose St.'/'SJSU'/'San José St', neither of which equals this alias. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "San José State Spartans",
     "school": "San José State",
-    "note": "ESPN team.displayName form, retaining U+00E9."
+    "note": "ESPN team.displayName form, retaining U+00E9. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "Hawaii",
     "school": "Hawai'i",
-    "note": "ESPN uses 'Hawai'i' with an ASCII apostrophe (U+0027), not the Hawaiian okina (U+02BB). Alias covers the apostrophe-free spelling."
+    "note": "ESPN uses 'Hawai'i' with an ASCII apostrophe (U+0027), not the Hawaiian okina (U+02BB). Alias covers the apostrophe-free spelling. CFBD school confirmed 'Hawai'i' (also ASCII apostrophe, U+0027); alternateNames are 'HAW'/'Hawai'i', neither equals this alias. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "Hawai'i Rainbow Warriors",
     "school": "Hawai'i",
-    "note": "ESPN team.displayName form of the row above."
-  },
-  {
-    "source": "Espn",
-    "alias": "Florida International",
-    "school": "FIU",
-    "note": "ESPN team.location 'Florida International', abbreviation 'FIU'. CFBD school is believed to be 'Florida International'. VERIFY; only needed if CFBD shortened it to 'FIU'."
-  },
-  {
-    "source": "Espn",
-    "alias": "Florida Atlantic",
-    "school": "FAU",
-    "note": "ESPN team.location 'Florida Atlantic', abbreviation 'FAU'. VERIFY; only needed if CFBD shortened it to 'FAU'."
-  },
-  {
-    "source": "Espn",
-    "alias": "South Florida",
-    "school": "USF",
-    "note": "ESPN team.location 'South Florida', abbreviation 'USF'. VERIFY; only needed if CFBD shortened it to 'USF'."
-  },
-  {
-    "source": "Espn",
-    "alias": "Miami (OH)",
-    "school": "Miami (OH)",
-    "note": "Not a mismatch, but pinned deliberately: after 04 section 9 normalization strips punctuation, 'Miami (OH)' becomes 'miami oh' and the Hurricanes' 'Miami' becomes 'miami'. Keep this row so the pair can never collapse into each other."
-  },
-  {
-    "source": "Espn",
-    "alias": "Miami",
-    "school": "Miami",
-    "note": "ESPN team.location for the Hurricanes is plain 'Miami' (team id 2390, rankings capture). Pinned for the same reason as the Miami (OH) row."
+    "note": "ESPN team.displayName form of the row above. Confirmed against /teams/fbs 2025.",
+    "verified": true
   },
   {
     "source": "Espn",
     "alias": "SE Louisiana",
     "school": "Southeastern Louisiana",
-    "note": "FCS opponent, never eligible for a game set, but it appears inside groups=80 scoreboard payloads and would otherwise land in UnmatchedGames."
-  },
-  {
-    "source": "Espn",
-    "alias": "East Texas A&M",
-    "school": "East Texas A&M",
-    "note": "Not a mismatch; pinned because the ampersand plus the shared 'Texas A&M' substring makes this the most likely false positive for Texas A&M under punctuation-stripping normalization."
-  },
-  {
-    "source": "Espn",
-    "alias": "Texas A&M",
-    "school": "Texas A&M",
-    "note": "Pinned counterpart of the East Texas A&M row."
+    "note": "FCS opponent, never eligible for a game set, but it appears inside groups=80 scoreboard payloads and would otherwise land in UnmatchedGames. Not present in /teams/fbs 2025 (FCS classification, as expected) so the CFBD-side school string cannot be confirmed from that endpoint; kept unverified deliberately, harmless either way since FCS games are ignored per D-012.",
+    "verified": false
   }
 ]

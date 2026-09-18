@@ -1,6 +1,6 @@
 # P2-01 Provider spike — ESPN and CollegeFootballData
 
-Owner: `opus-p2-01`. Captured 2026-09-18. Branch `p2-01-provider-spike`.
+Owner: `opus-p2-01`, CFBD captures by `p2-01b-cfbd-captures`. Captured 2026-09-18. Branches `p2-01-provider-spike` (merged), `p2-01b-cfbd-captures`.
 
 Inputs: WorkItems 09 and 12, `02-Data-Model.md` (Season reference data, Operations), `04-Domain-Algorithms.md` sections 9 and 10, D-003.
 
@@ -11,8 +11,8 @@ Inputs: WorkItems 09 and 12, `02-Data-Model.md` (Season reference data, Operatio
 - **ESPN half: done live.** Seven read-only GETs against `site.api.espn.com`. Every field the card lists exists and behaves as Feature 12 assumed, with four corrections worth acting on (Eastern-day bucketing, `groups=80` does **not** classify FBS/FCS, the odds `spread` sign convention, and a normalization gap for diacritics). Trimmed captures are committed under `tests/NcaafPickEm.Fixtures/Real/`.
 - **CFBD tier question: resolved from the public tiers page.** The **Live Scoreboard endpoint is Tier 1 ($1/month, 5,000 calls)**, not Tier 2. Feature 12 recorded the ambiguity ("the tiers page lists live scoreboard at Tier 1 in one place and Tier 2 in another; confirm before subscribing"); it is settled, and the escape hatch from the hybrid is $1/month, not $5. See D-012.
 - **CFBD contract: derived from the live OpenAPI document**, `https://api.collegefootballdata.com/api-docs.json` (public, unauthenticated, 217 KB), cross-checked against the official NuGet client's README. Exact method paths, query parameters and response field names for all five calls are below. This is authoritative for P2-02's DTO work.
-- **CFBD live calls: still not made.** The operator's key exists at a path outside the repo, but every attempt to combine "read that file" with "send an HTTP request" was refused by the Claude Code auto-mode permission classifier (reason: *Credential Exploration*), in both Git Bash and PowerShell. This is a **permission** block, not a key block. The five calls are specified precisely in "Blocked: operator to-do" below and take about two minutes to run by hand.
-- **TeamAliases draft:** `tests/NcaafPickEm.Fixtures/Real/team-aliases-draft.json`, 24 rows. Every row is confirmed on the ESPN side from the real capture; none is confirmed on the CFBD side, because that needs the `/teams/fbs` payload. Rows needing confirmation carry a `note` saying so.
+- **CFBD live calls: made.** The operator ran 7 authenticated read-only GETs against `api.collegefootballdata.com` (season 2025, week 3, regular season) plus the unauthenticated OpenAPI document already captured. All 6 real requests returned 200 and the scoreboard tier probe returned the expected 401 (`"Unauthorized. This endpoint requires a Patreon subscription at Tier 1 or higher."`, confirming the Tier 1 boundary from the docs page with a live response). Trimmed captures for all 7 are committed under `tests/NcaafPickEm.Fixtures/Real/cfbd-*.json`. See "CFBD captures (done)" below.
+- **TeamAliases draft:** `tests/NcaafPickEm.Fixtures/Real/team-aliases-draft.json`, now **11 rows** (down from 24) after verification against the real `/teams/fbs` 2025 payload. 13 rows were dropped as no-ops: in every "needs confirmation" and "high confidence mismatch" case, CFBD's real `school` value turned out to equal the ESPN alias directly (e.g. CFBD's school is `App State`, `UL Monroe`, `Massachusetts`, `UConn`, `UTSA`, `Southern Miss`, `Florida International`, `Florida Atlantic`, `South Florida` — not the longer forms first guessed from documentation). Every remaining row now carries `verified: true` (or `verified: false` with an explicit reason, for the one FCS opponent absent from `/teams/fbs`). See "TeamAliases draft (verified)" below.
 
 ---
 
@@ -31,8 +31,15 @@ Inputs: WorkItems 09 and 12, `02-Data-Model.md` (Season reference data, Operatio
 | 9 | `GET https://www.nuget.org/packages/CollegeFootballData` (docs page) | package id and versions read |
 | 10 | `GET https://www.nuget.org/api/v2/package/CollegeFootballData/5.27.1` | 237,100-byte `.nupkg`, unpacked and read |
 | 11 | `GET https://api.collegefootballdata.com/api-docs.json` | 200, 217,357 bytes, **no API key required** — the OpenAPI document is public |
+| 12 | `GET /teams/fbs?year=2025` | 200, ~200 KB, 136 `Team` objects |
+| 13 | `GET /games?year=2025&week=3&seasonType=regular&classification=fbs` | 200, 55 KB, 70 `Game` objects, all `completed=true`, none `startTimeTBD=true` |
+| 14 | `GET /rankings?year=2025&week=3&seasonType=regular` | 200, 13 KB, one `PollWeek` with 5 polls |
+| 15 | `GET /lines?year=2025&week=3&seasonType=regular` | 200, 79 KB, 108 `BettingGame` objects |
+| 16 | `GET /calendar?year=2025` | 200, 3.6 KB, 17 `CalendarWeek` rows (16 regular + 1 postseason) |
+| 17 | `GET /scoreboard?classification=fbs` | **HTTP 401**, `{"message":"Unauthorized. This endpoint requires a Patreon subscription at Tier 1 or higher."}` — confirms the Tier 1 boundary live |
+| 18 | `GET /conferences?year=2025&classification=fbs` | 200, 1.4 KB, 11 `Conference` rows |
 
-Base URL, both scoreboard and rankings: `https://site.api.espn.com/apis/site/v2/sports/football/college-football`.
+Base URL, both scoreboard and rankings: `https://site.api.espn.com/apis/site/v2/sports/football/college-football`. Requests 12–18 are against `https://api.collegefootballdata.com`, header `Authorization: Bearer <key>` (never logged or committed), `Accept: application/json`.
 
 **Not observed live:** an in-progress game. The capture window (2026-09-18 20:41 UTC = 16:41 ET, Friday) fell between slates — the three Friday games kicked at 19:30 ET. So `STATUS_IN_PROGRESS`, `STATUS_HALFTIME`, `STATUS_END_PERIOD`, `STATUS_DELAYED`, `STATUS_POSTPONED` and `STATUS_CANCELED` are **not** evidenced by a committed payload; only `STATUS_SCHEDULED` and `STATUS_FINAL` are. P2-05's synthetic snapshots must supply the in-progress shapes, and P2-03's mapping must treat any unrecognized `status.type.name` as a logged no-op rather than a crash (see "Status mapping check").
 
@@ -176,12 +183,14 @@ Method paths follow Kiota's URL-segment convention and are corroborated by the R
 | `twitter` | string? | unused |
 | `location` | `Venue`? | nested object (`id`, `name`, `city`, `state`, `zip`, `countryCode`, `timezone`, `latitude`, `longitude`, `elevation`, `capacity`, `constructionYear`, `grass`, `dome`) — **note the name collision: CFBD `Team.location` is a *venue*, ESPN `team.location` is the *school name*.** Easy bug; call it out in P2-02's mapper. |
 
-Also `client.Conferences.GetAsync(...)` → `GET /conferences?year=&classification=` → `List<Conference>` with `id`, `name`, `shortName`, `abbreviation`, `classification`, `memberCount` → `Conferences` (`CfbdId`, `Name`, `Abbreviation`, `Classification`). `Conferences.EspnGroupId` has no CFBD source and must be seeded by hand or learned from `competitions[].groups.id` on conference games.
+Also `client.Conferences.GetAsync(...)` → `GET /conferences?year=&classification=` → `List<Conference>` with `id`, `name`, `shortName`, `abbreviation`, `classification`, `memberCount` → `Conferences` (`CfbdId`, `Name`, `Abbreviation`, `Classification`). **Confirmed live** (`cfbd-conferences-2025.json`, 11 rows): e.g. `{ id: 1, name: "ACC", shortName: "Atlantic Coast Conference", abbreviation: "ACC", classification: "fbs", memberCount: 17 }`. Note `name` is the short form and `shortName` is the long form — the opposite of what the names suggest; `Conferences.Name` should map from CFBD `shortName` (the full conference name) if `02-Data-Model.md`'s `Name` column is meant to be human-readable, or from `name`/`abbreviation` if it is meant to be the short form already used elsewhere (e.g. ESPN `groups.shortName` is also `"ACC"`). `Conferences.EspnGroupId` has no CFBD source and must be seeded by hand or learned from `competitions[].groups.id` on conference games.
 
 **2. Games** — `client.Games.GetAsync(cfg => { cfg.QueryParameters.Year = 2025; cfg.QueryParameters.Week = 3; cfg.QueryParameters.Classification = ...; })`
 `GET /games?year=&week=&seasonType=&classification=&team=&home=&away=&conference=&id=&competition=&round=` (operationId `GetGames`) → `List<Game>`
 
 > **Parameter name change:** the card and Feature 12 both say `division=fbs`. The current API calls it **`classification`** (enum `fbs`, `fcs`, `ii`, `ii/iii`, `iii`); `seasonType` is the enum `regular`, `postseason`, `both`, `allstar`, `spring_regular`, `spring_postseason`. P2-02 must use `classification`.
+
+**Confirmed live** (`cfbd-games-2025-week3.json`, trimmed from 70 to 4): the exact field set on a `Game` object is `id`, `season`, `week`, `seasonType`, `startDate`, `startTimeTBD`, `completed`, `neutralSite`, `conferenceGame`, `attendance`, `venueId`, `venue`, `homeId`, `homeTeam`, `homeClassification`, `homeConference`, `homePoints`, `homeLineScores`, `homePostgameWinProbability`, `homePregameElo`, `homePostgameElo`, and the away equivalents, plus `excitementIndex`, `highlights`, `notes`, `playoff`. **There is no `status` field anywhere on the object** — confirmed, not just inferred from the OpenAPI document. All 70 rows in the week 3 capture have `completed: true` (the week is fully in the past) and **none** have `startTimeTBD: true`, so a `startTimeTBD`-true example could not be captured from live data; P2-05's synthetic fixtures must supply that shape.
 
 | Field | Type | Maps to |
 |---|---|---|
@@ -223,18 +232,18 @@ Also `client.Conferences.GetAsync(...)` → `GET /conferences?year=&classificati
 `BettingGame` = `id` int (**the CFBD game id — join straight to `Games.CfbdGameId`**), `season`, `seasonType`, `week`, `startDate`, `homeTeamId`, `homeTeam`, `homeConference`, `homeClassification`, `homeScore`, the away equivalents, and `lines` `GameLine[]`.
 `GameLine` = `provider` string, `spread` double?, `formattedSpread` string, `spreadOpen` double?, `overUnder` double?, `overUnderOpen` double?, `homeMoneyline` double?, `awayMoneyline` double?.
 
-→ `GameLines(GameId, Provider, Spread, FetchedUtc)`, one row per `lines[]` entry, appended (history kept per `02-Data-Model.md`). **`spread` sign must be verified against a real payload** — `formattedSpread` (e.g. `"Alabama -7.5"`) is the tie-breaker, exactly as ESPN's `details` was. CFBD conventionally reports `spread` home-relative (negative = home favoured), the same as `02-Data-Model.md`, but this is the one field of the five I could not confirm without a live call. It is item 4 in the operator to-do.
+→ `GameLines(GameId, Provider, Spread, FetchedUtc)`, one row per `lines[]` entry, appended (history kept per `02-Data-Model.md`). **`spread` sign convention: confirmed live, home-relative, negative = home favoured.** Checked against `cfbd-lines-2025-week3.json` (3 games, all 3 providers each) and the full 108-game raw capture: LSU (home) vs Florida (away), `spread: -5.5`, `formattedSpread: "LSU -5.5"` — home favoured, negative, matches. Tennessee (home) vs Georgia (away), `spread: 3.5`, `formattedSpread: "Georgia -3.5"` — **away** favoured, positive, matches. Arizona (home) vs Kansas State (away), `spread: 1.5`, `formattedSpread: "Kansas State -1.5"` — away favoured, positive, matches. Georgia Tech/Clemson and West Virginia/Pittsburgh (away-favoured, both positive) checked the same way with no disagreements between `spread`'s sign and `formattedSpread`'s named favourite across ~20 spot-checked rows. This is **exactly** `02-Data-Model.md`'s `GameLines.Spread` convention ("home minus away; negative = home favored") — **no sign conversion needed** in the CFBD ingest, same conclusion as the ESPN `odds[0].spread` field. See D-013.
 
 **5. Calendar** — `client.Calendar.GetAsync(cfg => cfg.QueryParameters.Year = 2025)`
 `GET /calendar?year={required}` (operationId `GetCalendar`) → `List<CalendarWeek>`
 
 `CalendarWeek` = `season` int, `week` int, `seasonType` enum, `startDate`, `endDate`, `firstGameStart`, `lastGameStart` (all date-time).
 
-→ `SeasonWeeks(SeasonYear, Week, StartUtc, EndUtc, IsRegularSeason)`. `IsRegularSeason = seasonType == "regular"` per P2-02's card. Note that `startDate`/`endDate` are CFBD's week boundaries, whereas `02-Data-Model.md` specifies "Sunday 00:00 ET to Saturday 23:59:59 ET, converted to UTC" — **P2-02 must decide whether to store CFBD's boundaries verbatim or normalise them to the ET week**, because `04` section 1 and the lock algorithm read those columns. `firstGameStart`/`lastGameStart` are a useful sanity check either way. Flagging rather than deciding, since P0-05 owns the season calendar domain.
+→ `SeasonWeeks(SeasonYear, Week, StartUtc, EndUtc, IsRegularSeason)`. `IsRegularSeason = seasonType == "regular"` per P2-02's card. **Boundary convention: confirmed live, Eastern-local-time, not Sunday-to-Saturday.** All 17 rows in `cfbd-calendar-2025.json` start and end at **03:00/02:59 America/New_York**, e.g. week 3: `startDate: "2025-09-08T07:00:00.000Z"` = Monday 03:00 ET, `endDate: "2025-09-15T06:59:00.000Z"` = the following Monday 02:59 ET. The UTC offset moves from `07:00` to `08:00` exactly at the 2025 DST-end transition (week 10→11, early November) while the local wall-clock time stays fixed at 03:00, which proves the boundary is anchored to Eastern local time, not a fixed UTC offset. So CFBD's week runs **Monday 03:00 ET through the following Monday 02:59 ET** — a full week, but shifted about three days later than `02-Data-Model.md`'s "Sunday 00:00 ET to Saturday 23:59:59 ET" `SeasonWeeks` boundary. **P2-02 must decide whether to store CFBD's boundaries verbatim or normalise them to the ET Sunday-Saturday week** `04` section 1's lock algorithm was written against — the fact is now settled, the choice is not. `firstGameStart`/`lastGameStart` are a useful sanity check either way. Flagging rather than deciding, since P0-05 owns the season calendar domain. See D-013.
 
 **Tier probe (not one of the five)** — `client.Scoreboard.GetAsync(cfg => cfg.QueryParameters.Classification = ...)`
 `GET /scoreboard?classification=&conference=` → `List<ScoreboardGame>`:
-`id`, `startDate`, `startTimeTBD`, `tv`, `neutralSite`, `conferenceGame`, `status` (enum **`scheduled` | `in_progress` | `completed`** — again no Postponed/Cancelled), `period` int?, `clock` string?, `situation`, `possession`, `lastPlay`, `venue` `{ name, city, state }`, `homeTeam`/`awayTeam` `{ id, name, conference, classification, points, lineScores[], winProbability }`, `weather`, `betting`. On the free tier this should return 401/403; that is the call that proves the tier boundary.
+`id`, `startDate`, `startTimeTBD`, `tv`, `neutralSite`, `conferenceGame`, `status` (enum **`scheduled` | `in_progress` | `completed`** — again no Postponed/Cancelled), `period` int?, `clock` string?, `situation`, `possession`, `lastPlay`, `venue` `{ name, city, state }`, `homeTeam`/`awayTeam` `{ id, name, conference, classification, points, lineScores[], winProbability }`, `weather`, `betting`. **Confirmed live**: `GET /scoreboard?classification=fbs` on the free tier returned `HTTP 401`, body `{"message":"Unauthorized. This endpoint requires a Patreon subscription at Tier 1 or higher."}` — committed verbatim as `cfbd-scoreboard-401.json`. This matches the docs-page tier finding exactly; no superseding needed.
 
 ---
 
@@ -258,22 +267,33 @@ These four are the substance of **D-012**.
 
 ---
 
-## TeamAliases draft
+## TeamAliases draft (verified)
 
-`tests/NcaafPickEm.Fixtures/Real/team-aliases-draft.json` — 24 rows, shape `{ source, alias, school, note }` (`note` is documentation only; P2-02's seeder reads `source`/`alias` and resolves `school` to a `TeamId`).
+`tests/NcaafPickEm.Fixtures/Real/team-aliases-draft.json` — **11 rows** (down from 24), shape `{ source, alias, school, note, verified }` (`note`/`verified` are documentation only; P2-02's seeder reads `source`/`alias` and resolves `school` to a `TeamId`). Every row now carries `verified: true`, except one FCS row explained below.
 
-Confidence, stated plainly: **every row's ESPN side is real**, taken from the 185 distinct teams in the two committed captures. **No row's CFBD side is confirmed**, because `/teams/fbs` was never called. The rows split three ways:
+Verified against the real, live `cfbd-teams-fbs.json` capture (136 `Team` objects, all with a non-empty `alternateNames` array — see the count below). The headline finding: **every "needs confirmation" row and every "high confidence mismatch" row from the draft was in fact a no-op**, but not for the reason guessed. CFBD's real `school` value equals the *shorter* ESPN form directly, not the longer form documentation suggested:
 
-- **High confidence mismatches** (ESPN's string is demonstrably not a school name CFBD would use): `App State` → `Appalachian State`, `UL Monroe` → `Louisiana Monroe`, `Massachusetts` → `UMass`, `SE Louisiana` → `Southeastern Louisiana`.
-- **Needs confirmation** (plausible either way; the row is a harmless no-op if CFBD already uses ESPN's spelling): `UTSA` → `UT San Antonio`, `UConn` → `Connecticut`, `Southern Miss` → `Southern Mississippi`, `Florida International` → `FIU`, `Florida Atlantic` → `FAU`, `South Florida` → `USF`.
-- **Deliberate no-ops, pinned against normalization collisions**: `Miami` / `Miami (OH)` (punctuation-stripping turns these into `miami` and `miami oh`, and a fuzzy matcher that ever falls back to prefix matching would cross them), `Texas A&M` / `East Texas A&M` (same hazard via the shared substring), `San Jose State` / `San José State` (both spellings), `Hawaii` / `Hawai'i`.
+| ESPN alias | Draft guessed CFBD `school` | Real CFBD `school` | Real `alternateNames` |
+|---|---|---|---|
+| `App State` | `Appalachian State` | `App State` | `["Appalachian State","APP","App State"]` |
+| `UL Monroe` | `Louisiana Monroe` | `UL Monroe` | `["La.-Monroe","ULM","UL Monroe"]` |
+| `Massachusetts` | `UMass` | `Massachusetts` | `["UMass","MASS","UMass"]` |
+| `UConn` | `Connecticut` | `UConn` | `["Connecticut","CONN","UConn"]` |
+| `UTSA` | `UT San Antonio` | `UTSA` | `["Texas-San Antonio","UTSA","UTSA"]` |
+| `Southern Miss` | `Southern Mississippi` | `Southern Miss` | `["Southern Mississippi","USM","Southern Miss"]` |
+| `Florida International` | `FIU` | `Florida International` | `["Florida Intl","FIU","FIU"]` |
+| `Florida Atlantic` | `FAU` | `Florida Atlantic` | `["FAU","FAU"]` |
+| `South Florida` | `USF` | `South Florida` | `["USF","South Florida"]` |
 
-Each mismatch row is present twice, once for ESPN `location` and once for ESPN `displayName`, so the matcher hits regardless of which field P2-03 normalizes.
+Since the ESPN `location` alias equals the CFBD `school` string exactly in every one of these rows, they are pure identity no-ops and were **deleted** (9 rows: the `location` half of each pair above). Their `displayName` counterparts (`App State Mountaineers`, `UL Monroe Warhawks`, `Massachusetts Minutemen`, `UTSA Roadrunners`, `UConn Huskies`, `Southern Miss Golden Eagles`) are **kept** — `displayName` still doesn't match `school` or any `alternateNames` entry, so those 6 rows remain, each retargeted to the correct real `school` value and marked `verified: true`.
 
-Two things that make this list smaller than it looks:
+The **pinned no-op rows** (`Miami`, `Miami (OH)`, `Texas A&M`, `East Texas A&M`) were also deleted: `school` in each equals `alias` already (`Miami` → CFBD `school: "Miami"`, alt `["Miami (FL)","MIA","Miami"]`; `Miami (OH)` → CFBD `school: "Miami (OH)"`, alt `["M-OH","Miami OH"]`; `Texas A&M` → CFBD `school: "Texas A&M"`, alt `["TA&M","Texas A&M"]`), and the direct-string-match matcher in `04` section 9 does not need an identity alias to avoid the punctuation-stripping collision the original notes worried about — `miami` and `miamioh` never collapse into the same string, so the collision was theoretical rather than real. `East Texas A&M` is **not present in the 2025 `/teams/fbs` list at all** (likely still transitioning classification); its identity row was dropped too since it was a no-op regardless of CFBD confirmation, but if it appears on a 2026+ schedule under a different `school` spelling P2-02/P2-03 will need to add a real alias row then.
 
-1. **CFBD `Team.alternateNames` is an alias list CFBD already maintains.** P2-02 should seed `TeamAliases(Source='Cfbd')` from it on every teams ingest, and P2-03 should consult it before falling back to this hand-written ESPN table. That is very likely to resolve most of the "needs confirmation" rows for free.
-2. **Aliases are a cold-start problem only.** `04` section 9 already says that once an ESPN event matches, `EspnEventId` and `EspnTeamId` are written and future polls match by id. So the alias table has to be right for roughly one poll per team per season; after that it is inert. The cost of a miss is an `UnmatchedGames` row on the commissioner data page, not a scoring failure.
+**Kept as-is, already correct:** `San Jose State`/`San José State Spartans` → `San José State` (CFBD `school` confirmed `"San José State"`, U+00E9, matching the draft; alt names `["San Jose St.","SJSU","San José St"]` don't cover either alias form) and `Hawaii`/`Hawai'i Rainbow Warriors` → `Hawai'i` (CFBD `school` confirmed `"Hawai'i"` with the ASCII apostrophe U+0027, matching the draft; alt names `["HAW","Hawai'i"]` don't cover either alias form).
+
+**Kept unverified, explicitly:** `SE Louisiana` → `Southeastern Louisiana`, `verified: false` — this is an FCS opponent and does not appear in `/teams/fbs` (FBS-only endpoint), so its CFBD-side `school` string cannot be checked from this capture. Harmless either way: D-012 already routes FCS opponents to silent-ignore rather than `UnmatchedGames`.
+
+**All 136 FBS teams in the 2025 capture have a non-empty `alternateNames` array** (confirmed by exhaustive check, not a sample) — CFBD's alias data is complete for the FBS set, not merely present for a handful of edge cases. This strengthens the existing recommendation: **P2-02 should seed `TeamAliases(Source='Cfbd')` from `Team.alternateNames` on every teams ingest, unconditionally**, and P2-03 should consult those rows before falling back to this now-11-row hand-written ESPN table. Between CFBD's own alias list and this table, essentially every real-world ESPN spelling divergence this spike could observe is covered.
 
 **Do not match on abbreviations across the two sources.** ESPN's abbreviations are its own (`TA&M`, `M-OH`, `MISS` for Ole Miss, `UL` for Louisiana, `USA` for South Alabama) and there is no reason to expect them to equal CFBD's. `04` section 9 lists `Teams.Abbreviation` as a comparison target; treat that as *last resort, and only for an exact case-insensitive hit*, because `USA`/`USM`/`USF` style collisions are exactly where a wrong match silently scores the wrong game. Prefer leaving a game unmatched and visible on the data page.
 
@@ -283,7 +303,7 @@ Two things that make this list smaller than it looks:
 
 **ESPN — free, no key, no published rate limit.** 11 requests consumed by this spike (7 to `site.api.espn.com`, 4 to documentation/package hosts). Nothing to account for. `04` section 10's ~174 polls per Saturday × 15 Saturdays ≈ 2,600 calls per season costs nothing and needs no quota tracking. `ProviderCalls` should still record them for the failure-rate logic (3 consecutive failures ⇒ CFBD fallback).
 
-**CFBD — free tier, 1,000 calls/month.** 0 requests consumed against the authenticated API by this spike; the 217 KB OpenAPI document at `/api-docs.json` is served without a key and is not metered. The operator to-do below will consume **5 calls**, or **7** with both optional probes. Against the reference-data budget in Feature 12 (~10 calls/week, ~45/month) that is one-seventh of a month's normal usage and leaves the free tier untouched for the season.
+**CFBD — free tier, 1,000 calls/month.** **7 requests consumed** against the authenticated API by this spike (see "CFBD captures (done)" below) — `/teams/fbs`, `/games`, `/rankings`, `/lines`, `/calendar`, `/conferences`, and the `/scoreboard` tier probe (401, not billable data but still a call). The 217 KB OpenAPI document at `/api-docs.json` remains unauthenticated and unmetered. Against the reference-data budget in Feature 12 (~10 calls/week, ~45/month) 7 calls is roughly one-sixth of a month's normal usage and leaves the free tier untouched for the season.
 
 Standing per-month arithmetic for P2-04's counter, unchanged from Feature 12 and re-checked here:
 
@@ -302,32 +322,25 @@ So the free tier survives even a total ESPN outage for a full month (~535 of 1,0
 
 ---
 
-## Blocked: operator to-do
+## CFBD captures (done)
 
-**Why this is still open.** The CFBD key is present on the machine, outside the repo. The block is Claude Code's auto-mode permission classifier, which refuses any command that reads a credential file and makes a network call in the same breath (reason: *Credential Exploration*). Both the Git Bash and the PowerShell formulations were refused. This is correct default behaviour and should not be worked around from inside an agent.
+The prior draft of this section described the calls as blocked by Claude Code's auto-mode permission classifier (reason: *Credential Exploration*) when reading the operator's key and making a network call in the same command. The operator ran the calls directly, outside that constraint, and handed the raw responses back for trimming. All 7 requests (the original 5 plus both optional probes) are done; nothing here remains open except the ESPN in-progress payload noted at the end.
 
-**To unblock:** either add a Bash permission rule for a single, narrowly scoped capture script (`.claude/settings.json`, e.g. allowing `bash scripts/capture-cfbd.sh`), run the task interactively so the prompt can be approved, or just run the five commands below by hand. The operator owns that choice.
+**Season 2025, week 3, regular season** (2025 is complete — finals, lines and a settled AP poll all exist; the 2026 season used for the ESPN half was only three weeks old at capture time). Base `https://api.collegefootballdata.com`, header `Authorization: Bearer <key>` (never echoed, logged, or committed; the raw responses were handed off outside the repo and read only from a scratch directory), `Accept: application/json`.
 
-**The five calls.** Base `https://api.collegefootballdata.com`, header `Authorization: Bearer <key>`, `Accept: application/json`. Use **season 2025, week 3, regular season** (the 2026 season is only three weeks old; 2025 week 3 is complete and has finals, lines and a settled AP poll).
+| # | Request | Status | Raw bytes | Committed file | Trim applied |
+|---|---|---|---|---|---|
+| 1 | `GET /teams/fbs?year=2025` | 200 | ~200 KB | `cfbd-teams-fbs.json` | 136 → 12 `Team` objects covering the alias list (App State, UL Monroe, Massachusetts, UConn, UTSA, Southern Miss, Hawai'i, San José State, Miami, Miami (OH), Texas A&M, Florida International); `alternateNames` kept in full; `logos[]` trimmed to 1 URL each |
+| 2 | `GET /games?year=2025&week=3&seasonType=regular&classification=fbs` | 200 | 55 KB | `cfbd-games-2025-week3.json` | 70 → 4 `Game` objects: Wake Forest/NC State (completed, conference game), Arizona/Kansas State (completed, non-conference), Indiana/Indiana State (completed, `awayClassification: "fcs"`), LSU/Florida (completed, also in the lines fixture). No `startTimeTBD: true` example exists in the raw data — all 70 rows are `completed: true` and none is `startTimeTBD: true`; flagged, not fabricated |
+| 3 | `GET /rankings?year=2025&week=3&seasonType=regular` | 200 | 13 KB | `cfbd-rankings-2025-week3.json` | 5 polls → `AP Top 25` only, all 25 ranks kept; `Coaches Poll`, `FCS Coaches Poll` and both AFCA polls dropped |
+| 4 | `GET /lines?year=2025&week=3&seasonType=regular` | 200 | 79 KB | `cfbd-lines-2025-week3.json` | 108 → 3 `BettingGame` objects: LSU/Florida (home favoured), Tennessee/Georgia (away favoured), Arizona/Kansas State (away favoured); all `lines[]` entries (every provider) kept per game |
+| 5 | `GET /calendar?year=2025` | 200 | 3.6 KB | `cfbd-calendar-2025.json` | untouched, all 17 `CalendarWeek` rows |
+| 6 | `GET /scoreboard?classification=fbs` | **401** | — | `cfbd-scoreboard-401.json` | exact body committed verbatim: `{"message":"Unauthorized. This endpoint requires a Patreon subscription at Tier 1 or higher."}` — confirms the Tier 1 boundary live, no change to D-012 |
+| 7 | `GET /conferences?year=2025&classification=fbs` | 200 | 1.4 KB | `cfbd-conferences-2025.json` | untouched, all 11 `Conference` rows |
 
-| # | Request | Save trimmed to | Expect |
-|---|---|---|---|
-| 1 | `GET /teams/fbs?year=2025` | `tests/NcaafPickEm.Fixtures/Real/cfbd-teams-fbs.json` | ~136 `Team` objects. **Trim to ~12 teams** chosen to cover the alias list: Appalachian State, Louisiana Monroe, UMass, Connecticut/UConn, UT San Antonio/UTSA, Southern Miss(issippi), Hawai'i, San José State, Miami, Miami (OH), Texas A&M, East Texas A&M. Keep `alternateNames` in full — that is the point of the capture. |
-| 2 | `GET /games?year=2025&week=3&seasonType=regular&classification=fbs` | `cfbd-games-2025-week3.json` | ~60–70 `Game` objects. Trim to 4: one completed with scores, one with `startTimeTBD`, one conference game, one FBS-vs-FCS (check `awayClassification`). |
-| 3 | `GET /rankings?year=2025&week=3&seasonType=regular` | `cfbd-rankings-2025-week3.json` | one `PollWeek`; keep the `AP Top 25` poll's 25 ranks, drop the Coaches poll. |
-| 4 | `GET /lines?year=2025&week=3&seasonType=regular` | `cfbd-lines-2025-week3.json` | `BettingGame[]`. Trim to 3, **including at least one away-favoured game**, and record whether `spread` is home-relative (compare against `formattedSpread`). This is the one unresolved field mapping. |
-| 5 | `GET /calendar?year=2025` | `cfbd-calendar-2025.json` | ~15–17 `CalendarWeek` rows; keep all, it is tiny. Record whether `startDate`/`endDate` are ET-week or UTC-week boundaries. |
+All 7 committed files are well under the 200 KB cap (largest is `cfbd-teams-fbs.json` at 11.5 KB); every field name is preserved, including nulls, so P2-02 can see the exact shape. `team-aliases-draft.json` was re-checked against file 1's real `school`/`alternateNames` values — see "TeamAliases draft (verified)" above.
 
-Optional probes (2 more, ≤ 7 total, staying under the 10-call cap):
-
-| # | Request | Records |
-|---|---|---|
-| 6 | `GET /scoreboard?classification=fbs` | the **tier boundary**: expect `401`/`403` on the free tier. Record the exact status code and body. If it returns 200, the free tier includes the live scoreboard and D-012's tier finding needs superseding. |
-| 7 | `GET /conferences?year=2025&classification=fbs` | `Conferences` seed shape; lets P2-02 map `Conferences.CfbdId` without inferring it from `Team.conference` strings. |
-
-**Rules for whoever runs these:** never echo, log, or commit the key; never write it into any file under the repo; each committed file under 200 KB; strip nothing but bulk (keep every field name, even nulls, so P2-02 can see the shape). Then: re-check `tests/NcaafPickEm.Fixtures/Real/team-aliases-draft.json` against the real `school` and `alternateNames` values, delete the rows that turn out to be no-ops, and update this section and the TeamAliases section above.
-
-**Also still open:** no in-progress ESPN payload was captured (see "What was verified live"). The cheapest fix is a single `GET .../scoreboard?groups=80&dates=<today>&limit=300` on any Saturday between 12:30 and 23:00 ET, trimmed to two events and committed as `espn-scoreboard-inprogress.json`. P2-03's `LiveScoreApplyTests` want it.
+**Still open:** no in-progress ESPN payload was captured (see "What was verified live"). The cheapest fix is a single `GET .../scoreboard?groups=80&dates=<today>&limit=300` on any Saturday between 12:30 and 23:00 ET, trimmed to two events and committed as `espn-scoreboard-inprogress.json`. P2-03's `LiveScoreApplyTests` want it. This is the **only** remaining gap from the spike.
 
 ---
 
@@ -342,7 +355,7 @@ Optional probes (2 more, ≤ 7 total, staying under the 10-call cap):
 5. Watch the `Team.location` / ESPN `team.location` name collision — CFBD's is a `Venue` object, ESPN's is the school name.
 6. Seed `TeamAliases(Source='Cfbd')` from `Team.alternateNames` on every teams ingest. It is free alias data and it shrinks the hand-maintained table.
 7. `Game` has no status field. Model postponement as *disappeared from, or moved within, the week's payload*, and write the test that way.
-8. Decide, and record, whether `SeasonWeeks.StartUtc`/`EndUtc` take CFBD's `CalendarWeek` boundaries verbatim or get normalised to the ET week `02-Data-Model.md` describes. Coordinate with P0-05.
+8. Decide, and record, whether `SeasonWeeks.StartUtc`/`EndUtc` take CFBD's `CalendarWeek` boundaries verbatim or get normalised to the ET Sunday-Saturday week `02-Data-Model.md` describes. The boundary is now a settled fact (Monday 03:00 ET to the following Monday 02:59 ET, per D-013), only the choice of which convention to store is open. Coordinate with P0-05.
 9. `Conferences.EspnGroupId` has no CFBD source. Seed it by hand, or learn it from `competitions[].groups.id` on ESPN conference games (which the capture shows is reliably present exactly when `conferenceCompetition` is true).
 
 **For P2-03 (ESPN provider, matcher, fallback)**

@@ -107,15 +107,24 @@ Follow-up Tasks
   all Final; espn-scoreboard-20260919.json, all Scheduled with odds; espn-rankings.json). Field
   mappings are in Implementation/spikes/providers.md. Still missing: an in-progress payload -
   the capture window fell between slates. One Saturday-afternoon call closes it.
-- [PARTIAL 2026-09-18, P2-01] Build the team-name matching table between CFBD and ESPN and check
+- [DONE 2026-09-18, P2-01] Build the team-name matching table between CFBD and ESPN and check
   it against a full week. Draft is tests/NcaafPickEm.Fixtures/Real/team-aliases-draft.json,
-  24 rows, ESPN side confirmed against two real Saturday payloads (185 distinct teams), CFBD side
-  unconfirmed because the live CFBD calls have not been made. Note CFBD Team.alternateNames is an
-  alias list CFBD already maintains and should be seeded into TeamAliases(Source='Cfbd') by P2-02.
-- [OPEN] Make the five CFBD reference calls and commit trimmed responses. Exact requests, expected
-  shapes, and file names are in Implementation/spikes/providers.md, "Blocked: operator to-do".
-  Two facts still unverified there: the sign convention of CFBD lines[].spread, and whether
-  CalendarWeek.startDate/endDate are ET-week or UTC-week boundaries.
+  now 11 rows after verification against the real /teams/fbs 2025 payload (13 rows dropped as
+  no-ops: CFBD's real `school` value already equalled the ESPN alias in each case, e.g. CFBD
+  school is 'App State'/'UL Monroe'/'Massachusetts'/'UConn'/'UTSA'/'Southern Miss', not the
+  longer forms first guessed). Every remaining row is `verified: true` (or, for the one FCS
+  opponent not present in /teams/fbs, explicitly `verified: false` with a note why). CFBD
+  Team.alternateNames is an alias list CFBD already maintains and should be seeded into
+  TeamAliases(Source='Cfbd') by P2-02 (all 136 FBS teams have a non-empty alternateNames array).
+- [DONE 2026-09-18, P2-01] Make the CFBD reference calls and commit trimmed responses. 7 requests
+  made (teams/fbs, games, rankings, lines, calendar, conferences, and the scoreboard 401 tier
+  probe); trimmed fixtures committed under tests/NcaafPickEm.Fixtures/Real/cfbd-*.json. Both
+  previously-unverified facts are now resolved: CFBD lines[].spread is home-relative, negative =
+  home favoured (matches GameLines.Spread exactly, no conversion needed), confirmed on
+  home-favoured and away-favoured games; CalendarWeek.startDate/endDate are Eastern-local-time
+  week boundaries (Monday 03:00 ET to the following Monday 02:59 ET, tracking the EDT/EST
+  transition), not the Sunday 00:00 ET to Saturday 23:59:59 ET boundary 02-Data-Model.md assumes.
+  See D-013.
 
 Sources
 -------

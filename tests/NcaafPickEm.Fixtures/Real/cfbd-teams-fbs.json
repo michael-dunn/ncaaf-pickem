@@ -1,0 +1,434 @@
+{
+  "_note": "TRIMMED capture of the real CFBD /teams/fbs?year=2025 response. Captured by P2-01 on 2026-09-18. Full response carried 136 Team objects; only the 12 relevant to the TeamAliases draft are kept here (App State, UL Monroe, Massachusetts, UConn, UTSA, Southern Miss, Hawai'i, San Jose State, Miami, Miami (OH), Texas A&M, Florida International). All fields kept including alternateNames and the nested location (venue) object. logos[] trimmed to 1 entry per team.",
+  "data": [
+    {
+      "id": 2026,
+      "school": "App State",
+      "mascot": "Mountaineers",
+      "abbreviation": "APP",
+      "alternateNames": [
+        "Appalachian State",
+        "APP",
+        "App State"
+      ],
+      "conference": "Sun Belt",
+      "division": "East",
+      "classification": "fbs",
+      "color": "#000000",
+      "alternateColor": "#ffcd00",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/2026.png"
+      ],
+      "twitter": "@AppState_FB",
+      "location": {
+        "id": 3792,
+        "name": "Kidd Brewer Stadium",
+        "city": "Boone",
+        "state": "NC",
+        "zip": "28608",
+        "countryCode": "US",
+        "timezone": "America/New_York",
+        "latitude": 36.2114267,
+        "longitude": -81.6854278,
+        "elevation": "991.3414307",
+        "capacity": 30000,
+        "constructionYear": 1962,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 2433,
+      "school": "UL Monroe",
+      "mascot": "Warhawks",
+      "abbreviation": "ULM",
+      "alternateNames": [
+        "La.-Monroe",
+        "ULM",
+        "UL Monroe"
+      ],
+      "conference": "Sun Belt",
+      "division": "West",
+      "classification": "fbs",
+      "color": "#840029",
+      "alternateColor": "#fdb913",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/2433.png"
+      ],
+      "twitter": "@ULM_FB",
+      "location": {
+        "id": 3817,
+        "name": "Malone Stadium",
+        "city": "Monroe",
+        "state": "LA",
+        "zip": "71209",
+        "countryCode": "US",
+        "timezone": "America/Chicago",
+        "latitude": 32.5308089,
+        "longitude": -92.0660602,
+        "elevation": "22.998209",
+        "capacity": 27617,
+        "constructionYear": 1978,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 113,
+      "school": "Massachusetts",
+      "mascot": "Minutemen",
+      "abbreviation": "MASS",
+      "alternateNames": [
+        "UMass",
+        "MASS",
+        "UMass"
+      ],
+      "conference": "Mid-American",
+      "division": null,
+      "classification": "fbs",
+      "color": "#881c1c",
+      "alternateColor": "#ffffff",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/113.png"
+      ],
+      "twitter": "@UMassFootball",
+      "location": {
+        "id": 3985,
+        "name": "Warren McGuirk Alumni Stadium",
+        "city": "Hadley",
+        "state": "MA",
+        "zip": "1003 ",
+        "countryCode": "US",
+        "timezone": "America/New_York",
+        "latitude": 42.3773244,
+        "longitude": -72.5360595,
+        "elevation": "46.58664703",
+        "capacity": 17000,
+        "constructionYear": 1965,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 41,
+      "school": "UConn",
+      "mascot": "Huskies",
+      "abbreviation": "CONN",
+      "alternateNames": [
+        "Connecticut",
+        "CONN",
+        "UConn"
+      ],
+      "conference": "FBS Independents",
+      "division": null,
+      "classification": "fbs",
+      "color": "#000e2f",
+      "alternateColor": "#ffffff",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/41.png"
+      ],
+      "twitter": "@UConnFootball",
+      "location": {
+        "id": 3892,
+        "name": "Pratt & Whitney Stadium",
+        "city": "East Hartford",
+        "state": "CT",
+        "zip": "6118 ",
+        "countryCode": "US",
+        "timezone": "America/New_York",
+        "latitude": 41.7595675,
+        "longitude": -72.6187728,
+        "elevation": "6.515614986",
+        "capacity": 40000,
+        "constructionYear": 2003,
+        "grass": true,
+        "dome": false
+      }
+    },
+    {
+      "id": 2636,
+      "school": "UTSA",
+      "mascot": "Roadrunners",
+      "abbreviation": "UTSA",
+      "alternateNames": [
+        "Texas-San Antonio",
+        "UTSA",
+        "UTSA"
+      ],
+      "conference": "American Athletic",
+      "division": null,
+      "classification": "fbs",
+      "color": "#0c2340",
+      "alternateColor": "#f15a22",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/2636.png"
+      ],
+      "twitter": null,
+      "location": {
+        "id": 3604,
+        "name": "Alamodome",
+        "city": "San Antonio",
+        "state": "TX",
+        "zip": "78299",
+        "countryCode": "US",
+        "timezone": "America/Chicago",
+        "latitude": 29.4169834,
+        "longitude": -98.4788143,
+        "elevation": "201.5526886",
+        "capacity": 36582,
+        "constructionYear": 1993,
+        "grass": false,
+        "dome": true
+      }
+    },
+    {
+      "id": 2572,
+      "school": "Southern Miss",
+      "mascot": "Golden Eagles",
+      "abbreviation": "USM",
+      "alternateNames": [
+        "Southern Mississippi",
+        "USM",
+        "Southern Miss"
+      ],
+      "conference": "Sun Belt",
+      "division": "West",
+      "classification": "fbs",
+      "color": "#ffc72c",
+      "alternateColor": "#231f20",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/2572.png"
+      ],
+      "twitter": "@SouthernMissFB",
+      "location": {
+        "id": 3815,
+        "name": "M. M. Roberts Stadium",
+        "city": "Hattiesburg",
+        "state": "MS",
+        "zip": "39402",
+        "countryCode": "US",
+        "timezone": "America/Chicago",
+        "latitude": 31.3289321,
+        "longitude": -89.3318118,
+        "elevation": "64.52726746",
+        "capacity": 36000,
+        "constructionYear": 1932,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 62,
+      "school": "Hawai'i",
+      "mascot": "Rainbow Warriors",
+      "abbreviation": "HAW",
+      "alternateNames": [
+        "HAW",
+        "Hawai'i"
+      ],
+      "conference": "Mountain West",
+      "division": null,
+      "classification": "fbs",
+      "color": "#024731",
+      "alternateColor": "#000000",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/62.png"
+      ],
+      "twitter": "@HawaiiFootball",
+      "location": {
+        "id": 7220,
+        "name": "Clarence T.C. Ching Athletics Complex",
+        "city": "Honolulu",
+        "state": "HI",
+        "zip": "96822",
+        "countryCode": "US",
+        "timezone": "Pacific/Honolulu",
+        "latitude": 21.294294,
+        "longitude": -157.819338,
+        "elevation": "20",
+        "capacity": 15194,
+        "constructionYear": 2015,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 23,
+      "school": "San José State",
+      "mascot": "Spartans",
+      "abbreviation": "SJSU",
+      "alternateNames": [
+        "San Jose St.",
+        "SJSU",
+        "San José St"
+      ],
+      "conference": "Mountain West",
+      "division": null,
+      "classification": "fbs",
+      "color": "#0055a2",
+      "alternateColor": "#e5a823",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/23.png"
+      ],
+      "twitter": "@SanJoseStateFB",
+      "location": {
+        "id": 3935,
+        "name": "CEFCU Stadium",
+        "city": "San Jose",
+        "state": "CA",
+        "zip": "95112",
+        "countryCode": "US",
+        "timezone": "America/Los_Angeles",
+        "latitude": 37.3196675,
+        "longitude": -121.8682962,
+        "elevation": "28.30708694",
+        "capacity": 30456,
+        "constructionYear": 1933,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 2390,
+      "school": "Miami",
+      "mascot": "Hurricanes",
+      "abbreviation": "MIA",
+      "alternateNames": [
+        "Miami (FL)",
+        "MIA",
+        "Miami"
+      ],
+      "conference": "ACC",
+      "division": null,
+      "classification": "fbs",
+      "color": "#f47321",
+      "alternateColor": "#005030",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/2390.png"
+      ],
+      "twitter": "@CanesFootball",
+      "location": {
+        "id": 3948,
+        "name": "Hard Rock Stadium",
+        "city": "Miami Gardens",
+        "state": "FL",
+        "zip": "33299",
+        "countryCode": "US",
+        "timezone": "America/New_York",
+        "latitude": 25.9579665,
+        "longitude": -80.2388604,
+        "elevation": "2.624486446",
+        "capacity": 64767,
+        "constructionYear": 1987,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 193,
+      "school": "Miami (OH)",
+      "mascot": "RedHawks",
+      "abbreviation": "M-OH",
+      "alternateNames": [
+        "M-OH",
+        "Miami OH"
+      ],
+      "conference": "Mid-American",
+      "division": null,
+      "classification": "fbs",
+      "color": "#c41230",
+      "alternateColor": "#ffffff",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/193.png"
+      ],
+      "twitter": "@MiamiOHFootball",
+      "location": {
+        "id": 3996,
+        "name": "Yager Stadium",
+        "city": "Oxford",
+        "state": "OH",
+        "zip": "45056",
+        "countryCode": "US",
+        "timezone": "America/New_York",
+        "latitude": 39.5197009,
+        "longitude": -84.7330255,
+        "elevation": "242.2643585",
+        "capacity": 24286,
+        "constructionYear": 1983,
+        "grass": false,
+        "dome": false
+      }
+    },
+    {
+      "id": 245,
+      "school": "Texas A&M",
+      "mascot": "Aggies",
+      "abbreviation": "TA&M",
+      "alternateNames": [
+        "TA&M",
+        "Texas A&M"
+      ],
+      "conference": "SEC",
+      "division": null,
+      "classification": "fbs",
+      "color": "#500000",
+      "alternateColor": "#ffffff",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/245.png"
+      ],
+      "twitter": "@AggieFootball",
+      "location": {
+        "id": 3795,
+        "name": "Kyle Field",
+        "city": "College Station",
+        "state": "TX",
+        "zip": "77843",
+        "countryCode": "US",
+        "timezone": "America/Chicago",
+        "latitude": 30.6098891,
+        "longitude": -96.3403828,
+        "elevation": "108.824585",
+        "capacity": 102733,
+        "constructionYear": 1927,
+        "grass": true,
+        "dome": false
+      }
+    },
+    {
+      "id": 2229,
+      "school": "Florida International",
+      "mascot": "Panthers",
+      "abbreviation": "FIU",
+      "alternateNames": [
+        "Florida Intl",
+        "FIU",
+        "FIU"
+      ],
+      "conference": "Conference USA",
+      "division": null,
+      "classification": "fbs",
+      "color": "#091f3f",
+      "alternateColor": "#c3993f",
+      "logos": [
+        "https://cdn.collegefootballdata.com/logos/500/2229.png"
+      ],
+      "twitter": "@FIUFootball",
+      "location": {
+        "id": 2031,
+        "name": "Pitbull Stadium",
+        "city": "Miami",
+        "state": "FL",
+        "zip": "33199",
+        "countryCode": "US",
+        "timezone": "America/New_York",
+        "latitude": 25.7525,
+        "longitude": -80.37778,
+        "elevation": "6",
+        "capacity": 20000,
+        "constructionYear": 1995,
+        "grass": false,
+        "dome": false
+      }
+    }
+  ]
+}
