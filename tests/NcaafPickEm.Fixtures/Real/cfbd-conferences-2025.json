@@ -1,0 +1,93 @@
+{
+  "_note": "UNTRIMMED capture of the real CFBD /conferences?year=2025&classification=fbs response (11 Conference rows). Captured by P2-01 on 2026-09-18.",
+  "data": [
+    {
+      "id": 1,
+      "name": "ACC",
+      "shortName": "Atlantic Coast Conference",
+      "abbreviation": "ACC",
+      "classification": "fbs",
+      "memberCount": 17
+    },
+    {
+      "id": 151,
+      "name": "American Athletic",
+      "shortName": "American Athletic Conference",
+      "abbreviation": "AAC",
+      "classification": "fbs",
+      "memberCount": 14
+    },
+    {
+      "id": 4,
+      "name": "Big 12",
+      "shortName": "Big 12 Conference",
+      "abbreviation": "B12",
+      "classification": "fbs",
+      "memberCount": 16
+    },
+    {
+      "id": 5,
+      "name": "Big Ten",
+      "shortName": "Big Ten Conference",
+      "abbreviation": "B1G",
+      "classification": "fbs",
+      "memberCount": 18
+    },
+    {
+      "id": 12,
+      "name": "Conference USA",
+      "shortName": "Conference USA",
+      "abbreviation": "CUSA",
+      "classification": "fbs",
+      "memberCount": 12
+    },
+    {
+      "id": 18,
+      "name": "FBS Independents",
+      "shortName": "FBS Independents",
+      "abbreviation": "Ind",
+      "classification": "fbs",
+      "memberCount": 2
+    },
+    {
+      "id": 15,
+      "name": "Mid-American",
+      "shortName": "Mid-American Conference",
+      "abbreviation": "MAC",
+      "classification": "fbs",
+      "memberCount": 13
+    },
+    {
+      "id": 17,
+      "name": "Mountain West",
+      "shortName": "Mountain West Conference",
+      "abbreviation": "MWC",
+      "classification": "fbs",
+      "memberCount": 12
+    },
+    {
+      "id": 9,
+      "name": "Pac-12",
+      "shortName": "Pac-12 Conference",
+      "abbreviation": "PAC",
+      "classification": "fbs",
+      "memberCount": 2
+    },
+    {
+      "id": 8,
+      "name": "SEC",
+      "shortName": "Southeastern Conference",
+      "abbreviation": "SEC",
+      "classification": "fbs",
+      "memberCount": 16
+    },
+    {
+      "id": 37,
+      "name": "Sun Belt",
+      "shortName": "Sun Belt Conference",
+      "abbreviation": "SBC",
+      "classification": "fbs",
+      "memberCount": 14
+    }
+  ]
+}
