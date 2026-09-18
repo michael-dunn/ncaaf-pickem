@@ -14,6 +14,7 @@ Practical facts every implementation agent needs. Read after `00-README.md`, `05
 - Conventional Commits; every commit ends with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - `.gitattributes` stores LF, checks out CRLF. `.editorconfig` demands CRLF; run `dotnet format` before committing or `dotnet format --verify-no-changes` fails with ENDOFLINE.
 - Migrations: append-only, named `Phase<N>_<Task>_<What>`. Never edit another task's migration.
+- `src/NcaafPickEm.Infrastructure/Data/Migrations/.editorconfig` marks that folder as generated code. Without it `dotnet ef migrations add` fails the next build on IDE0161/IDE0005. Do not hand-write code there and do not reformat what EF emits.
 
 ## Build strictness (from P0-01)
 - `TreatWarningsAsErrors` + `EnforceCodeStyleInBuild` + `GenerateDocumentationFile` are on. An unused `using` is a build **error** (IDE0005). Private instance fields `_camelCase`; private static fields `PascalCase`.
@@ -21,7 +22,7 @@ Practical facts every implementation agent needs. Read after `00-README.md`, `05
 - Pinned: xunit 2.9.3, FluentAssertions 7.2.2 (do not upgrade to 8), Serilog.AspNetCore 10.0.0, Mvc.Testing 10.0.11.
 
 ## Composition root (Program.cs is a hot spot; add ONE line, commit it alone)
-- `builder.Services.AddInfrastructure(builder.Configuration)` -> `src/NcaafPickEm.Infrastructure/DependencyInjection.cs`. Registers `TimeProvider.System` via `TryAddSingleton` (tests substitute a fake).
+- `builder.Services.AddInfrastructure(builder.Configuration)` -> `src/NcaafPickEm.Infrastructure/DependencyInjection.cs`. Registers `TimeProvider.System` via `TryAddSingleton` (tests substitute a fake), `AppDbContext` against `ConnectionStrings:Default`, and `DatabaseMigratorHostedService` (D-013).
 - `builder.Services.AddApiServices()` -> `src/NcaafPickEm.Api/DependencyInjection.cs`.
 - `app.MapApiEndpoints()` -> `src/NcaafPickEm.Api/Endpoints/EndpointMapping.cs`; creates the `/api` group. Each feature adds `api.MapXxxEndpoints()` there. Health is at root, unauthenticated.
 - `public partial class Program;` exists for `WebApplicationFactory<Program>`.

@@ -10,6 +10,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+    <!-- Design is a full (not private) reference so AppDbContextFactory can implement
+         IDesignTimeDbContextFactory<AppDbContext> and `dotnet ef` can load it from the build
+         output of either this project or the Api startup project. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\NcaafPickEm.Domain\NcaafPickEm.Domain.csproj" />
     <ProjectReference Include="..\NcaafPickEm.Shared\NcaafPickEm.Shared.csproj" />
   </ItemGroup>

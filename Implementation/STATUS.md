@@ -7,8 +7,8 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | Task | Title | Agent | Tier | State | Branch | Notes |
 |---|---|---|---|---|---|---|
 | P0-01 | Repo and solution scaffold | opus-p0-01 | Opus | Done | main @ 5e49ac0 | Board verified: 38 task rows, one per task in every phase file, no drift. DECISIONS D-001..D-008 present; D-009 (test stack + central package management), D-010 (.slnx), D-011 (no UseBlazorFrameworkFiles) added. `dotnet build` 0 warnings, `dotnet test` 5/5 green, `dotnet format --verify-no-changes` clean. |
-| P0-02 | Database and EF Core | | Opus | Todo | | |
-| P0-03 | Google sign-in, users, authorization plumbing | | Opus | Todo | | |
+| P0-02 | Database and EF Core | opus-p0-02-03 | Opus | In Progress | p0-02-03-database-auth | All 26 tables from `02-Data-Model.md` in one migration `Phase0_02_InitialSchema`; applied to LocalDB. `SqlTestDatabase` + `ApiFactory` + `ApiTestFixture` collection fixture (one DB per run). `/health/ready` does `CanConnectAsync`. D-012..D-016 logged. |
+| P0-03 | Google sign-in, users, authorization plumbing | opus-p0-02-03 | Opus | Todo | p0-02-03-database-auth | |
 | P0-04 | Blazor PWA shell and load-time spike | | Opus | Todo | | |
 | P0-05 | Season calendar domain | | Opus | Todo | | |
 | P0-06 | Job scheduler infrastructure | | Opus | Todo | | |

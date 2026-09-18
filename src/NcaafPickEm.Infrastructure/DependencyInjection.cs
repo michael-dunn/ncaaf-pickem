@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NcaafPickEm.Infrastructure.Data;
 
 namespace NcaafPickEm.Infrastructure;
 
@@ -14,9 +16,8 @@ public static class DependencyInjection
     /// Registers persistence, providers, push, and background jobs.
     /// </summary>
     /// <remarks>
-    /// Intentionally empty in P0-01. Later phases add, in this order:
+    /// Later phases add, in this order:
     /// <list type="bullet">
-    ///   <item>P0-02 — <c>AppDbContext</c> against <c>ConnectionStrings:Default</c>, plus repositories.</item>
     ///   <item>P0-06 — <c>JobScheduler</c> hosted service, <c>IOneShotScheduler</c>, <c>HeartbeatJob</c>,
     ///         gated on <c>Jobs:Enabled</c>.</item>
     ///   <item>P2-02/P2-03/P2-05 — <c>IReferenceDataProvider</c> and <c>ILiveScoreProvider</c> selected by
@@ -35,6 +36,21 @@ public static class DependencyInjection
         // TimeProvider is the only clock the codebase may use (05-Conventions.md).
         // TryAdd so tests can register a FakeTimeProvider before calling this.
         services.TryAddSingleton(TimeProvider.System);
+
+        // An unset connection string has to reach UseSqlServer as null, not "": empty throws at
+        // registration, whereas null lets the app boot and /health/ready report the problem.
+        string? connectionString = configuration.GetConnectionString(DatabaseDefaults.ConnectionStringName);
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            connectionString = null;
+        }
+
+        services.AddDbContext<AppDbContext>(options =>
+            options.UseSqlServer(
+                connectionString,
+                sql => sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
+
+        services.AddHostedService<DatabaseMigratorHostedService>();
 
         return services;
     }

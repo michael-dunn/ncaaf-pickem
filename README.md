@@ -26,7 +26,7 @@ Brotli precompression work without it.
 ```
 NcaafPickEm.slnx
 src/
-  NcaafPickEm.Domain/          Entities, value objects, pure domain services. References nothing.
+  NcaafPickEm.Domain/          Entities, value objects, pure domain services.  -> Shared (enums only)
   NcaafPickEm.Shared/          DTOs and enums shared by Api and Web. No logic.
   NcaafPickEm.Infrastructure/  EF Core, migrations, providers, push, jobs.  -> Domain, Shared
   NcaafPickEm.Api/             Composition root, minimal endpoints, auth, hosts the Web app.
@@ -41,8 +41,8 @@ Implementation/  WorkItems/    Plan and requirements.
 ```
 
 Dependency direction is enforced by project references: `Web -> Shared`;
-`Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared`.
-`Domain` references nothing.
+`Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared`;
+`Domain -> Shared` (enums only — see D-012). `Shared` references nothing.
 
 ## Run locally with fixtures
 
@@ -110,9 +110,11 @@ dotnet test
 ```
 
 - `NcaafPickEm.Domain.Tests` is pure: no database, no network.
-- `NcaafPickEm.Api.Tests` boots the real app with `WebApplicationFactory<Program>`. From P0-02
-  onwards it creates a throwaway database `NcaafPickEm_Test_<guid>`, migrates it, and drops it.
-  The server comes from the `TEST_SQL_CONNECTION` environment variable and defaults to LocalDB:
+- `NcaafPickEm.Api.Tests` boots the real app with `WebApplicationFactory<Program>`. `SqlTestDatabase`
+  creates a throwaway database `NcaafPickEm_Test_<guid>`, migrates it, and drops it at the end of
+  the run — one database per run, not per test, shared through the `ApiTestFixture` collection
+  fixture. The server comes from the `TEST_SQL_CONNECTION` environment variable and defaults to
+  LocalDB:
 
   ```bash
   TEST_SQL_CONNECTION="Server=(localdb)\\MSSQLLocalDB;Trusted_Connection=True;TrustServerCertificate=True"
@@ -139,23 +141,58 @@ dotnet format --verify-no-changes   # what CI / review checks
 The build runs code-style analyzers (`EnforceCodeStyleInBuild`) with
 `TreatWarningsAsErrors`, so an unused `using` fails the build rather than lingering.
 
-## EF Core migrations
+## Database and EF Core migrations
 
-Placeholder — **P0-02** creates `AppDbContext`, the `Phase0_02_InitialSchema` migration, and fills
-this section in. The shape the commands will take:
+The schema is `src/NcaafPickEm.Infrastructure/Data/AppDbContext.cs` plus one file per table in
+`Data/Configurations/`. Entities live in `NcaafPickEm.Domain` and carry no EF attributes; all
+mapping is Fluent. The whole schema from `Implementation/02-Data-Model.md` exists as of the
+`Phase0_02_InitialSchema` migration.
+
+Install the tool once (it must be at least as new as the EF Core packages in
+`Directory.Packages.props`):
+
+```bash
+dotnet tool install --global dotnet-ef
+dotnet tool update  --global dotnet-ef
+```
+
+Add a migration (append-only, named `Phase<N>_<Task>_<What>`; never edit one another task
+committed):
 
 ```bash
 dotnet ef migrations add Phase<N>_<Task>_<What> \
   --project src/NcaafPickEm.Infrastructure \
   --startup-project src/NcaafPickEm.Api \
   --output-dir Data/Migrations
-
-dotnet ef database update \
-  --project src/NcaafPickEm.Infrastructure \
-  --startup-project src/NcaafPickEm.Api
 ```
 
-Migrations are append-only; never edit one another task has committed.
+Apply migrations by hand:
+
+```bash
+# bash
+ConnectionStrings__Default="Server=(localdb)\\MSSQLLocalDB;Database=NcaafPickEm;Trusted_Connection=True;TrustServerCertificate=True" \
+  dotnet ef database update --project src/NcaafPickEm.Infrastructure --startup-project src/NcaafPickEm.Api
+```
+
+```powershell
+# Windows PowerShell
+$env:ConnectionStrings__Default = "Server=(localdb)\MSSQLLocalDB;Database=NcaafPickEm;Trusted_Connection=True;TrustServerCertificate=True"
+dotnet ef database update --project src/NcaafPickEm.Infrastructure --startup-project src/NcaafPickEm.Api
+```
+
+`NcaafPickEm.Infrastructure` contains an `IDesignTimeDbContextFactory<AppDbContext>`, so the tools
+never boot the API host. It reads `ConnectionStrings__Default` and falls back to LocalDB, which is
+why `dotnet ef migrations add` works on a clean clone with no configuration at all.
+
+**Migrating on startup** (D-013): the app applies pending migrations at startup when
+`Database__MigrateOnStartup` is true. The default is **on in Development and off everywhere else**,
+so a developer never has to remember `database update` and a production deploy never migrates
+itself by surprise. Set the key explicitly to override either way. Tests set it to false and
+migrate their own throwaway database instead.
+
+Generated migration files are exempt from the code-style analyzers through
+`src/NcaafPickEm.Infrastructure/Data/Migrations/.editorconfig`. Do not hand-write code in that
+folder.
 
 ## Publish
 

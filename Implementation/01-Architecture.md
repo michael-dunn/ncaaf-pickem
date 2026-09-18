@@ -50,7 +50,7 @@ deploy/
 Implementation/  WorkItems/
 ```
 
-Dependency direction: `Web -> Shared`; `Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared` (mapping only). `Domain` references nothing.
+Dependency direction: `Web -> Shared`; `Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared` (mapping only); `Domain -> Shared` (enums only, D-012). `Shared` references nothing and holds no logic, so the graph stays acyclic and `Domain` still has no dependency on EF, HTTP, or a clock.
 
 ## Runtime shape
 

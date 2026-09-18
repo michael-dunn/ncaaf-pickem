@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http.HttpResults;
+using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Shared.Contracts.Health;
 
 namespace NcaafPickEm.Api.Endpoints;
@@ -19,7 +20,7 @@ public static class HealthEndpoints
             .WithTags("health")
             .AllowAnonymous();
 
-        builder.MapGet("/health/ready", GetReady)
+        builder.MapGet("/health/ready", GetReadyAsync)
             .WithName("HealthReady")
             .WithTags("health")
             .AllowAnonymous();
@@ -33,12 +34,33 @@ public static class HealthEndpoints
     private static Ok<HealthResponse> GetLive() => TypedResults.Ok(HealthResponse.Healthy);
 
     /// <summary>
-    /// Readiness: the app can serve traffic.
+    /// Readiness: the app can serve traffic, which means it can reach SQL Server.
+    /// Returns 503 with <c>ProblemDetails</c> when the database is unreachable or unconfigured.
     /// </summary>
-    /// <remarks>
-    /// P0-02 replaces this body with a database round-trip (and widens the return type to
-    /// <c>Results&lt;Ok&lt;HealthResponse&gt;, ProblemHttpResult&gt;</c> so an unreachable
-    /// database yields 503).
-    /// </remarks>
-    private static Ok<HealthResponse> GetReady() => TypedResults.Ok(HealthResponse.Healthy);
+    private static async Task<Results<Ok<HealthResponse>, ProblemHttpResult>> GetReadyAsync(
+        AppDbContext database,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (await database.Database.CanConnectAsync(cancellationToken))
+            {
+                return TypedResults.Ok(HealthResponse.Healthy);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Microsoft.Data.SqlClient.SqlException)
+        {
+            // An unconfigured connection string throws InvalidOperationException rather than
+            // returning false, and a dead server can surface as either.
+            loggerFactory
+                .CreateLogger(typeof(HealthEndpoints))
+                .LogWarning(ex, "Readiness probe could not reach the database");
+        }
+
+        return TypedResults.Problem(
+            title: "Database unavailable",
+            detail: "The API cannot reach SQL Server.",
+            statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
 }

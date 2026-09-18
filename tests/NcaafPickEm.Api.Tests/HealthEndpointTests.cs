@@ -1,21 +1,23 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
+using NcaafPickEm.Api.Tests.Infrastructure;
 using NcaafPickEm.Shared.Contracts.Health;
 
 namespace NcaafPickEm.Api.Tests;
 
 /// <summary>
-/// Proves the composition root boots under <c>WebApplicationFactory&lt;Program&gt;</c> and that the
-/// probes answer. P0-02 extends this with a real database behind <c>/health/ready</c>.
+/// Proves the composition root boots under <c>WebApplicationFactory&lt;Program&gt;</c> and that
+/// readiness really talks to the migrated <see cref="SqlTestDatabase"/> behind it.
 /// </summary>
-public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+[Collection(ApiTestCollection.Name)]
+public sealed class HealthEndpointTests
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly ApiTestFixture _fixture;
 
-    public HealthEndpointTests(WebApplicationFactory<Program> factory)
+    public HealthEndpointTests(ApiTestFixture fixture)
     {
-        _factory = factory.WithWebHostBuilder(builder => builder.UseSetting("Jobs:Enabled", "false"));
+        _fixture = fixture;
     }
 
     [Theory]
@@ -23,7 +25,7 @@ public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Pr
     [InlineData("/health/ready")]
     public async Task GivenRunningApi_WhenProbingHealth_ThenItReturnsOk(string route)
     {
-        using HttpClient client = _factory.CreateClient();
+        using HttpClient client = _fixture.Factory.CreateClient();
 
         using HttpResponseMessage response = await client.GetAsync(route);
 
@@ -32,5 +34,18 @@ public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Pr
         HealthResponse? body = await response.Content.ReadFromJsonAsync<HealthResponse>();
         body.Should().NotBeNull();
         body!.Status.Should().Be(HealthResponse.Ok);
+    }
+
+    [Fact]
+    public async Task GivenTestDatabase_WhenReadinessProbes_ThenTheSchemaIsAlreadyMigrated()
+    {
+        // The readiness probe only proves the app can connect; this proves the connection it made
+        // is to a database SqlTestDatabase migrated, so every later test can seed real rows.
+        string[] applied = await _fixture.Factory.QueryDbAsync(async database =>
+            (await database.Database.GetAppliedMigrationsAsync()).ToArray());
+
+        applied.Should().ContainSingle().Which.Should().EndWith("Phase0_02_InitialSchema");
+
+        _fixture.Database.DatabaseName.Should().StartWith("NcaafPickEm_Test_");
     }
 }

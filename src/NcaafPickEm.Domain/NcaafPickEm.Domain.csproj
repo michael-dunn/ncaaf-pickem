@@ -1,8 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-  <!-- Entities, value objects, pure domain services. References nothing. No EF, no HTTP, no clock. -->
+  <!--
+    Entities, value objects, pure domain services. No EF, no HTTP, no clock.
+    The one reference is NcaafPickEm.Shared, and only for the enums that entities and DTOs
+    must agree on (D-012). Shared holds no logic and no dependencies, so this stays acyclic.
+  -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NcaafPickEm.Shared\NcaafPickEm.Shared.csproj" />
+  </ItemGroup>
 
 </Project>
