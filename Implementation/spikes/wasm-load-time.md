@@ -11,7 +11,7 @@ operator** (agents cannot use an iPhone or the tailnet). See "Operator to-do".
 
 - Build: `dotnet publish src/NcaafPickEm.Api -c Release` (the hosted app: Api serves the Web
   project's `_framework` payload through `MapStaticAssets`, per D-011). `PublishTrimmed=true`,
-  `InvariantGlobalization=true` (D-012), Brotli + gzip precompression on.
+  `InvariantGlobalization=true` (D-025), Brotli + gzip precompression on.
 - Server: the published output run with `ASPNETCORE_ENVIRONMENT=Production` on
   `http://localhost:5215` on the development machine (Windows 11).
 - Client: Microsoft Edge 153 headless, driven over the DevTools Protocol from PowerShell.
@@ -44,7 +44,7 @@ Largest items (Brotli / raw):
 | `Microsoft.AspNetCore.Components.*.wasm` | 90 KB | 251 KB |
 | `dotnet.runtime.*.js` | 47 KB | 194 KB |
 
-No ICU data ships at all (`InvariantGlobalization=true`, D-012); that alone removed roughly 1.5 MB
+No ICU data ships at all (`InvariantGlobalization=true`, D-025); that alone removed roughly 1.5 MB
 of raw payload. AOT is not available on this machine (no `wasm-tools` workload, `AGENT-NOTES.md`)
 and is not needed at this size.
 
@@ -79,7 +79,7 @@ cache (proved by the 0-byte rows above), so the repeat-load number is CPU only a
 2 s budget. The only scenario near the 5 s first-load threshold is a first install over a relayed
 cellular connection - a once-per-device event, behind a branded splash with a progress ring.
 
-**Conclusion: proceed with Blazor WASM. D-001 stands** (logged as D-014). The fallback trigger is
+**Conclusion: proceed with Blazor WASM. D-001 stands** (logged as D-027). The fallback trigger is
 unchanged and stays open until the operator's phone measurement below is recorded.
 
 ## What this spike also fixed
@@ -89,7 +89,7 @@ unchanged and stays open until the operator's phone measurement below is recorde
    is published on its own, never when the Api publishes it as a hosted reference - so
    `/_framework/blazor.webassembly#[.{fingerprint}].js` 404'd while every other `/_framework/*` URL
    returned 200 (which is why P0-01's curl-only smoke test passed). Fixed by referencing the stable
-   `_framework/blazor.webassembly.js` path and turning the rewrite off (D-013).
+   `_framework/blazor.webassembly.js` path and turning the rewrite off (D-026).
 2. `TrimMode=full` broke component activation: the router fell through to `NotFound` and threw
    `CtorNotLocated` because the trimmer had removed component constructors reached only by
    reflection. Reverted to the SDK default trim mode; the payload difference was negligible.

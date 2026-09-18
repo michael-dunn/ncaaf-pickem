@@ -3,12 +3,12 @@
   <!-- Blazor WebAssembly PWA. Hosted by NcaafPickEm.Api. -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
-    <!-- index.html carries no `#[.{fingerprint}]` placeholders (D-013): the SDK only rewrites
+    <!-- index.html carries no `#[.{fingerprint}]` placeholders (D-026): the SDK only rewrites
          them when this project is published on its own, and it is always published as a hosted
          reference from the Api. Stable URLs there, fingerprinting everywhere else. -->
     <OverrideHtmlAssetPlaceholders>false</OverrideHtmlAssetPlaceholders>
     <ServiceWorkerAssetsManifest>service-worker-assets.js</ServiceWorkerAssetsManifest>
-    <!-- P0-04 / D-012: the client never resolves a named time zone or a non-invariant culture.
+    <!-- P0-04 / D-025: the client never resolves a named time zone or a non-invariant culture.
          Eastern-time logic and its display strings are computed server-side (SeasonCalendar,
          LockAtEasternDisplay); the client only renders the browser's local time. Dropping ICU
          saves ~1.5 MB of the first-load payload. The Api project must stay

@@ -6,7 +6,7 @@
     <!-- TimeZoneInfo.FindSystemTimeZoneById("America/New_York") needs ICU. Never set this to true. -->
     <InvariantGlobalization>false</InvariantGlobalization>
     <UserSecretsId>ncaaf-pickem-api</UserSecretsId>
-    <!-- Hosting note (P0-04, D-013): a hosted Blazor WASM project's index.html keeps the SDK's
+    <!-- Hosting note (P0-04, D-026): a hosted Blazor WASM project's index.html keeps the SDK's
          `#[.{fingerprint}]` placeholders through the HOST's publish - the rewrite only happens
          when the Blazor project is published on its own. The Web project therefore references
          `_framework/blazor.webassembly.js` by its stable path and sets

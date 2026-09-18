@@ -27,7 +27,7 @@
     </p>
     <p class="placeholder-note">
         Placeholder from P0-04. Zone <em>abbreviations</em> ("MDT") must come from the browser's
-        Intl API, not .NET: the client runs with invariant globalization (D-012).
+        Intl API, not .NET: the client runs with invariant globalization (D-025).
     </p>
 </div>
 
@@ -41,7 +41,7 @@
         Shell.SetTitle("More");
 
         // Also a live check that the trimmed, invariant-globalization client still resolves the
-        // browser's zone and renders local time (see DECISIONS D-012). Under invariant
+        // browser's zone and renders local time (see DECISIONS D-025). Under invariant
         // globalization TimeZoneInfo has no friendly names, so show the offset.
         DateTimeOffset now = DateTimeOffset.Now;
         string sign = now.Offset < TimeSpan.Zero ? "-" : "+";
