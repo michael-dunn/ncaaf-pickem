@@ -13,6 +13,7 @@ Practical facts every implementation agent needs. Read after `00-README.md`, `05
 - `main` is the integration branch. Parallel agents work in **git worktrees** on task branches `p<phase>-<task>-<slug>`. Agents do **not** merge to `main`; report `BRANCH: <name> @ <commit>` and the orchestrator merges.
 - Conventional Commits; every commit ends with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
 - `.gitattributes` stores LF, checks out CRLF. `.editorconfig` demands CRLF; run `dotnet format` before committing or `dotnet format --verify-no-changes` fails with ENDOFLINE.
+- Run plain `dotnet format` (never `dotnet format --no-restore`): without restore it compiles against unresolved references and silently strips `using` directives from unrelated files.
 - Migrations: append-only, named `Phase<N>_<Task>_<What>`. Never edit another task's migration.
 - `src/NcaafPickEm.Infrastructure/Data/Migrations/.editorconfig` marks that folder as generated code. Without it `dotnet ef migrations add` fails the next build on IDE0161/IDE0005. Do not hand-write code there and do not reformat what EF emits.
 

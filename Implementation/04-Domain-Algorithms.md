@@ -39,21 +39,25 @@ Preview runs steps 1 to 6 with candidate rules without persisting.
 Owner: `Points/PointValueResolver`. Tests: `PointValueResolverTests`.
 
 ```
-Resolve(game, setGame, league, pointRules ordered by Priority asc, currentSpread?):
-  if setGame.PointValueOverride != null  -> override
-  for rule in pointRules:
-    if Matches(rule, game, currentSpread) -> rule.PointValue     // first match wins
-  -> league.DefaultPointValue
+Resolve(game: PointGameInfo, pointValueOverride?, leagueDefault, rules: PointRuleInfo[], currentSpread?):
+  if pointValueOverride != null  -> (override, Source = Override)
+  for rule in rules sorted by Priority asc:
+    if Matches(rule, game, currentSpread) -> (rule.PointValue, Source = Rule, MatchedRuleId)
+  -> (leagueDefault, Source = Default)
 ```
+
+The resolver takes slim input records, not entities (P3-02): `PointGameInfo(HomeTeamId, AwayTeamId, HomeConferenceId?, AwayConferenceId?, IsConferenceGame)`, `PointRuleInfo(Priority, RuleType, ConferenceId?, TeamId?, SpreadThreshold?, PointValue, RuleId?)`, returning `PointResolution(Value, Source, MatchedRuleId?)`. The caller passes `setGame.PointValueOverride`, `league.DefaultPointValue`, and the newest `GameLines.Spread`. `Resolve` sorts by `Priority` itself, so an unsorted list still resolves correctly; ties keep input order.
 
 `Matches`:
 - `ConferenceGame(C?)`: `game.IsConferenceGame` and (C is null or both teams in C).
-- `CloseSpread(threshold)`: `currentSpread != null && Math.Abs(currentSpread) < threshold`. No spread = no match.
+- `CloseSpread(threshold)`: `currentSpread != null && Math.Abs(currentSpread) < threshold`. No spread = no match; a spread exactly equal to the threshold = no match.
 - `Team(T)`: T is home or away.
+
+A rule missing the field its type needs (a close-spread rule with no threshold, a team rule with no team) never matches; `PointRuleValidation` is what reports that, and it is the only gate on the 1..100 range. `Resolve` returns whatever value it is handed.
 
 Rules:
 - `ResolvedPointValue` is recomputed for every active game in every unlocked week whenever league default, point rules, or an override change, and on every generation.
-- `IsPointValueElevated = ResolvedPointValue > league.DefaultPointValue`.
+- `IsPointValueElevated = PointValueResolver.IsElevated(ResolvedPointValue, league.DefaultPointValue)` = `ResolvedPointValue > league.DefaultPointValue`. Equal to the default is not elevated.
 - At lock, `SpreadAtLock` = current spread and `ResolvedPointValue` is computed one final time, then frozen. Nothing after lock may change it. Values 1..100 only.
 
 ## 4. Picks and submission status (Feature 04)
