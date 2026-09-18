@@ -33,13 +33,13 @@ public sealed class LeagueEndpointsTests
         using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(creator.Id);
 
         using HttpResponseMessage response = await client.PostAsJsonAsync(
-            "/api/leagues", new CreateLeagueRequest("Family League", 2026, null, null));
+            "/api/leagues", new CreateLeagueRequest("League Created Via Api Test", 2026, null, null));
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
 
         LeagueDetail? detail = await response.Content.ReadFromJsonAsync<LeagueDetail>();
         detail.Should().NotBeNull();
-        detail!.Name.Should().Be("Family League");
+        detail!.Name.Should().Be("League Created Via Api Test");
         detail.FirstWeek.Should().Be(1);
         detail.LastWeek.Should().Be(14);
         detail.DefaultPointValue.Should().Be(10);
