@@ -1,0 +1,153 @@
+@page "/leagues/{LeagueId:guid}"
+@inject ILeaguesApi LeaguesApi
+@inject ISeasonsApi SeasonsApi
+@inject AppShellState Shell
+@inject NavigationManager Navigation
+
+@*
+    League home (P1-02). Name, "Week N", my status, lock time (local + Eastern hint), big buttons
+    to Picks/Dashboard/Leaderboard. Commissioners see "Members not submitted: N" and a Manage
+    link. Before the first week: "Season starts Week N on <date>". After the last week: "Season
+    complete".
+*@
+
+<PageTitle>@(_league?.Name ?? "League") - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" />
+
+@if (_league is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else
+{
+    LeagueDetail league = _league;
+
+    <h1>@league.Name</h1>
+
+    @if (league.CurrentWeek < league.FirstWeek)
+    {
+        <div class="card">
+            <p>Season starts Week @league.FirstWeek@(_seasonStartDate is { } start ? $" on {start:dddd, MMMM d}" : "").</p>
+        </div>
+    }
+    else if (league.IsComplete)
+    {
+        <div class="card">
+            <p>Season complete.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card">
+            <h2>Week @league.CurrentWeek</h2>
+            <p>
+                Your status: <StatusPill Status="league.MyCurrentWeekStatus" />
+            </p>
+            <LockTime LockAtUtc="league.CurrentWeekLockAtUtc"
+                      EasternDisplay="league.LockAtEasternDisplay"
+                      NoLockText="No game set yet" />
+        </div>
+
+        <div class="league-home-actions">
+            <a class="btn btn-primary league-home-action" href="@($"/leagues/{league.LeagueId}/weeks/{league.CurrentWeek}/picks")">
+                Picks
+            </a>
+            <a class="btn btn-secondary league-home-action" href="@($"/leagues/{league.LeagueId}/weeks/{league.CurrentWeek}/dashboard")">
+                Dashboard
+            </a>
+            <a class="btn btn-secondary league-home-action" href="@($"/leagues/{league.LeagueId}/leaderboard")">
+                Leaderboard
+            </a>
+        </div>
+
+        @if (league.MyRole == MembershipRole.Commissioner)
+        {
+            <div class="card">
+                @if (league.CurrentWeekLockAtUtc is null)
+                {
+                    <p class="muted">No game set yet for this week.</p>
+                }
+                else if (_membersNotSubmitted is { } count)
+                {
+                    <p>Members not submitted: <strong>@count</strong></p>
+                }
+                <a href="@($"/leagues/{league.LeagueId}/members")">Manage members</a>
+            </div>
+        }
+    }
+
+    <div class="card">
+        <a href="@($"/leagues/{league.LeagueId}/invites")">Invites</a>
+        &middot;
+        <a href="@($"/leagues/{league.LeagueId}/members")">Members</a>
+        @if (league.MyRole == MembershipRole.Commissioner)
+        {
+            <text> &middot; <a href="@($"/leagues/{league.LeagueId}/settings")">Settings</a></text>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private LeagueDetail? _league;
+    private int? _membersNotSubmitted;
+    private DateTimeOffset? _seasonStartDate;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, _league.CurrentWeek);
+            Shell.SetTitle($"Week {_league.CurrentWeek}");
+
+            if (_league.CurrentWeek < _league.FirstWeek)
+            {
+                await LoadSeasonStartDateAsync(_league.SeasonYear, _league.FirstWeek);
+            }
+
+            if (_league.MyRole == MembershipRole.Commissioner && _league.CurrentWeekLockAtUtc is not null)
+            {
+                await LoadNotSubmittedCountAsync();
+            }
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task LoadSeasonStartDateAsync(int seasonYear, int firstWeek)
+    {
+        try
+        {
+            SeasonWeek[] weeks = await SeasonsApi.GetWeeksAsync(seasonYear);
+            _seasonStartDate = weeks.FirstOrDefault(w => w.Week == firstWeek)?.StartUtc.ToLocalTime();
+        }
+        catch (LeaguesApiException)
+        {
+            _seasonStartDate = null;
+        }
+    }
+
+    private async Task LoadNotSubmittedCountAsync()
+    {
+        try
+        {
+            MemberRow[] members = await LeaguesApi.GetMembersAsync(LeagueId);
+            _membersNotSubmitted = members.Count(m =>
+                !m.IsFormer
+                && m.CurrentWeekStatus is not (SubmissionStatus.Submitted or SubmissionStatus.Locked));
+        }
+        catch (LeaguesApiException)
+        {
+            _membersNotSubmitted = null;
+        }
+    }
+}
