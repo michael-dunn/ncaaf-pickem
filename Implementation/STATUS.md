@@ -6,7 +6,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 
 | Task | Title | Agent | Tier | State | Branch | Notes |
 |---|---|---|---|---|---|---|
-| P0-01 | Repo and solution scaffold | | Opus | Todo | | |
+| P0-01 | Repo and solution scaffold | opus-p0-01 | Opus | Done | main @ 5e49ac0 | Board verified: 38 task rows, one per task in every phase file, no drift. DECISIONS D-001..D-008 present; D-009 (test stack + central package management), D-010 (.slnx), D-011 (no UseBlazorFrameworkFiles) added. `dotnet build` 0 warnings, `dotnet test` 5/5 green, `dotnet format --verify-no-changes` clean. |
 | P0-02 | Database and EF Core | | Opus | Todo | | |
 | P0-03 | Google sign-in, users, authorization plumbing | | Opus | Todo | | |
 | P0-04 | Blazor PWA shell and load-time spike | | Opus | Todo | | |
@@ -54,6 +54,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 
 | Date | Task | File | What |
 |---|---|---|---|
+| 2026-09-18 | P0-01 | `src/NcaafPickEm.Api/Program.cs` | Created it. Thin composition root only: `AddInfrastructure(configuration)`, `AddApiServices()`, `MapApiEndpoints()`, Serilog, and Blazor hosting. Add services in `Infrastructure/DependencyInjection.cs` or `Api/DependencyInjection.cs` and endpoints in `Api/Endpoints/EndpointMapping.cs`, not here. |
 
 ## Escalations
 
