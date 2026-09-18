@@ -35,15 +35,22 @@ public sealed class FakeLeaguesApi : ILeaguesApi
     private Guid _callerMembershipId = MichaelId;
 
     /// <summary>
-    /// Seeds the sample league unless the page was opened with <c>?emptyState=1</c>.
+    /// Seeds the sample league unless the page was opened with <c>?emptyState=1</c>. Opening with
+    /// <c>?asMember=1</c> makes Alyson (a plain member) the caller instead of Michael the
+    /// commissioner, for screenshotting the member-eye view of a page.
     /// </summary>
-    /// <param name="navigation">Used only to read the <c>emptyState</c> query flag at startup.</param>
+    /// <param name="navigation">Used only to read the query flags at startup.</param>
     public FakeLeaguesApi(NavigationManager navigation)
     {
         bool empty = navigation.Uri.Contains("emptyState=1", StringComparison.OrdinalIgnoreCase);
         if (!empty)
         {
             Seed();
+        }
+
+        if (navigation.Uri.Contains("asMember=1", StringComparison.OrdinalIgnoreCase))
+        {
+            _callerMembershipId = AlysonId;
         }
     }
 
