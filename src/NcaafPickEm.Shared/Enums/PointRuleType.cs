@@ -9,7 +9,8 @@ public enum PointRuleType : byte
     /// <summary>Matches when the game is a conference game.</summary>
     ConferenceGame = 0,
 
-    /// <summary>Matches when the absolute spread is at or below <c>SpreadThreshold</c>.</summary>
+    /// <summary>Matches when the absolute spread is strictly below <c>SpreadThreshold</c>. A game
+    /// with no spread never matches.</summary>
     CloseSpread = 1,
 
     /// <summary>Matches when the named team is playing.</summary>

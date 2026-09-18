@@ -1,0 +1,506 @@
+{
+  "_meta": "subset: every team referenced by schedule.json, plus the 12 real CFBD captures from Real/cfbd-teams-fbs.json. Not the full ~136-team FBS set.",
+  "data": [
+    {
+      "cfbdId": 2026,
+      "school": "App State",
+      "mascot": "Mountaineers",
+      "abbreviation": "APP",
+      "conferenceCfbdId": 37,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/2026.png",
+      "alternateNames": [
+        "Appalachian State",
+        "APP",
+        "App State"
+      ]
+    },
+    {
+      "cfbdId": 2433,
+      "school": "UL Monroe",
+      "mascot": "Warhawks",
+      "abbreviation": "ULM",
+      "conferenceCfbdId": 37,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/2433.png",
+      "alternateNames": [
+        "La.-Monroe",
+        "ULM",
+        "UL Monroe"
+      ]
+    },
+    {
+      "cfbdId": 113,
+      "school": "Massachusetts",
+      "mascot": "Minutemen",
+      "abbreviation": "MASS",
+      "conferenceCfbdId": 15,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/113.png",
+      "alternateNames": [
+        "UMass",
+        "MASS",
+        "UMass"
+      ]
+    },
+    {
+      "cfbdId": 41,
+      "school": "UConn",
+      "mascot": "Huskies",
+      "abbreviation": "CONN",
+      "conferenceCfbdId": 18,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/41.png",
+      "alternateNames": [
+        "Connecticut",
+        "CONN",
+        "UConn"
+      ]
+    },
+    {
+      "cfbdId": 2636,
+      "school": "UTSA",
+      "mascot": "Roadrunners",
+      "abbreviation": "UTSA",
+      "conferenceCfbdId": 151,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/2636.png",
+      "alternateNames": [
+        "Texas-San Antonio",
+        "UTSA",
+        "UTSA"
+      ]
+    },
+    {
+      "cfbdId": 2572,
+      "school": "Southern Miss",
+      "mascot": "Golden Eagles",
+      "abbreviation": "USM",
+      "conferenceCfbdId": 37,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/2572.png",
+      "alternateNames": [
+        "Southern Mississippi",
+        "USM",
+        "Southern Miss"
+      ]
+    },
+    {
+      "cfbdId": 62,
+      "school": "Hawai'i",
+      "mascot": "Rainbow Warriors",
+      "abbreviation": "HAW",
+      "conferenceCfbdId": 17,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/62.png",
+      "alternateNames": [
+        "HAW",
+        "Hawai'i"
+      ]
+    },
+    {
+      "cfbdId": 23,
+      "school": "San José State",
+      "mascot": "Spartans",
+      "abbreviation": "SJSU",
+      "conferenceCfbdId": 17,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/23.png",
+      "alternateNames": [
+        "San Jose St.",
+        "SJSU",
+        "San José St"
+      ]
+    },
+    {
+      "cfbdId": 2390,
+      "school": "Miami",
+      "mascot": "Hurricanes",
+      "abbreviation": "MIA",
+      "conferenceCfbdId": 1,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/2390.png",
+      "alternateNames": [
+        "Miami (FL)",
+        "MIA",
+        "Miami"
+      ]
+    },
+    {
+      "cfbdId": 193,
+      "school": "Miami (OH)",
+      "mascot": "RedHawks",
+      "abbreviation": "M-OH",
+      "conferenceCfbdId": 15,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/193.png",
+      "alternateNames": [
+        "M-OH",
+        "Miami OH"
+      ]
+    },
+    {
+      "cfbdId": 245,
+      "school": "Texas A&M",
+      "mascot": "Aggies",
+      "abbreviation": "TA&M",
+      "conferenceCfbdId": 8,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/245.png",
+      "alternateNames": [
+        "TA&M",
+        "Texas A&M"
+      ]
+    },
+    {
+      "cfbdId": 2229,
+      "school": "Florida International",
+      "mascot": "Panthers",
+      "abbreviation": "FIU",
+      "conferenceCfbdId": 12,
+      "classification": "Fbs",
+      "logoUrl": "https://cdn.collegefootballdata.com/logos/500/2229.png",
+      "alternateNames": [
+        "Florida Intl",
+        "FIU",
+        "FIU"
+      ]
+    },
+    {
+      "cfbdId": 900101,
+      "school": "Michigan",
+      "mascot": "Wolverines",
+      "abbreviation": "MICH",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Michigan Wolverines"
+      ]
+    },
+    {
+      "cfbdId": 900102,
+      "school": "Texas",
+      "mascot": "Longhorns",
+      "abbreviation": "TEX",
+      "conferenceCfbdId": 8,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Texas Longhorns"
+      ]
+    },
+    {
+      "cfbdId": 900103,
+      "school": "Maryland",
+      "mascot": "Terrapins",
+      "abbreviation": "MD",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Maryland Terrapins"
+      ]
+    },
+    {
+      "cfbdId": 900104,
+      "school": "Rutgers",
+      "mascot": "Scarlet Knights",
+      "abbreviation": "RUTG",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Rutgers Scarlet Knights"
+      ]
+    },
+    {
+      "cfbdId": 900105,
+      "school": "Ohio State",
+      "mascot": "Buckeyes",
+      "abbreviation": "OSU",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Ohio State Buckeyes"
+      ]
+    },
+    {
+      "cfbdId": 900106,
+      "school": "Wisconsin",
+      "mascot": "Badgers",
+      "abbreviation": "WIS",
+      "conferenceCfbdId": 4,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Wisconsin Badgers"
+      ]
+    },
+    {
+      "cfbdId": 900107,
+      "school": "Alabama",
+      "mascot": "Crimson Tide",
+      "abbreviation": "ALA",
+      "conferenceCfbdId": 8,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Alabama Crimson Tide"
+      ]
+    },
+    {
+      "cfbdId": 900108,
+      "school": "Auburn",
+      "mascot": "Tigers",
+      "abbreviation": "AUB",
+      "conferenceCfbdId": 1,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Auburn Tigers"
+      ]
+    },
+    {
+      "cfbdId": 900109,
+      "school": "Georgia",
+      "mascot": "Bulldogs",
+      "abbreviation": "UGA",
+      "conferenceCfbdId": 8,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Georgia Bulldogs"
+      ]
+    },
+    {
+      "cfbdId": 900110,
+      "school": "Kentucky",
+      "mascot": "Wildcats",
+      "abbreviation": "UK",
+      "conferenceCfbdId": 4,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Kentucky Wildcats"
+      ]
+    },
+    {
+      "cfbdId": 900111,
+      "school": "Oklahoma",
+      "mascot": "Sooners",
+      "abbreviation": "OU",
+      "conferenceCfbdId": 4,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Oklahoma Sooners"
+      ]
+    },
+    {
+      "cfbdId": 900112,
+      "school": "Missouri",
+      "mascot": "Tigers",
+      "abbreviation": "MIZ",
+      "conferenceCfbdId": 8,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Missouri Tigers"
+      ]
+    },
+    {
+      "cfbdId": 900113,
+      "school": "Clemson",
+      "mascot": "Tigers",
+      "abbreviation": "CLEM",
+      "conferenceCfbdId": 1,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Clemson Tigers"
+      ]
+    },
+    {
+      "cfbdId": 900114,
+      "school": "Florida State",
+      "mascot": "Seminoles",
+      "abbreviation": "FSU",
+      "conferenceCfbdId": 8,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Florida State Seminoles"
+      ]
+    },
+    {
+      "cfbdId": 900115,
+      "school": "Oregon",
+      "mascot": "Ducks",
+      "abbreviation": "ORE",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Oregon Ducks"
+      ]
+    },
+    {
+      "cfbdId": 900116,
+      "school": "Washington",
+      "mascot": "Huskies",
+      "abbreviation": "WASH",
+      "conferenceCfbdId": 1,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Washington Huskies"
+      ]
+    },
+    {
+      "cfbdId": 900117,
+      "school": "Iowa State",
+      "mascot": "Cyclones",
+      "abbreviation": "ISU",
+      "conferenceCfbdId": 4,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Iowa State Cyclones"
+      ]
+    },
+    {
+      "cfbdId": 900118,
+      "school": "Kansas",
+      "mascot": "Jayhawks",
+      "abbreviation": "KU",
+      "conferenceCfbdId": 1,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Kansas Jayhawks"
+      ]
+    },
+    {
+      "cfbdId": 900119,
+      "school": "TCU",
+      "mascot": "Horned Frogs",
+      "abbreviation": "TCU",
+      "conferenceCfbdId": 4,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "TCU Horned Frogs"
+      ]
+    },
+    {
+      "cfbdId": 900120,
+      "school": "Baylor",
+      "mascot": "Bears",
+      "abbreviation": "BAY",
+      "conferenceCfbdId": 8,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Baylor Bears"
+      ]
+    },
+    {
+      "cfbdId": 900121,
+      "school": "Penn State",
+      "mascot": "Nittany Lions",
+      "abbreviation": "PSU",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Penn State Nittany Lions"
+      ]
+    },
+    {
+      "cfbdId": 900122,
+      "school": "Youngstown State",
+      "mascot": "Penguins",
+      "abbreviation": "YSU",
+      "conferenceCfbdId": null,
+      "classification": "Fcs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Youngstown State Penguins"
+      ]
+    },
+    {
+      "cfbdId": 900123,
+      "school": "Indiana",
+      "mascot": "Hoosiers",
+      "abbreviation": "IND",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Indiana Hoosiers"
+      ]
+    },
+    {
+      "cfbdId": 900124,
+      "school": "Indiana State",
+      "mascot": "Sycamores",
+      "abbreviation": "INST",
+      "conferenceCfbdId": null,
+      "classification": "Fcs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Indiana State Sycamores"
+      ]
+    },
+    {
+      "cfbdId": 900125,
+      "school": "Boise State",
+      "mascot": "Broncos",
+      "abbreviation": "BSU",
+      "conferenceCfbdId": 17,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Boise State Broncos"
+      ]
+    },
+    {
+      "cfbdId": 900126,
+      "school": "Fresno State",
+      "mascot": "Bulldogs",
+      "abbreviation": "FRES",
+      "conferenceCfbdId": 17,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Fresno State Bulldogs"
+      ]
+    },
+    {
+      "cfbdId": 900127,
+      "school": "USC",
+      "mascot": "Trojans",
+      "abbreviation": "USC",
+      "conferenceCfbdId": 5,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "USC Trojans"
+      ]
+    },
+    {
+      "cfbdId": 900128,
+      "school": "Stanford",
+      "mascot": "Cardinal",
+      "abbreviation": "STAN",
+      "conferenceCfbdId": 1,
+      "classification": "Fbs",
+      "logoUrl": null,
+      "alternateNames": [
+        "Stanford Cardinal"
+      ]
+    }
+  ]
+}

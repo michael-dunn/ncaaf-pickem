@@ -1,0 +1,52 @@
+{
+  "_note": "The Feature 05 worked example from WorkItems/Overview.txt, verbatim, for InfluenceCalculatorTests. Both games are worth 10 points (the league default) and are Pending (not yet Final); this fixture exercises picks and OppositePicks only, not scoring outcomes.",
+  "members": ["Michael", "Alyson", "Dance", "Alex", "Daniel"],
+  "games": [
+    {
+      "label": "Michigan vs Texas",
+      "homeTeam": "Michigan",
+      "awayTeam": "Texas",
+      "pointValue": 10,
+      "picks": {
+        "Michigan": ["Michael", "Alyson", "Alex", "Daniel"],
+        "Texas": ["Dance"]
+      }
+    },
+    {
+      "label": "Maryland vs Rutgers",
+      "homeTeam": "Maryland",
+      "awayTeam": "Rutgers",
+      "pointValue": 10,
+      "picks": {
+        "Maryland": ["Michael", "Alyson", "Dance", "Daniel"],
+        "Rutgers": ["Alex"]
+      }
+    }
+  ],
+  "expectedDashboards": {
+    "Dance": [
+      {
+        "label": "Michigan vs Texas",
+        "myTeam": "Texas",
+        "oppositePicks": ["Michael", "Alyson", "Alex", "Daniel"]
+      },
+      {
+        "label": "Maryland vs Rutgers",
+        "myTeam": "Maryland",
+        "oppositePicks": ["Alex"]
+      }
+    ],
+    "Alyson": [
+      {
+        "label": "Michigan vs Texas",
+        "myTeam": "Michigan",
+        "oppositePicks": ["Dance"]
+      },
+      {
+        "label": "Maryland vs Rutgers",
+        "myTeam": "Maryland",
+        "oppositePicks": ["Alex"]
+      }
+    ]
+  }
+}
