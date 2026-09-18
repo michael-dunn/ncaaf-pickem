@@ -75,6 +75,8 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 `GameSetGameDto { GameSetGameId, GameId, HomeTeam: TeamDto, AwayTeam: TeamDto, HomeRank?, AwayRank?, KickoffUtc, PointValue, IsPointValueElevated, Source, Status, HomeScore?, AwayScore?, Period?, Clock?, IsVoided, WinnerTeamId? }`
 
+`TeamDto { TeamId, School, Abbreviation?, ConferenceId?, LogoUrl? }`, `ConferenceDto { ConferenceId, Name, Abbreviation }`, `GameCandidate { GameId, HomeTeam, AwayTeam, HomeRank?, AwayRank?, KickoffUtc, IsConferenceGame }`. `GameSetPreview` also carries `UsedFallbackRankings`. `GameSetGameId` is null in previews. Record definitions live in `Shared/Contracts/{GameSets,Points,Reference}`.
+
 ## Point values (Feature 03)
 
 | Method | Route | Scope | Request / Response |
