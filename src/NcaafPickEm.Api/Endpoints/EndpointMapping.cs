@@ -1,3 +1,5 @@
+using NcaafPickEm.Api.Auth;
+
 namespace NcaafPickEm.Api.Endpoints;
 
 /// <summary>
@@ -17,20 +19,30 @@ public static class EndpointMapping
         // Health lives at the root, not under /api, so probes never need auth or the CSRF header.
         app.MapHealthEndpoints();
 
+        // Sign-in and sign-out are browser navigations under /auth, not SPA fetches under /api.
+        app.MapAuthEndpoints();
+
         RouteGroupBuilder api = app.MapGroup("/api")
-            .WithTags("api");
+            .WithTags("api")
+            // Every mutating /api call must carry X-Requested-With: NcaafPickEm.
+            .AddEndpointFilter<CsrfEndpointFilter>();
 
         // One line per feature, alphabetical. Later phases add:
-        //   api.MapMeEndpoints();            (P0-03)
-        //   api.MapSeasonEndpoints();        (P0-05)
         //   api.MapAdminEndpoints();         (P0-06)
+        //   api.MapSeasonEndpoints();        (P0-05)
         //   api.MapLeagueEndpoints();        (P1-01)
         //   api.MapGameSetEndpoints();       (P3-03)
         //   api.MapPickEndpoints();          (P4-01)
         //   api.MapLeaderboardEndpoints();   (P5-03)
         //   api.MapDashboardEndpoints();     (P6-02)
         //   api.MapPushEndpoints();          (P7-01)
-        _ = api;
+        api.MapMeEndpoints();
+
+        // Authorization-matrix probes. Never mapped in Production; deleted by P1-01.
+        if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
+        {
+            api.MapDiagnosticsEndpoints();
+        }
 
         return app;
     }
