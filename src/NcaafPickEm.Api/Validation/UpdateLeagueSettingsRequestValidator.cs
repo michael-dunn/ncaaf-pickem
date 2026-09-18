@@ -1,0 +1,28 @@
+using FluentValidation;
+using NcaafPickEm.Domain.Leagues;
+using NcaafPickEm.Shared.Contracts.Leagues;
+
+namespace NcaafPickEm.Api.Validation;
+
+/// <summary>Shape validation for <see cref="UpdateLeagueSettingsRequest"/>.</summary>
+public sealed class UpdateLeagueSettingsRequestValidator : AbstractValidator<UpdateLeagueSettingsRequest>
+{
+    /// <summary>Creates the validator.</summary>
+    public UpdateLeagueSettingsRequestValidator()
+    {
+        RuleFor(request => request.Name)
+            .NotEmpty().WithMessage("League name is required.")
+            .Must(name => name.Trim().Length is > 0 and <= League.NameMaxLength)
+            .WithMessage($"League name must be 1 to {League.NameMaxLength} characters.");
+
+        RuleFor(request => request.FirstWeek)
+            .GreaterThanOrEqualTo(0);
+
+        RuleFor(request => request.LastWeek)
+            .GreaterThanOrEqualTo(request => request.FirstWeek)
+            .WithMessage("First week must not be after last week.");
+
+        RuleFor(request => request.DefaultPointValue)
+            .InclusiveBetween(League.MinPointValue, League.MaxPointValue);
+    }
+}
