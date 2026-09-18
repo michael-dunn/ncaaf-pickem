@@ -1,0 +1,197 @@
+# NCAAF Pick Em
+
+A mobile-first PWA for a family college-football pick-em league. Commissioners configure rules that
+select Saturday FBS games each week and assign point values; members tap winners before the first
+Saturday kickoff; at lock an influence dashboard shows which games matter most.
+
+- Requirements: [`WorkItems/`](WorkItems) (13 feature stories — these are the spec).
+- Implementation plan: [`Implementation/`](Implementation) — start at
+  [`Implementation/00-README.md`](Implementation/00-README.md).
+- Live task board: [`Implementation/STATUS.md`](Implementation/STATUS.md).
+
+## Prerequisites
+
+| Tool | Version | Notes |
+|---|---|---|
+| .NET SDK | 10.0.400 | Pinned in `global.json` (`rollForward: latestFeature`). |
+| SQL Server | LocalDB or a full instance | LocalDB (`(localdb)\MSSQLLocalDB`) is enough for development and tests. |
+| `dotnet-ef` | 10.0.x | `dotnet tool install --global dotnet-ef` — needed from P0-02 onwards. |
+
+Optional: the `wasm-tools` workload. It is **not** required to build, run, or publish the Blazor
+WebAssembly app; it is only needed if we ever turn on AOT (`RunAOTCompilation`). Trimming and
+Brotli precompression work without it.
+
+## Solution layout
+
+```
+NcaafPickEm.slnx
+src/
+  NcaafPickEm.Domain/          Entities, value objects, pure domain services. References nothing.
+  NcaafPickEm.Shared/          DTOs and enums shared by Api and Web. No logic.
+  NcaafPickEm.Infrastructure/  EF Core, migrations, providers, push, jobs.  -> Domain, Shared
+  NcaafPickEm.Api/             Composition root, minimal endpoints, auth, hosts the Web app.
+                                                                            -> Infrastructure, Shared, Web
+  NcaafPickEm.Web/             Blazor WASM PWA.                             -> Shared
+tests/
+  NcaafPickEm.Domain.Tests/    Pure unit tests. No DB, no network, under 10 s.
+  NcaafPickEm.Api.Tests/       WebApplicationFactory<Program> + real SQL Server.
+  NcaafPickEm.Fixtures/        Embedded JSON fixtures plus `FixtureLoader`.
+deploy/                        Deployment scripts and the production config template (P8-02).
+Implementation/  WorkItems/    Plan and requirements.
+```
+
+Dependency direction is enforced by project references: `Web -> Shared`;
+`Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared`.
+`Domain` references nothing.
+
+## Run locally with fixtures
+
+```bash
+dotnet run --project src/NcaafPickEm.Api
+```
+
+The `https` launch profile (the default) listens on `https://localhost:7092` and
+`http://localhost:5204`, and already sets `Providers__ReferenceData=Fixture` and
+`Providers__LiveScores=Fixture` so nothing calls a live API. To be explicit, or when running
+without the profile:
+
+```bash
+Providers__ReferenceData=Fixture Providers__LiveScores=Fixture \
+  dotnet run --project src/NcaafPickEm.Api --launch-profile https
+```
+
+On Windows PowerShell:
+
+```powershell
+$env:Providers__ReferenceData = "Fixture"; $env:Providers__LiveScores = "Fixture"
+dotnet run --project src/NcaafPickEm.Api --launch-profile https
+```
+
+Probes: `GET /health` (liveness) and `GET /health/ready` (readiness; P0-02 adds the database
+round-trip). Both return `{"status":"ok"}`.
+
+The fixture data itself (the "Week 7, 2026" sample week) arrives with **P2-05**. Until then
+`tests/NcaafPickEm.Fixtures/Data/` is empty and `FixtureLoader.Names` reports no fixtures — the
+provider switches are wired for it in advance so no UI or endpoint work ever needs a live key.
+
+### Local configuration
+
+`src/NcaafPickEm.Api/appsettings.Development.json` is **gitignored**. Copy the committed template
+and fill it in:
+
+```bash
+cp src/NcaafPickEm.Api/appsettings.Development.template.json \
+   src/NcaafPickEm.Api/appsettings.Development.json
+```
+
+Every key can also be supplied as an environment variable with `__` as the separator. The full key
+list lives in `Implementation/01-Architecture.md`:
+
+```
+ConnectionStrings__Default
+Google__ClientId, Google__ClientSecret
+Cfbd__ApiKey
+Providers__LiveScores = Espn | Cfbd | Fixture
+Providers__ReferenceData = Cfbd | Fixture
+Push__VapidPublicKey, Push__VapidPrivateKey, Push__Subject
+App__PublicOrigin = https://<tailnet-host>
+Jobs__Enabled = true | false
+```
+
+No secrets go in the repo. `deploy/appsettings.Production.template.json` documents every key with a
+placeholder for the home server.
+
+Google sign-in setup for local development is documented by **P0-03**.
+
+## Run the tests
+
+```bash
+dotnet test
+```
+
+- `NcaafPickEm.Domain.Tests` is pure: no database, no network.
+- `NcaafPickEm.Api.Tests` boots the real app with `WebApplicationFactory<Program>`. From P0-02
+  onwards it creates a throwaway database `NcaafPickEm_Test_<guid>`, migrates it, and drops it.
+  The server comes from the `TEST_SQL_CONNECTION` environment variable and defaults to LocalDB:
+
+  ```bash
+  TEST_SQL_CONNECTION="Server=(localdb)\\MSSQLLocalDB;Trusted_Connection=True;TrustServerCertificate=True"
+  ```
+
+  API tests run with `Jobs__Enabled=false` and `Providers__*=Fixture`.
+
+Run a single project or a single test:
+
+```bash
+dotnet test tests/NcaafPickEm.Domain.Tests
+dotnet test --filter "FullyQualifiedName~HealthEndpointTests"
+```
+
+## Formatting
+
+`.editorconfig` is law (see `Implementation/05-Conventions.md`). Before committing:
+
+```bash
+dotnet format
+dotnet format --verify-no-changes   # what CI / review checks
+```
+
+The build runs code-style analyzers (`EnforceCodeStyleInBuild`) with
+`TreatWarningsAsErrors`, so an unused `using` fails the build rather than lingering.
+
+## EF Core migrations
+
+Placeholder — **P0-02** creates `AppDbContext`, the `Phase0_02_InitialSchema` migration, and fills
+this section in. The shape the commands will take:
+
+```bash
+dotnet ef migrations add Phase<N>_<Task>_<What> \
+  --project src/NcaafPickEm.Infrastructure \
+  --startup-project src/NcaafPickEm.Api \
+  --output-dir Data/Migrations
+
+dotnet ef database update \
+  --project src/NcaafPickEm.Infrastructure \
+  --startup-project src/NcaafPickEm.Api
+```
+
+Migrations are append-only; never edit one another task has committed.
+
+## Publish
+
+```bash
+dotnet publish src/NcaafPickEm.Api -c Release -o <output>
+```
+
+One self-contained-by-framework folder holds the API and the Blazor app. `MapStaticAssets()` serves
+the Web project's `wwwroot` and its `_framework` payload with fingerprinting and Brotli/gzip
+negotiation. Do **not** add `UseBlazorFrameworkFiles()`: its private static-file branch bypasses the
+endpoint middleware and returns 500 for every `/_framework` request once `MapStaticAssets()` owns
+those routes.
+
+## Package versions
+
+Central Package Management is on: every `PackageReference` in the repo is versionless and
+`Directory.Packages.props` is the single source of truth. To add a package, add a `PackageVersion`
+there and a versionless `PackageReference` in the consuming project. Do not bump an existing version
+without a `DECISIONS.md` entry.
+
+Notable pins: xUnit 2.9.3, FluentAssertions **7.2.2** (8.x changed its license — see D-009),
+Serilog.AspNetCore 10.0.0.
+
+## Logging
+
+Serilog writes to the console and to a daily rolling file at `logs/ncaaf-<date>.log` relative to the
+content root (31 files retained, 64 MB roll). `logs/` is gitignored. Sinks are declared in
+`src/NcaafPickEm.Api/SerilogConfiguration.cs`; levels, overrides and enrichers come from the
+`Serilog` section of `appsettings*.json`. Request logging is on via `UseSerilogRequestLogging()`.
+
+## Where things plug in
+
+Adding a feature should be a one-line change in each of these, never a rewrite of `Program.cs`:
+
+| What you are adding | Where the one line goes |
+|---|---|
+| Any Infrastructure service (DbContext, provider, job, push) | `src/NcaafPickEm.Infrastructure/DependencyInjection.cs` → `AddInfrastructure` |
+| Any API service (auth, validators, filters) | `src/NcaafPickEm.Api/DependencyInjection.cs` → `AddApiServices` |
+| A new endpoint group | `src/NcaafPickEm.Api/Endpoints/EndpointMapping.cs` → `MapApiEndpoints`, plus your own `Endpoints/<Feature>Endpoints.cs` |

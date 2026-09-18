@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- Composition root: minimal endpoints, auth, job host, and static hosting of the Blazor WASM app. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- TimeZoneInfo.FindSystemTimeZoneById("America/New_York") needs ICU. Never set this to true. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <UserSecretsId>ncaaf-pickem-api</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" />
+    <PackageReference Include="Serilog.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NcaafPickEm.Infrastructure\NcaafPickEm.Infrastructure.csproj" />
+    <ProjectReference Include="..\NcaafPickEm.Shared\NcaafPickEm.Shared.csproj" />
+    <ProjectReference Include="..\NcaafPickEm.Web\NcaafPickEm.Web.csproj" />
+  </ItemGroup>
+
+</Project>
