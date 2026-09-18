@@ -50,6 +50,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | Phase | Passed at commit | Date | Notes |
 |---|---|---|---|
 | 0 | fd084d1 (P0-01..P0-05), 72c2c0e (P0-06) | 2026-09-18 | All six Phase 0 tasks merged; 157 tests green. Manual pending (operator): real Google login with a dev OAuth client; iPhone PWA install and load timing over Tailscale (steps in README and Implementation/spikes/wasm-load-time.md). |
+| 1 | 76661d5 | 2026-09-18 | P1-01 (Opus-reviewed), P1-02, P1-03 merged; create/invite/join/roles/display names proven by LeagueEndpointsTests, InviteAcceptTests, RoleTests, DisplayNameTests and the auth matrix; league pages verified against the real API by P1-03 with dev-login. 332 tests green. |
 
 ## Hot-spot edits (Program.cs, DbContext, app.css, service-worker.js)
 
