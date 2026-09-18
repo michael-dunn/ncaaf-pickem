@@ -29,8 +29,11 @@ public interface ILeaguesApi
     /// <summary><c>GET /api/leagues/{leagueId}/members</c>.</summary>
     Task<MemberRow[]> GetMembersAsync(Guid leagueId, CancellationToken cancellationToken = default);
 
-    /// <summary><c>PUT /api/leagues/{leagueId}/members/me/display-name</c>. 409 if taken in the league.</summary>
-    Task SetMyDisplayNameAsync(
+    /// <summary>
+    /// <c>PUT /api/leagues/{leagueId}/members/me/display-name</c>. 409 if taken in the league.
+    /// Returns the caller's own updated row (D-039).
+    /// </summary>
+    Task<MemberRow> SetMyDisplayNameAsync(
         Guid leagueId,
         SetLeagueDisplayNameRequest request,
         CancellationToken cancellationToken = default);

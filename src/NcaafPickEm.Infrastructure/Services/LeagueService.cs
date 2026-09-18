@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Scoring;
@@ -26,18 +27,21 @@ public sealed class LeagueService
     private readonly TimeProvider _timeProvider;
     private readonly SeasonCalendar _calendar;
     private readonly ISeasonWeekSource _weekSource;
+    private readonly ILogger<LeagueService> _logger;
 
     /// <summary>Creates the service.</summary>
     public LeagueService(
         AppDbContext database,
         TimeProvider timeProvider,
         SeasonCalendar calendar,
-        ISeasonWeekSource weekSource)
+        ISeasonWeekSource weekSource,
+        ILogger<LeagueService> logger)
     {
         _database = database;
         _timeProvider = timeProvider;
         _calendar = calendar;
         _weekSource = weekSource;
+        _logger = logger;
     }
 
     /// <summary>
@@ -111,27 +115,117 @@ public sealed class LeagueService
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        if (memberships.Count == 0)
+        {
+            return [];
+        }
+
+        Dictionary<int, IReadOnlyList<SeasonWeek>> weeksByYear = await LoadSeasonWeeksByYearAsync(
+            memberships.Select(membership => membership.League!.SeasonYear), cancellationToken)
+            .ConfigureAwait(false);
+
+        DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
+
+        var currentWeekByMembership = new int[memberships.Count];
+        for (int i = 0; i < memberships.Count; i++)
+        {
+            League league = memberships[i].League!;
+            IReadOnlyList<SeasonWeek> seasonWeeks = weeksByYear[league.SeasonYear];
+            currentWeekByMembership[i] = seasonWeeks.Count == 0
+                ? league.FirstWeek
+                : SeasonCalendar.CurrentWeekAt(nowUtc, seasonWeeks).Week;
+        }
+
+        Dictionary<Guid, SubmissionStatus?> statusByMembershipId = await LoadCurrentWeekStatusesAsync(
+            memberships, currentWeekByMembership, cancellationToken)
+            .ConfigureAwait(false);
+
         var summaries = new LeagueSummary[memberships.Count];
         for (int i = 0; i < memberships.Count; i++)
         {
             Membership membership = memberships[i];
             League league = membership.League!;
-
-            IReadOnlyList<SeasonWeek> seasonWeeks = await _weekSource
-                .GetWeeksAsync(league.SeasonYear, cancellationToken)
-                .ConfigureAwait(false);
-
-            int currentWeek = seasonWeeks.Count == 0
-                ? league.FirstWeek
-                : SeasonCalendar.CurrentWeekAt(_timeProvider.GetUtcNow(), seasonWeeks).Week;
-
-            SubmissionStatus? status = await GetCurrentWeekStatusAsync(league.Id, membership.Id, currentWeek, cancellationToken)
-                .ConfigureAwait(false);
-
-            summaries[i] = new LeagueSummary(league.Id, league.Name, league.SeasonYear, membership.Role, currentWeek, status);
+            summaries[i] = new LeagueSummary(
+                league.Id,
+                league.Name,
+                league.SeasonYear,
+                membership.Role,
+                currentWeekByMembership[i],
+                statusByMembershipId[membership.Id]);
         }
 
         return summaries;
+    }
+
+    /// <summary>
+    /// One <see cref="ISeasonWeekSource"/> call per distinct <c>SeasonYear</c> instead of one per
+    /// membership/row (P1-01 review follow-up 1).
+    /// </summary>
+    private async Task<Dictionary<int, IReadOnlyList<SeasonWeek>>> LoadSeasonWeeksByYearAsync(
+        IEnumerable<int> seasonYears,
+        CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<int, IReadOnlyList<SeasonWeek>>();
+        foreach (int year in seasonYears.Distinct())
+        {
+            result[year] = await _weekSource.GetWeeksAsync(year, cancellationToken).ConfigureAwait(false);
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// One <c>WeekGameSets</c> query and one <c>WeekSubmissions</c> query for every membership's
+    /// current week, instead of two queries per membership (P1-01 review follow-up 1).
+    /// </summary>
+    private async Task<Dictionary<Guid, SubmissionStatus?>> LoadCurrentWeekStatusesAsync(
+        IReadOnlyList<Membership> memberships,
+        int[] currentWeekByMembership,
+        CancellationToken cancellationToken)
+    {
+        Guid[] leagueIds = [.. memberships.Select(membership => membership.LeagueId).Distinct()];
+
+        Dictionary<(Guid LeagueId, int Week), Guid> gameSetIdByLeagueWeek = await _database.WeekGameSets
+            .AsNoTracking()
+            .Where(set => leagueIds.Contains(set.LeagueId))
+            .ToDictionaryAsync(set => (set.LeagueId, set.Week), set => set.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        var weekGameSetIdByMembership = new Guid?[memberships.Count];
+        var relevantSetIds = new HashSet<Guid>();
+        for (int i = 0; i < memberships.Count; i++)
+        {
+            if (gameSetIdByLeagueWeek.TryGetValue((memberships[i].LeagueId, currentWeekByMembership[i]), out Guid setId))
+            {
+                weekGameSetIdByMembership[i] = setId;
+                relevantSetIds.Add(setId);
+            }
+        }
+
+        Guid[] membershipIds = [.. memberships.Select(membership => membership.Id)];
+        Dictionary<Guid, SubmissionStatus> statusByMembershipId = await _database.WeekSubmissions
+            .AsNoTracking()
+            .Where(submission => membershipIds.Contains(submission.MembershipId) && relevantSetIds.Contains(submission.WeekGameSetId))
+            .ToDictionaryAsync(submission => submission.MembershipId, submission => submission.Status, cancellationToken)
+            .ConfigureAwait(false);
+
+        var result = new Dictionary<Guid, SubmissionStatus?>();
+        for (int i = 0; i < memberships.Count; i++)
+        {
+            Guid membershipId = memberships[i].Id;
+            if (weekGameSetIdByMembership[i] is null)
+            {
+                // No game set for the current week: null, not "no game set" vs. NotStarted confusion.
+                result[membershipId] = null;
+                continue;
+            }
+
+            result[membershipId] = statusByMembershipId.TryGetValue(membershipId, out SubmissionStatus status)
+                ? status
+                : SubmissionStatus.NotStarted;
+        }
+
+        return result;
     }
 
     /// <summary>Full detail for a league the caller is already known to be a member of.</summary>
@@ -174,7 +268,7 @@ public sealed class LeagueService
         if (request.DefaultPointValue is < League.MinPointValue or > League.MaxPointValue)
         {
             throw new LeagueRuleViolation(
-                LeagueRuleViolationCode.InvalidWeekRange,
+                LeagueRuleViolationCode.InvalidPointValue,
                 $"Default point value must be {League.MinPointValue} to {League.MaxPointValue}.");
         }
 
@@ -190,9 +284,14 @@ public sealed class LeagueService
 
     /// <summary>
     /// The league's roster. <paramref name="includeStatus"/> is true only for commissioner
-    /// callers (03-API-Contracts.md).
+    /// callers (03-API-Contracts.md). <paramref name="callerUserId"/> flags the caller's own row
+    /// with <see cref="MemberRow.IsMe"/>.
     /// </summary>
-    public async Task<MemberRow[]> GetMembersAsync(Guid leagueId, bool includeStatus, CancellationToken cancellationToken)
+    public async Task<MemberRow[]> GetMembersAsync(
+        Guid leagueId,
+        bool includeStatus,
+        Guid callerUserId,
+        CancellationToken cancellationToken)
     {
         League league = await _database.Leagues
             .AsNoTracking()
@@ -207,16 +306,24 @@ public sealed class LeagueService
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        int? currentWeek = null;
+        Dictionary<Guid, SubmissionStatus?> statusByMembershipId = [];
         if (includeStatus)
         {
             IReadOnlyList<SeasonWeek> seasonWeeks = await _weekSource
                 .GetWeeksAsync(league.SeasonYear, cancellationToken)
                 .ConfigureAwait(false);
 
-            currentWeek = seasonWeeks.Count == 0
+            int currentWeek = seasonWeeks.Count == 0
                 ? league.FirstWeek
                 : SeasonCalendar.CurrentWeekAt(_timeProvider.GetUtcNow(), seasonWeeks).Week;
+
+            List<Membership> activeMemberships = [.. memberships.Where(membership => membership.IsActive)];
+            var currentWeekByMembership = new int[activeMemberships.Count];
+            Array.Fill(currentWeekByMembership, currentWeek);
+
+            statusByMembershipId = await LoadCurrentWeekStatusesAsync(
+                activeMemberships, currentWeekByMembership, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         var rows = new MemberRow[memberships.Count];
@@ -224,12 +331,9 @@ public sealed class LeagueService
         {
             Membership membership = memberships[i];
 
-            SubmissionStatus? status = null;
-            if (includeStatus && membership.IsActive && currentWeek is int week)
-            {
-                status = await GetCurrentWeekStatusAsync(leagueId, membership.Id, week, cancellationToken)
-                    .ConfigureAwait(false);
-            }
+            SubmissionStatus? status = includeStatus && membership.IsActive
+                ? statusByMembershipId.GetValueOrDefault(membership.Id)
+                : null;
 
             rows[i] = new MemberRow(
                 membership.Id,
@@ -237,7 +341,8 @@ public sealed class LeagueService
                 membership.Role,
                 membership.JoinedWeek,
                 IsFormer: !membership.IsActive,
-                status);
+                status,
+                IsMe: membership.UserId == callerUserId);
         }
 
         return rows;
@@ -291,7 +396,50 @@ public sealed class LeagueService
             tracked.Role,
             tracked.JoinedWeek,
             IsFormer: false,
-            CurrentWeekStatus: null);
+            CurrentWeekStatus: null,
+            IsMe: true);
+    }
+
+    /// <summary>
+    /// Leagues where changing the caller's global (account-wide) display name to
+    /// <paramref name="newDisplayName"/> would collide with another active member's effective
+    /// name. Only leagues where the caller has no per-league override are checked, since an
+    /// override already shields the global rename there. See DECISIONS.md (global-name
+    /// collision rule, P1-03).
+    /// </summary>
+    public async Task<string[]> ListGlobalNameCollisionsAsync(
+        Guid userId,
+        string newDisplayName,
+        CancellationToken cancellationToken)
+    {
+        string normalizedUpper = newDisplayName.ToUpperInvariant();
+
+        List<Membership> myUnoverriddenMemberships = await _database.Memberships
+            .AsNoTracking()
+            .Include(membership => membership.League)
+            .Where(membership => membership.UserId == userId
+                && membership.RemovedUtc == null
+                && membership.DisplayNameOverride == null)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var collisions = new List<string>();
+        foreach (Membership mine in myUnoverriddenMemberships)
+        {
+            bool taken = await _database.Memberships
+                .AsNoTracking()
+                .Where(other => other.LeagueId == mine.LeagueId && other.RemovedUtc == null && other.Id != mine.Id)
+                .Select(MemberNameProjection.Selector)
+                .AnyAsync(effectiveName => effectiveName.ToUpper() == normalizedUpper, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (taken)
+            {
+                collisions.Add(mine.League!.Name);
+            }
+        }
+
+        return [.. collisions];
     }
 
     /// <summary>Soft-removes a member. 409 when the target is the caller or the last commissioner.</summary>
@@ -316,6 +464,12 @@ public sealed class LeagueService
         WriteAudit(caller, AuditAction.MemberRemoved, target.Id, new { targetMembershipId = target.Id });
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Membership {TargetMembershipId} removed from league {LeagueId} by {ActorMembershipId}",
+            target.Id,
+            caller.LeagueId,
+            caller.Id);
     }
 
     /// <summary>Promotes an active member to Commissioner.</summary>
@@ -332,6 +486,12 @@ public sealed class LeagueService
         WriteAudit(caller, AuditAction.RolePromoted, target.Id, new { targetMembershipId = target.Id, before, after = target.Role });
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Membership {TargetMembershipId} promoted to Commissioner in league {LeagueId} by {ActorMembershipId}",
+            target.Id,
+            caller.LeagueId,
+            caller.Id);
     }
 
     /// <summary>Demotes a commissioner to Member. 409 when the target is the last commissioner.</summary>
@@ -355,6 +515,12 @@ public sealed class LeagueService
         WriteAudit(caller, AuditAction.RoleDemoted, target.Id, new { targetMembershipId = target.Id, before, after = target.Role });
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Membership {TargetMembershipId} demoted to Member in league {LeagueId} by {ActorMembershipId}",
+            target.Id,
+            caller.LeagueId,
+            caller.Id);
     }
 
     /// <summary>Transfers the commissioner role: target promoted, caller demoted.</summary>
@@ -375,6 +541,12 @@ public sealed class LeagueService
         WriteAudit(caller, AuditAction.RoleTransferred, target.Id, new { fromMembershipId = callerTracked.Id, toMembershipId = target.Id });
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "Commissioner role transferred from {FromMembershipId} to {ToMembershipId} in league {LeagueId}",
+            callerTracked.Id,
+            target.Id,
+            caller.LeagueId);
     }
 
     /// <summary>The league's playable weeks (First..Last) with their generation/lock state.</summary>
@@ -512,7 +684,7 @@ public sealed class LeagueService
             .ConfigureAwait(false);
 
         return membership ?? throw new LeagueRuleViolation(
-            LeagueRuleViolationCode.InvalidTransferTarget,
+            LeagueRuleViolationCode.MembershipNotFound,
             "No active member with that id in this league.");
     }
 

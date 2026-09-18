@@ -65,7 +65,7 @@ public sealed class LeaguesApi(HttpClient httpClient) : ILeaguesApi
     }
 
     /// <inheritdoc />
-    public async Task SetMyDisplayNameAsync(
+    public async Task<MemberRow> SetMyDisplayNameAsync(
         Guid leagueId,
         SetLeagueDisplayNameRequest request,
         CancellationToken cancellationToken = default)
@@ -73,6 +73,7 @@ public sealed class LeaguesApi(HttpClient httpClient) : ILeaguesApi
         using HttpResponseMessage response = await _httpClient.PutAsJsonAsync(
             $"api/leagues/{leagueId}/members/me/display-name", request, cancellationToken);
         await EnsureSuccessAsync(response);
+        return await ReadRequiredAsync<MemberRow>(response);
     }
 
     /// <inheritdoc />

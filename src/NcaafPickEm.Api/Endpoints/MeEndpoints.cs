@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Auth;
+using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Services;
@@ -42,7 +43,7 @@ public static class MeEndpoints
             : TypedResults.Ok(await ToResponseAsync(user, leagueService, cancellationToken));
     }
 
-    private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult, ValidationProblem>> UpdateAsync(
+    private static async Task<Results<Ok<MeResponse>, UnauthorizedHttpResult, ValidationProblem, ProblemHttpResult>> UpdateAsync(
         UpdateMeRequest request,
         ICurrentUser currentUser,
         AppDbContext database,
@@ -64,6 +65,21 @@ public static class MeEndpoints
         if (user is null)
         {
             return TypedResults.Unauthorized();
+        }
+
+        // Global-rename collision rule (P1-03, DECISIONS.md): reject rather than silently let two
+        // members of the same league share an effective name. Only leagues where the caller has
+        // no per-league override are affected, since an override already shields them there.
+        string[] collidingLeagues = await leagueService.ListGlobalNameCollisionsAsync(
+            user.Id, displayName, cancellationToken);
+
+        if (collidingLeagues.Length > 0)
+        {
+            var violation = new LeagueRuleViolation(
+                LeagueRuleViolationCode.DisplayNameTaken,
+                $"That display name is already used by another member in: {string.Join(", ", collidingLeagues)}. "
+                    + "Set a per-league nickname there instead, or pick a different name.");
+            return violation.ToProblem();
         }
 
         user.DisplayName = displayName;

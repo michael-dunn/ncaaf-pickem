@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
@@ -20,6 +21,7 @@ public sealed class InviteService
     private readonly ISeasonWeekSource _weekSource;
     private readonly LeagueService _leagueService;
     private readonly IConfiguration _configuration;
+    private readonly ILogger<InviteService> _logger;
 
     /// <summary>Creates the service.</summary>
     public InviteService(
@@ -27,13 +29,15 @@ public sealed class InviteService
         TimeProvider timeProvider,
         ISeasonWeekSource weekSource,
         LeagueService leagueService,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        ILogger<InviteService> logger)
     {
         _database = database;
         _timeProvider = timeProvider;
         _weekSource = weekSource;
         _leagueService = leagueService;
         _configuration = configuration;
+        _logger = logger;
     }
 
     /// <summary>Creates a new active invite for the caller's league.</summary>
@@ -195,6 +199,13 @@ public sealed class InviteService
         invite.Uses += 1;
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "User {UserId} joined league {LeagueId} via invite {InviteId} (membership {MembershipId})",
+            callerUserId,
+            league.Id,
+            invite.Id,
+            membership.Id);
 
         var detail = await _leagueService.GetDetailAsync(membership, cancellationToken).ConfigureAwait(false);
         return new InviteAcceptResult(detail, null);

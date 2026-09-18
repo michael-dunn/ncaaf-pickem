@@ -152,12 +152,13 @@ public sealed class FakeLeaguesApi : ILeaguesApi
                 m.Role,
                 m.JoinedWeek,
                 m.IsFormer,
-                isCommish ? m.CurrentWeekStatus : null))
+                isCommish ? m.CurrentWeekStatus : null,
+                IsMe: m.MembershipId == _callerMembershipId))
             .ToArray());
     }
 
     /// <inheritdoc />
-    public Task SetMyDisplayNameAsync(
+    public Task<MemberRow> SetMyDisplayNameAsync(
         Guid leagueId,
         SetLeagueDisplayNameRequest request,
         CancellationToken cancellationToken = default)
@@ -171,7 +172,8 @@ public sealed class FakeLeaguesApi : ILeaguesApi
         }
 
         me.DisplayName = name ?? me.DisplayName;
-        return Task.CompletedTask;
+        return Task.FromResult(new MemberRow(
+            me.MembershipId, me.DisplayName, me.Role, me.JoinedWeek, me.IsFormer, me.CurrentWeekStatus, IsMe: true));
     }
 
     /// <inheritdoc />
