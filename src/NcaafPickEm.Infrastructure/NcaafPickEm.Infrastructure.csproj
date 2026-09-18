@@ -17,6 +17,11 @@
          IDesignTimeDbContextFactory<AppDbContext> and `dotnet ef` can load it from the build
          output of either this project or the Api startup project. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <!-- CFBD reference data provider (P2-02). Microsoft.Extensions.Http is already available
+         transitively through the AspNetCore.App framework reference above; CPM's pruning check
+         (NU1510) refuses an explicit reference to it. -->
+    <PackageReference Include="CollegeFootballData" />
+    <PackageReference Include="Microsoft.Kiota.Http.HttpClientLibrary" />
   </ItemGroup>
 
   <ItemGroup>

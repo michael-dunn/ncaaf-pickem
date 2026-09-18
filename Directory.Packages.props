@@ -28,6 +28,24 @@
     <PackageVersion Include="Cronos" Version="0.13.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Providers">
+    <!-- CFBD reference data client (P2-02). Kiota-generated; the five packages below are its
+         transitive dependencies, pinned here because CentralPackageTransitivePinningEnabled
+         demands an explicit version for every package that reaches the graph. -->
+    <PackageVersion Include="CollegeFootballData" Version="5.27.1" />
+    <!-- CollegeFootballData 5.27.1 floors these at 1.19.0; bumped to the latest 2.1.2 because
+         1.19.0 carries a known high-severity advisory (GHSA-7j59-v9qr-6fq9) that NU1903 refuses
+         to restore against. -->
+    <PackageVersion Include="Microsoft.Kiota.Abstractions" Version="2.1.2" />
+    <PackageVersion Include="Microsoft.Kiota.Authentication.Azure" Version="2.1.2" />
+    <PackageVersion Include="Microsoft.Kiota.Bundle" Version="2.1.2" />
+    <PackageVersion Include="Microsoft.Kiota.Http.HttpClientLibrary" Version="2.1.2" />
+    <PackageVersion Include="Microsoft.Kiota.Serialization.Json" Version="2.1.2" />
+    <PackageVersion Include="Microsoft.Kiota.Serialization.Text" Version="2.1.2" />
+    <PackageVersion Include="Microsoft.Kiota.Serialization.Form" Version="2.1.2" />
+    <PackageVersion Include="Microsoft.Kiota.Serialization.Multipart" Version="2.1.2" />
+  </ItemGroup>
+
   <ItemGroup Label="Logging">
     <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
   </ItemGroup>
