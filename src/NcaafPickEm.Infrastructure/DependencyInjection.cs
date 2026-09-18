@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
+using NcaafPickEm.Infrastructure.Services;
 
 namespace NcaafPickEm.Infrastructure;
 
@@ -59,6 +60,10 @@ public static class DependencyInjection
         // Providers:ReferenceData is Cfbd.
         services.TryAddSingleton<SeasonCalendar>();
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
+
+        // Leagues and members (P1-01). Scoped: both take AppDbContext.
+        services.AddScoped<LeagueService>();
+        services.AddScoped<InviteService>();
 
         return services;
     }
