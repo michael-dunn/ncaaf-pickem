@@ -1,7 +1,6 @@
 @page "/leagues/{LeagueId:guid}/members"
 @inject ILeaguesApi LeaguesApi
 @inject AppShellState Shell
-@inject ApiAuthenticationStateProvider AuthState
 
 @*
     Members (P1-02). Roster with role badges. Commissioners additionally see per-member status
@@ -33,7 +32,7 @@ else
                     }
                 </div>
 
-                @if (_isCommissioner && member.DisplayName != _myDisplayName)
+                @if (_isCommissioner)
                 {
                     <div class="member-row-actions">
                         @if (member.Role == MembershipRole.Member)
@@ -85,7 +84,6 @@ else
     private sealed record PendingAction(MemberRow Member, MemberAction Action);
 
     private MemberRow[]? _members;
-    private string? _myDisplayName;
     private bool _isCommissioner;
     private PendingAction? _pendingAction;
     private string? _error;
@@ -104,12 +102,10 @@ else
             _isCommissioner = league.MyRole == MembershipRole.Commissioner;
             _members = await LeaguesApi.GetMembersAsync(LeagueId);
 
-            // MemberRow does not carry a membership id for "me"; match by effective display name
-            // against /api/me instead, so a commissioner does not see promote/demote/remove
-            // actions on their own row. The server still enforces the real invariants (cannot
-            // remove self, cannot demote the last commissioner) with a 409 either way.
-            await AuthState.GetAuthenticationStateAsync();
-            _myDisplayName = AuthState.CurrentUser?.DisplayName;
+            // MemberRow does not identify "me", so every row a commissioner sees offers the same
+            // actions, including their own row. The server enforces the real invariants (cannot
+            // remove self, cannot demote the last commissioner) and ErrorBanner surfaces the 409
+            // if the commissioner taps an action on themselves.
         }
         catch (LeaguesApiException ex)
         {
