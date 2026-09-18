@@ -10,7 +10,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | P0-02 | Database and EF Core | | Opus | Todo | | |
 | P0-03 | Google sign-in, users, authorization plumbing | | Opus | Todo | | |
 | P0-04 | Blazor PWA shell and load-time spike | opus-p0-04-05 | Opus | In Review | p0-04-05-pwa-calendar | Shell, PWA assets, HttpClient handlers, trimming/Brotli done. Spike recorded in `Implementation/spikes/wasm-load-time.md`: 2.19 MB Brotli, ~0.5 s cold / ~0.3 s warm to rendered page on localhost; PASS, D-014 confirms Blazor WASM. Screenshot `Implementation/screenshots/p0-04-shell-375.png`. **Manual pending (operator)**: iPhone home-screen install, standalone launch, and the phone/Tailscale load numbers (steps in the spike file). Fixed two blockers that made the hosted app never boot: fingerprint placeholder (D-013) and `TrimMode=full` (D-014). |
-| P0-05 | Season calendar domain | | Opus | Todo | | |
+| P0-05 | Season calendar domain | opus-p0-04-05 | Opus | In Review | p0-04-05-pwa-calendar | `Domain/Seasons/SeasonCalendar` (+ `SeasonWeek`, `ISeasonWeekSource`, `SeasonState`, `CurrentWeek`, `LeagueWeekRange`), `FixtureSeasonWeekSource` for 2026 (weeks 0-15, code not JSON, D-015), `GET /api/seasons/{year}/weeks`. `SeasonCalendarTests` 28 tests + `SeasonEndpointTests` 3, all green. Endpoint carries `// TODO P0-03: RequireAuthorization("Authenticated")` - the policy does not exist yet. |
 | P0-06 | Job scheduler infrastructure | | Opus | Todo | | |
 | P1-01 | League and membership service and endpoints | | Sonnet | Todo | | Opus review |
 | P1-02 | League UI | | Sonnet | Todo | | |
@@ -54,6 +54,8 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 
 | Date | Task | File | What |
 |---|---|---|---|
+| 2026-09-18 | P0-05 | `src/NcaafPickEm.Api/Endpoints/EndpointMapping.cs` | One line: `api.MapSeasonEndpoints();`, and removed the `_ = api;` placeholder now that the group has a real member. |
+| 2026-09-18 | P0-05 | `src/NcaafPickEm.Infrastructure/DependencyInjection.cs` | Two lines: `TryAddSingleton<SeasonCalendar>()` and `TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>()`. P2-02 swaps the week source by `Providers:ReferenceData`. |
 | 2026-09-18 | P0-04 | `src/NcaafPickEm.Web/wwwroot/css/app.css` | Replaced the template stylesheet with the design tokens (colours, spacing, 16px base, 44px tap target, safe-area insets), the reset, the shell layout, small primitives, and the loading splash. Add feature styles in a co-located `.razor.css`, not here. |
 | 2026-09-18 | P0-04 | `src/NcaafPickEm.Web/wwwroot/service-worker.js` and `service-worker.published.js` | Kept the template's asset-manifest offline caching unchanged; appended empty `push` and `notificationclick` listeners with TODOs for P7-02. |
 | 2026-09-18 | P0-04 | `src/NcaafPickEm.Web/Program.cs` | One registration line: `builder.Services.AddWebServices(new Uri(builder.HostEnvironment.BaseAddress))`. Add client services in `Web/Services/DependencyInjection.cs`, not here. |
