@@ -34,6 +34,16 @@ public static class DependencyInjection
             BaseAddress = baseAddress,
         });
 
+#if DEBUG && USE_FAKE_API
+        // Development-only, never in a Release publish: DEBUG is off in Release, so this branch
+        // cannot compile in even if USE_FAKE_API is also passed by mistake. See DECISIONS.md.
+        services.AddScoped<ILeaguesApi, Fakes.FakeLeaguesApi>();
+        services.AddScoped<ISeasonsApi, Fakes.FakeSeasonsApi>();
+#else
+        services.AddScoped<ILeaguesApi, LeaguesApi>();
+        services.AddScoped<ISeasonsApi, SeasonsApi>();
+#endif
+
         return services;
     }
 
