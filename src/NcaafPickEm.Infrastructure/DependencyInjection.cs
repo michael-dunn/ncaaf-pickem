@@ -1,14 +1,19 @@
+using CollegeFootballData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Kiota.Abstractions.Authentication;
+using Microsoft.Kiota.Http.HttpClientLibrary;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Infrastructure.Providers;
+using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 using NcaafPickEm.Infrastructure.Seeding;
+using NcaafPickEm.Infrastructure.Services;
 
 namespace NcaafPickEm.Infrastructure;
 
@@ -60,10 +65,17 @@ public static class DependencyInjection
 
         services.AddHostedService<DatabaseMigratorHostedService>();
 
-        // Season calendar (P0-05). The week source is fixture-backed for every provider setting
-        // today; P2-02 adds a CFBD-ingest-backed source and selects it when
-        // Providers:ReferenceData is Cfbd.
+        string referenceDataProvider = configuration["Providers:ReferenceData"] ?? string.Empty;
+
+        // Season calendar (P0-05). Cfbd registers a scoped source over the ingested SeasonWeeks
+        // table before the fixture one below; TryAddSingleton then no-ops, since a service
+        // descriptor for ISeasonWeekSource already exists.
         services.TryAddSingleton<SeasonCalendar>();
+        if (string.Equals(referenceDataProvider, "Cfbd", StringComparison.OrdinalIgnoreCase))
+        {
+            services.TryAddScoped<ISeasonWeekSource, DbSeasonWeekSource>();
+        }
+
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
 
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
@@ -77,8 +89,7 @@ public static class DependencyInjection
         // for reference data but Fixture for live scores).
         services.TryAddSingleton<FixtureSnapshotState>();
 
-        string referenceDataProvider = configuration["Providers:ReferenceData"] ?? string.Empty;
-        RegisterReferenceDataProvider(services, referenceDataProvider, environment);
+        RegisterReferenceDataProvider(services, configuration, referenceDataProvider, environment);
 
         string liveScoreProvider = configuration["Providers:LiveScores"] ?? string.Empty;
         RegisterLiveScoreProvider(services, liveScoreProvider, environment);
@@ -91,6 +102,7 @@ public static class DependencyInjection
 
     private static void RegisterReferenceDataProvider(
         IServiceCollection services,
+        IConfiguration configuration,
         string providerName,
         IHostEnvironment environment)
     {
@@ -116,16 +128,37 @@ public static class DependencyInjection
                 services.TryAddSingleton<IReferenceDataProvider, FixtureReferenceDataProvider>();
                 break;
 
-            // P2-02 registers Cfbd here:
-            // case "Cfbd":
-            //     services.TryAddSingleton<IReferenceDataProvider, CfbdReferenceDataProvider>();
-            //     break;
+            case "Cfbd":
+                RegisterCfbdClient(services, configuration);
+                // Scoped, not singleton: CfbdReferenceDataProvider depends on the scoped
+                // ProviderCallRecorder, which shares the caller's AppDbContext.
+                services.TryAddScoped<IReferenceDataProvider, CfbdReferenceDataProvider>();
+                break;
 
             default:
                 throw new InvalidOperationException(
                     $"Providers:ReferenceData '{providerName}' is not a recognized provider. " +
-                    "Use 'Fixture' (or 'Cfbd' once P2-02 registers it).");
+                    "Use 'Fixture' or 'Cfbd'.");
         }
+    }
+
+    private static void RegisterCfbdClient(IServiceCollection services, IConfiguration configuration)
+    {
+        services.AddOptions<CfbdOptions>().Bind(configuration.GetSection(CfbdOptions.SectionName));
+        services.TryAddSingleton<IAccessTokenProvider, CfbdAccessTokenProvider>();
+        services.AddHttpClient("Cfbd", client => client.BaseAddress = new Uri("https://api.collegefootballdata.com"));
+
+        services.TryAddSingleton(sp =>
+        {
+            var authenticationProvider = new BaseBearerTokenAuthenticationProvider(
+                sp.GetRequiredService<IAccessTokenProvider>());
+            HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("Cfbd");
+            var requestAdapter = new HttpClientRequestAdapter(authenticationProvider, httpClient: httpClient);
+            return new ApiClient(requestAdapter);
+        });
+
+        services.TryAddScoped<ProviderCallRecorder>();
+        services.TryAddScoped<ReferenceDataIngestService>();
     }
 
     private static void RegisterLiveScoreProvider(
