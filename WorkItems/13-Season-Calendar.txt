@@ -1,0 +1,67 @@
+Feature 13: Season Calendar and Current Week
+Overview reference: implied by Features 01, 02, 04, 07 ("current week", "each week", "Saturday");
+resolved questions on Eastern time and one-league-per-season
+
+Summary
+-------
+Almost every feature refers to "the current week" and "Saturday" without defining them. This file
+pins down how weeks are numbered, when one week becomes the next, what the season covers, and how
+time zones are handled.
+
+Definitions
+-----------
+- Season: a single calendar year of college football (e.g., 2026). A league belongs to exactly one
+  season (Feature 01).
+- Week: numbered as the data provider numbers it (Week 0 or 1 through the conference championship
+  week, typically Week 14 or 15). Week numbers come from the schedule feed, not from counting
+  Saturdays, so they stay aligned with rankings and schedules.
+- Week window: a week runs from Sunday 12:00 AM ET through Saturday 11:59 PM ET. A game's week is
+  the week the provider assigns it, which is what places delayed Saturday-night finishes in the
+  correct week (Feature 06).
+- Saturday game: a game whose scheduled kickoff, converted to Eastern time, falls on a Saturday.
+  A Friday 11:30 PM Pacific kickoff is Saturday 2:30 AM Eastern and therefore counts as Saturday.
+  This is the definition Feature 02 uses.
+- Lock time: the earliest Saturday kickoff in the league's game set for the week (Feature 05).
+
+Acceptance Criteria
+-------------------
+Current week
+- Given the current time is within a week window (Sunday 12:00 AM ET to Saturday 11:59 PM ET),
+  then that week is the current week for picks and the league home page.
+- Given the current time is Sunday 12:00 AM ET or later, then the previous week is no longer
+  pickable even if some of its games are still being scored (a delayed game is scored into the
+  week it belongs to, but new picks are never accepted for it).
+- The leaderboard "jump to current week" control (Feature 07) goes to this current week.
+
+Season range
+- Given a commissioner creating a league, then they choose the first and last week the league will
+  play. Defaults are Week 1 through the final regular-season week. Week 0 is never included by
+  default but the commissioner may select it as the first week.
+- Weeks outside the league's range have no game set and are not pickable or navigable.
+- Conference championship week, bowl games, and the College Football Playoff are out of scope.
+  Only the regular season is played; the last selectable week is the final regular-season week.
+- Given the current date is before the league's first week, then the league home shows "Season
+  starts Week N on <date>" and the picks page is unavailable.
+- Given the current date is after the league's last week's window, then the league is marked
+  Complete and the season leaderboard is final.
+
+Time zones
+- All times are stored in UTC.
+- All scheduling logic (week boundaries, Saturday determination, reminder times in Feature 11)
+  evaluates in America/New_York, including daylight saving transitions.
+- All times displayed to a member are rendered in the member's device time zone, with the zone
+  abbreviation shown next to lock time so a Mountain-time member is not confused by an Eastern
+  lock.
+
+Schedule changes
+- Given the schedule feed moves a game from Saturday to another day after the game set was
+  generated but before lock, then the game is removed from the set and affected members are
+  notified (Feature 11, "new games added" pattern in reverse: "a game was removed").
+- Given the same change after lock, then the game is voided (Feature 06).
+
+Resolved Questions
+------------------
+- Should the league default to including Week 0 when the season has one? (Proposed: no, default
+  to Week 1, commissioner can change.) A: no
+- Should conference championship week be included by default? Most conferences play Friday and
+  Saturday, so the set would be small. (Proposed: yes, include; the Saturday filter handles it.) A: no, only regular season is in scope

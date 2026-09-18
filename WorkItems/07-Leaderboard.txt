@@ -1,0 +1,58 @@
+Feature 07: Leaderboard
+Overview reference: Major Feature 7
+
+Summary
+-------
+The leaderboard shows standings both for a single week and for the season to date. It updates as
+games go final. Members can drill into any past week to see everyone's picks and results.
+
+User Stories
+------------
+- As a member, I can see the season standings ranked by total points.
+- As a member, I can see who won a specific week.
+- As a member, I can see a past week's picks for every member alongside the results.
+- As a member, I can see how many points I am behind the leader.
+
+Acceptance Criteria
+-------------------
+Season leaderboard
+- Given a league, then the season leaderboard lists every current member ranked by total points
+  descending.
+- Ties in total points share the same rank (e.g., two members tied at 1st, next member is 3rd).
+- Each row shows: rank, member name, total points, points behind leader, and number of weekly wins.
+- The viewing member's row is visually highlighted.
+- Each row shows a trend indicator (up, down, or unchanged) comparing the member's season rank
+  after the most recent Complete week to their rank after the week before it. Week 1 shows no
+  trend.
+- No season-end champion banner or past-season archive is required; the season leaderboard after
+  the final week is the record.
+
+Weekly leaderboard
+- Given a week, then the weekly leaderboard lists every member ranked by that week's points.
+- Each row shows: rank, member name, weekly points, correct picks (e.g., 9/12).
+- The weekly winner(s) are marked with a trophy indicator; ties share the win.
+- A week that is not yet Complete (Feature 06) is labeled "In Progress" and its standings are
+  provisional.
+
+Week drill-down
+- Given a completed or in-progress week, when a member opens it, then they see a grid of games
+  (rows) by members (columns) showing each pick, colored correct/incorrect/pending, with the game
+  result.
+- Voided games (Feature 06) are shown but greyed out.
+- The grid is horizontally scrollable on mobile with the game column pinned.
+
+Navigation
+- Members can move between weeks with prev/next controls and jump to the current week.
+- Only weeks that have had a game set generated are navigable.
+
+Former members
+- Members removed from the league appear in past weekly leaderboards for weeks they participated
+  in, but not on the season leaderboard.
+
+Performance
+- The season leaderboard loads in under 1 second for a league of up to 50 members and 15 weeks.
+
+Resolved Questions
+------------------
+- Should there be a season-end "champion" banner and archive of past seasons? A: season end banner is not needed. 
+- Should the leaderboard show a trend (up/down arrows week over week)? A: Yes, each week should show up and down trends

@@ -1,0 +1,107 @@
+Feature 11: Notifications
+Overview reference: derived from Feature 04 resolved questions (reminders, new games added)
+
+Summary
+-------
+The app sends web push notifications to remind members to submit picks, to tell the commissioner
+who has not submitted, and to alert members when new games are added to a week they already
+submitted. There is no email or SMS provider, so web push is the only channel. All scheduled times
+are Eastern.
+
+Platform Constraints
+--------------------
+- Web push uses the standard Push API with VAPID keys; no Firebase or Apple developer account is
+  required.
+- On iPhone and iPad, push only works when the app has been added to the Home Screen from Safari
+  and is opened from that icon (standalone mode). A regular Safari tab cannot receive push and will
+  report permission as denied. Requires iOS 16.4 or later.
+- The browser requests notification permission only in response to a user tap, so the app must
+  present an explicit "Turn on notifications" action rather than prompting on load.
+- Each device/browser produces its own subscription. A member with a phone and a laptop has two
+  subscriptions.
+
+User Stories
+------------
+- As a member, I can turn notifications on or off for my account from a settings page.
+- As a member, I am reminded on Friday evening if I have not submitted this week's picks.
+- As a member, I am reminded one hour before lock on Saturday if I still have not submitted.
+- As a member, I am told immediately when a game is added to a week I already submitted.
+- As a commissioner, I am told on Friday evening which members have not submitted.
+- As a member, tapping a notification opens the relevant page (picks page or league home).
+
+Notification Catalog
+--------------------
+1. Member pick reminder (Friday)
+   When: Friday 8:00 PM ET.
+   Who: every member whose status for the current week is Not Started or In Progress.
+   Text: "You have N picks left for Week W. Lock is Saturday at h:mm AM/PM."
+   Tap target: picks page.
+
+2. Commissioner unsubmitted summary (Friday)
+   When: Friday 9:00 PM ET, only if at least one member is not Submitted.
+   Who: the commissioner.
+   Text: "N members haven't submitted Week W picks: Name, Name, Name."
+   Tap target: league home roster.
+
+3. Member pick reminder (Saturday)
+   When: exactly 1 hour before lock (lock = earliest Saturday kickoff in the set, Feature 05).
+   Who: every member whose status is Not Started or In Progress.
+   Text: "Picks lock in 1 hour. You have N picks left for Week W."
+   Tap target: picks page.
+
+4. New games added
+   When: immediately, when the game set changes to include a game the member has not picked and
+   the member's status was Submitted.
+   Who: each affected member.
+   Text: "N new games were added to Week W. Update your picks."
+   Tap target: picks page with new games highlighted.
+
+5. Game removed
+   When: immediately, when a game the member had picked is removed from the set before lock
+   (postponed, cancelled, or removed by the commissioner).
+   Who: each member who had a pick on that game.
+   Text: "Team A vs Team B was removed from Week W. Your other picks are unchanged."
+   Tap target: picks page.
+
+Acceptance Criteria
+-------------------
+Opt in / opt out
+- Given a member on the settings page, when they tap "Turn on notifications" and accept the
+  browser prompt, then a push subscription is stored against their account and device.
+- Given a member with notifications on, when they tap "Turn off notifications", then all their
+  subscriptions for that device are deleted and no further pushes are sent to it.
+- Given an iPhone user who has NOT installed the app to the Home Screen, when they open settings,
+  then they see instructions to add the app to the Home Screen first, and the "Turn on" action is
+  hidden.
+- Notification preferences are per member; the commissioner cannot force them on.
+
+Scheduling
+- Reminder jobs run on a scheduler inside the app (hosted background service or equivalent), not a
+  separate paid service.
+- Given the Friday 8 PM job runs, then it sends at most one reminder per member per week even if
+  the job is retried.
+- Given no game set exists for the current week, then no reminders are sent.
+- Given a member who submits at 7:59 PM, then they receive no 8 PM reminder (status is checked at
+  send time, not scheduled in advance).
+- The Saturday reminder is scheduled from the week's lock time and recalculated if the game set
+  changes before lock.
+
+Delivery
+- Pushes are sent with VAPID authentication using a .NET web push library (e.g., the WebPush
+  NuGet package from web-push-libs).
+- Given a push endpoint returns 404 or 410 (expired subscription), then that subscription is
+  deleted and the member is shown "Notifications are off on this device" next time they open
+  settings.
+- Failed sends for other reasons are retried up to 3 times over 15 minutes, then logged.
+- Every send attempt is logged with member, notification type, week, and result so the
+  commissioner can confirm reminders went out.
+
+Content
+- Notification text never includes another member's picks.
+- Tapping a notification opens the app in standalone mode (not a new Safari tab) on iOS.
+
+Out of Scope
+------------
+- Email and SMS.
+- Notifications for score updates or leaderboard changes (the dashboard covers game day).
+- Per-notification-type preferences; it is a single on/off for now.

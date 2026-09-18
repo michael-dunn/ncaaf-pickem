@@ -1,0 +1,63 @@
+Feature 09: Game Data Feed
+Overview reference: implied by Major Features 2, 3, 5, 6
+
+Summary
+-------
+Several features depend on external college football data: the weekly schedule, team conference
+membership, AP Top 25 rankings, point spreads, and live/final scores. This feature covers
+acquiring, storing, and refreshing that data so the rest of the app never calls a third party
+directly.
+
+Data Required
+-------------
+- Teams: name, abbreviation, conference, FBS/FCS flag, logo URL (provider-hosted, not stored
+  locally).
+- Schedule: for each week, all games with home/away teams, kickoff datetime (with time zone),
+  venue, and status (scheduled, in progress, final, postponed, cancelled).
+- Rankings: AP Top 25 by week.
+- Spreads: point spread per game, snapshot at pick lock.
+- Scores: live score, period/clock, and final score.
+
+User Stories
+------------
+- As the system, I refresh the schedule and rankings early each week so the commissioner's game
+  set preview is accurate.
+- As the system, I poll scores on game days so scoring and the dashboard stay current.
+- As a commissioner, I can trigger a manual refresh if something looks stale.
+- As a commissioner, I can see when data was last refreshed and whether the last refresh failed.
+
+Acceptance Criteria
+-------------------
+Provider selection
+- Provider options, request budget, and the recommendation are in Feature 12.
+
+Provider abstraction
+- All external data access goes through a single provider interface so the source can be swapped
+  (e.g., CollegeFootballData.com API, ESPN unofficial endpoints) without touching features.
+- Provider responses are stored locally; features read only from local storage.
+
+Refresh schedule
+- Schedule and team data: refreshed weekly (Tuesday) and on demand.
+- AP rankings: refreshed weekly after the poll release (Sunday/Monday) and on demand.
+- Spreads: refreshed once daily at end of day (stale spreads are acceptable), and snapshot at
+  lock.
+- Scores: polled every 5 minutes (or faster if the provider allows) from first kickoff until all
+  games in every active league's set are final.
+- Refresh jobs are idempotent and safe to re-run.
+
+Failure handling
+- Given a provider request fails, then the previous data is retained and the failure is logged
+  with timestamp and error.
+- Given repeated failures on game day, then members see a warning banner on the dashboard that
+  scores may be stale.
+- Provider rate limits are respected; the system never exceeds the free-tier quota under normal
+  operation.
+
+Observability
+- An admin/commissioner page shows last successful refresh time per data type and the last error.
+
+Resolved Questions
+------------------
+- Which provider? CollegeFootballData.com has a free tier with schedule, rankings, lines, and
+  scores, and is the leading candidate. Confirm its free-tier limits fit the polling cadence. A: with only 1000 requests/mo, it seems we will go over it. Should ESPN be used or a combintation of both? This may require more digging into.
+- Do we store logos locally or link to provider URLs? A: We'll use provider URLs.

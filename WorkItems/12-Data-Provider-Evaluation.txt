@@ -1,0 +1,104 @@
+Feature 12: Data Provider Evaluation
+Overview reference: Feature 09 resolved question ("with only 1000 requests/mo, it seems we will go
+over it. Should ESPN be used or a combination of both?")
+
+Summary
+-------
+This file works out how many external calls the app actually needs, lays out the provider options,
+and recommends one. Feature 09 defines the provider interface; this decides what sits behind it.
+
+What We Need Per Season
+-----------------------
+Reference data (not on game day)
+- Teams and conferences: 1 call at season start (plus occasional refresh).
+- Schedule for the week: 1 call per week.
+- AP Top 25: 1 call per week.
+- Spreads: 1 call per day Tuesday-Friday (end of day), roughly 4 per week.
+- Approx 10 calls per week, ~150 for a 15-week season. Trivial for any provider.
+
+Game-day live scores (the expensive part)
+- Poll every 5 minutes from ~11:30 AM ET (first noon kickoffs) to ~2:00 AM ET (late West Coast
+  finals): about 14.5 hours = 174 polls per Saturday.
+- One well-chosen scoreboard call returns every FBS game for the day, so 174 calls per Saturday.
+- 15 Saturdays = ~2,600 calls per season. Per calendar month that is 4 or 5 Saturdays = 700 to
+  875 calls, plus ~45 reference calls.
+
+Budget conclusion
+- Live polling alone lands at roughly 750 to 920 calls in a 5-Saturday month. That fits under the
+  1,000 free-tier cap only barely and with no headroom for retries, manual refreshes, or dev/test
+  traffic. Polling every 10 minutes halves it (~400/month) but makes the dashboard feel stale.
+- More importantly, CollegeFootballData's real-time scoreboard endpoint is a paid-tier feature;
+  the free tier only exposes the games endpoint, which updates as games complete rather than live.
+
+Provider Options
+----------------
+Option 1: CollegeFootballData.com (CFBD) only, paid tier
+- Official, documented REST API with an official C# NuGet client (CollegeFootballData).
+- Free: 1,000 calls/mo. Tier 1: $1/mo, 5,000 calls. Tier 2: $5/mo, 30,000 calls and real-time
+  scoreboard. Tier 3: $10/mo, 75,000 calls + GraphQL subscriptions.
+- Covers everything in one place: teams, conferences, FBS/FCS classification, schedule by week,
+  AP rankings, betting lines, scores.
+- Cost: $1 to $5 per month during the season (the tiers page lists live scoreboard at Tier 1 in one
+  place and Tier 2 in another; confirm before subscribing). Cancel in the off-season.
+- Risk: low. Stable project with a long track record.
+
+Option 2: ESPN unofficial endpoints only
+- Free, no API key, no published rate limit. Single scoreboard call with groups=80 returns every
+  FBS game for a date with status, clock, scores, team abbreviations, AP rank (curatedRank), and
+  conference group IDs. Separate rankings endpoint. Odds appear on upcoming games in the
+  scoreboard payload.
+  scoreboard: https://site.api.espn.com/apis/site/v2/sports/football/college-football/scoreboard
+  rankings:   https://site.api.espn.com/apis/site/v2/sports/football/college-football/rankings
+- Cost: $0.
+- Risk: medium. Undocumented and unsupported; ESPN has changed behavior without notice (date-range
+  queries stopped working in 2025). Conference mapping from group IDs is something we maintain.
+  FBS/FCS classification has to be inferred from the groups parameter.
+
+Option 3: Hybrid, CFBD free tier for reference data + ESPN for live scores  (RECOMMENDED)
+- CFBD free tier handles teams, conferences, FBS/FCS flags, weekly schedule, AP poll, and daily
+  spreads. ~150 calls per season, far under the cap.
+- ESPN scoreboard handles Saturday live polling every 5 minutes. Zero cost, no quota pressure.
+- Games are matched between the two sources by home/away team name plus date; CFBD is the source
+  of truth for the game set, ESPN only supplies status and score.
+- Fallback: if the ESPN endpoint breaks on a Saturday, the poller switches to CFBD's games endpoint
+  at a 10-minute cadence (final scores still arrive, live scores go away). Upgrading CFBD to Tier 2
+  for $5 restores live data any time.
+- Cost: $0 normally.
+- Risk: low-medium. Two integrations to maintain, but each is simple and the failure mode is
+  degraded rather than broken.
+
+Option 4: Other paid or freemium APIs (for completeness)
+- The Odds API: 500 free requests/mo for spreads only; not needed if CFBD supplies lines.
+- SportsDataIO, Sportradar: enterprise pricing, far beyond this project.
+- api-sports (API-American-Football): 100 requests/day free, thin college coverage. Not a fit.
+
+Recommendation
+--------------
+DECIDED 2026-09-18: Option 3 (hybrid). It costs nothing, keeps CFBD comfortably in the free tier, and the
+provider abstraction in Feature 09 makes it a config change to move to Option 1 (CFBD Tier 2 at
+$5/mo) if ESPN becomes unreliable.
+
+Acceptance Criteria
+-------------------
+- The provider layer exposes separate interfaces for reference data (teams, schedule, rankings,
+  lines) and live scores so each can be backed by a different source.
+- Reference data is backed by CFBD using the official C# client and an API key from configuration.
+- Live scores are backed by ESPN scoreboard by default, with CFBD games as a configurable fallback.
+- A CFBD call counter is kept per calendar month and shown on the commissioner data page (Feature
+  09); a warning appears at 800 calls.
+- Games from the two sources are matched by normalized team names plus game date; unmatched games
+  are logged and shown on the commissioner data page rather than silently dropped.
+- Switching live-score source is a configuration value, not a code change.
+
+Follow-up Tasks
+---------------
+- Confirm on the CFBD tiers page which tier includes the real-time scoreboard endpoint.
+- Capture a sample ESPN scoreboard payload for a Saturday and document the fields used
+  (status.type.name, competitors[].score, competitors[].curatedRank, groups, odds).
+- Build the team-name matching table between CFBD and ESPN and check it against a full week.
+
+Sources
+-------
+- https://collegefootballdata.com/api-tiers
+- https://www.nuget.org/packages/CollegeFootballData
+- https://gist.github.com/akeaswaran/b48b02f1c94f873c6655e7129910fc3b

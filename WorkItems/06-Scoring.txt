@@ -1,0 +1,57 @@
+Feature 06: Scoring
+Overview reference: Major Feature 6
+
+Summary
+-------
+When a game reaches final, each member who picked the winning team earns that game's point value.
+Scoring is automatic and driven by the game data feed (Feature 09). Weekly totals feed the
+leaderboard (Feature 07).
+
+User Stories
+------------
+- As a member, I can see my points update as games go final on Saturday.
+- As a member, I can see my weekly total and which picks were correct.
+- As a commissioner, I can manually correct a game result if the data feed is wrong.
+- As a commissioner, I can void a game (e.g., cancelled) so nobody earns or loses points on it.
+
+Acceptance Criteria
+-------------------
+Awarding points
+- Given a game with a final result, when a member picked the winning team, then the member earns
+  exactly that game's locked point value (see Feature 03).
+- Given a game with a final result, when a member picked the losing team or did not pick, then the
+  member earns 0 for that game.
+- Points are only awarded once per game per member; re-processing a final result is idempotent.
+- Given a game that is not yet final, then no points are awarded for it.
+
+Weekly totals
+- A member's weekly total is the sum of points earned across all games in that week's set.
+- Given all games in the set are final (or voided), then the week is marked Complete.
+- Given a Saturday game that is delayed and finishes after midnight Eastern, then it still counts
+  for that week and is scored normally when Final.
+- There are no weekly or season tiebreakers; members with equal points share the rank.
+
+Ties and edge cases
+- College football does not end in ties under current rules; if the feed reports a tie or a game
+  with no winner, the game is flagged for commissioner review and awards 0 to everyone until
+  resolved.
+- Given a game that is cancelled, postponed off Saturday, or otherwise not played, when the
+  commissioner voids it, then it is removed from scoring for that week and awards 0 to everyone.
+- Given a voided game, then it still appears on the picks history as "Voided" so members
+  understand why it did not count.
+
+Commissioner corrections
+- Given a commissioner, when they override a game's winner, then all members' points for that game
+  are recalculated and the leaderboard updates.
+- Every manual correction or void is logged with who did it and when, visible to all members.
+
+Timing
+- Scores are checked at least every 5 minutes on Saturdays while any game in the set is not final.
+- A game is scored only after the feed reports it as Final (not at 0:00 in the 4th if the status
+  is still "in progress").
+
+Resolved Questions
+------------------
+- Should there be weekly tiebreakers (e.g., total points in the last game)? Overview says the
+  season winner is by total points only, so proposed: no tiebreaker, ties are shared. A: no tiebreaker
+- If a Saturday game is delayed past midnight (weather), it still counts; confirm. A: yes, still counts

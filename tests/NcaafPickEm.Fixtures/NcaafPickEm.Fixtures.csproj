@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    JSON fixtures (sample CFBD/ESPN payloads, the full sample week) plus a loader.
+    Every *.json under Data/ is embedded, so consumers need no file copying.
+    P2-05 fills Data/ with the Week 7, 2026 sample week.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Data\**\*.json" />
+  </ItemGroup>
+
+</Project>

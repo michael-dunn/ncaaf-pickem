@@ -1,0 +1,72 @@
+This file serves as the overview and guiding document for the NCAAF Pick Em application. It will have some general requirements, but the other files in this directory will be the more fleshed out features with their own acceptance criteria.
+
+NCAAF Pick Em is a website where leagues are created for weekly college football competitions. Each league has a set of members who will login and choose their winners for a set of NCAA College Football games. The league will all pick their winners from the same set of games. The set of games is up to the league commissioner. There are a variety of ways to set up a league's set of games each week. For every pick a member gets correct, they earn points. The number of points is up to the commissioner, who can set some games to be worth more than others. The default is 10 points per correctly picked game.
+
+Each week, the members of the league must choose all their games' winners before the first kickoff on Saturday. Only Saturday games are included in the set of games.
+
+At the conclusion of each week, a leaderboard is updated with the current totals of each members' points earned. At the end of the week, you can see who won each week. At the end of the year, the winner is decided by most total points.
+
+When the games begin on Saturday, a dashboard is available to see which games matter the most to a member's potential points. If Member A has chosen Team 1 in the Team 1 vs Team 2 matchup and there is at least 1 Member who did not choose Team 1, then every member who chose Team 2 is shown in that dashboard. The games with the most members listed are shown first. Here is an example:
+
+Members: Michael, Alyson, Dance, Alex, and Daniel
+
+Matchups:
+Michigan vs Texas
+Maryland vs Rutgers
+
+Picks:
+Michigan vs Texas
+Michigan: Michael, Alyson, Alex, Daniel
+Texas: Dance
+
+Maryland vs Rutgers
+Maryland: Michael, Alyson, Dance, and Daniel
+Rutgers: Alex
+
+The dashboard would look like this for Dance:
+
+Michigan vs Texas
+Opposite Picks: Michael, Alyson, Alex, Daniel
+
+Maryland vs Rutgers
+Opposite Picks: Alex
+
+The dashboard would look like this for Alyson:
+
+Michigan vs Texas
+Opposite Picks: Dance
+
+Maryland vs Rutgers
+Opposite Picks: Alex
+
+
+Major Features:
+
+1. A league is comprised of members.
+2. A league is configured for a set of games each week
+    2a. The set of games can be any combination of the following:
+        2ai. Top 25 AP team matchups
+        2aii. One or more conferences and their matchups
+        2aiii. Specific team and their matchup
+3. The league can configure games to be worth more or less points. The commissioner has this power.
+    3a. Matchups are 10 points by default
+    3b. In the set of games configuration, you can assign automatic point defaults
+        3bi. You can set conference games to be 15 points for example
+        3bii. You can set spreads below 3 to be worth a certain point total
+        3biii. You can set point totals on specific teams
+4. The members have a page to choose their picks each week and submit them
+5. On Saturdays, the picks are locked and a dashboard is shown with a member's most influential picks
+6. Points are given for each correct pick
+7. There's a leaderboard by week and total for review
+
+Open Implementation:
+Hosting Options:
+1. Home server with Tailscale access. This is proven with a personal app and works just fine
+2. Vercel, if it is cheap enough.
+3. Azure would be worst case scenario, but maybe a given infrastructure would be free or cheap
+
+Login:
+This is just for my family members, so true accounts are really required. Could use google for login or create a simple login, but password reset and email confirmation wouldn't be well implemented because this app won't have an email provider
+
+Mobile first:
+Almost all interaction with this app will be from a mobile browser or Apple home screen web app. All design should keep that in mind.

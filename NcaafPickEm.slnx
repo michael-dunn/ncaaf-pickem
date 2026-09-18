@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NcaafPickEm.Api/NcaafPickEm.Api.csproj" />
+    <Project Path="src/NcaafPickEm.Domain/NcaafPickEm.Domain.csproj" />
+    <Project Path="src/NcaafPickEm.Infrastructure/NcaafPickEm.Infrastructure.csproj" />
+    <Project Path="src/NcaafPickEm.Shared/NcaafPickEm.Shared.csproj" />
+    <Project Path="src/NcaafPickEm.Web/NcaafPickEm.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NcaafPickEm.Api.Tests/NcaafPickEm.Api.Tests.csproj" />
+    <Project Path="tests/NcaafPickEm.Domain.Tests/NcaafPickEm.Domain.Tests.csproj" />
+    <Project Path="tests/NcaafPickEm.Fixtures/NcaafPickEm.Fixtures.csproj" />
+  </Folder>
+</Solution>

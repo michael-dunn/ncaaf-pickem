@@ -1,0 +1,33 @@
+<Project>
+
+  <!--
+    Central Package Management. Every PackageReference in the repo omits Version;
+    the single source of truth for versions is this file.
+    Adding a package: add a PackageVersion here, then a versionless PackageReference
+    in the consuming project. Do not change an existing version without a DECISIONS entry.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="ASP.NET Core / Blazor">
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="10.0.11" />
+  </ItemGroup>
+
+  <ItemGroup Label="Logging">
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="FluentAssertions" Version="7.2.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+</Project>

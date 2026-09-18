@@ -1,0 +1,96 @@
+## .NET build output
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+artifacts/
+publish/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Tt]emp/
+project.lock.json
+project.fragment.lock.json
+
+## Application logs (Serilog rolling files)
+logs/
+
+## Test results / coverage
+[Tt]est[Rr]esult*/
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage*.json
+coverage*.xml
+coverage*.info
+.coverlet/
+
+## Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.VisualState.xml
+*.psess
+*.vsp
+*.vspx
+*.sap
+*.vspscc
+*.vssscc
+StyleCopReport.xml
+
+## Rider / JetBrains / ReSharper
+.idea/
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+*.sln.iml
+*.ncrunch*
+_NCrunch_*/
+
+## VS Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/tasks.json
+!.vscode/settings.json
+
+## MSBuild logs
+*.binlog
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+## NuGet
+*.nupkg
+*.snupkg
+.nuget/
+
+## Secrets and local configuration - never commit
+appsettings.Development.json
+appsettings.Local.json
+appsettings.Production.json
+*.pfx
+*.key
+secrets.json
+.env
+.env.*
+!.env.example
+
+## OS noise
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+## Node (Blazor tooling, if ever added)
+node_modules/

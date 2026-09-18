@@ -1,0 +1,52 @@
+Feature 10: Hosting and Platform
+Overview reference: "Open Implementation", "Hosting Options", "Mobile first"
+
+Summary
+-------
+Non-functional requirements and platform decisions that shape every other feature. This file
+records the constraints; the actual tech stack decision can be captured here once made.
+
+Constraints from Overview
+-------------------------
+- Hosting options in order of preference: home server behind Tailscale (proven), Vercel if cheap,
+  Azure as last resort.
+- No email provider will be available.
+- Mobile first: nearly all use is from a mobile browser or an iOS home-screen web app.
+- Small audience (family), so cost should be near zero.
+
+Acceptance Criteria
+-------------------
+Mobile / PWA
+- The app ships a web manifest with name, icons, and standalone display mode so it can be added to
+  the iOS home screen and launches without browser chrome.
+- Every screen is designed at 375px width first and scales up; no screen requires horizontal
+  scrolling except explicitly scrollable grids.
+- Touch targets are at least 44x44 points.
+- Text is legible without zoom (base font size at least 16px).
+
+Hosting
+- The app can run as a single deployable unit (one process or container plus a database) so it
+  fits on a home server.
+- Configuration (database connection, OAuth client, data provider key) is via environment
+  variables, with no secrets committed.
+- Scheduled jobs (Feature 09 refreshes, Feature 06 scoring) run inside the app or via a simple
+  scheduler available on the chosen host, not via a separate paid service.
+
+Data
+- A single relational database holds all state; nightly backups are taken and retained for at
+  least 30 days.
+- All timestamps are stored in UTC and rendered in the user's local time zone.
+
+Reliability
+- Saturday is the critical window. Deployments should not occur between the first kickoff and
+  the last final on Saturdays.
+
+Decisions To Record
+-------------------
+- Framework / language: C# using latest dotnet and taking advantage of best practices like minimal endpoints
+- Database: A SQL server is running on the home server already. A new db would be easy to add
+- Hosting target: Home server
+- Data provider: DECIDED. Hybrid: CollegeFootballData free tier for reference data, ESPN
+  scoreboard for live scores, CFBD games endpoint as fallback (Feature 12).
+- Auth provider: DECIDED. ASP.NET Core cookie authentication + Google OAuth handler, no Identity
+  (Feature 08, Option A).

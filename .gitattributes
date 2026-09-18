@@ -1,0 +1,29 @@
+# Normalize line endings. .editorconfig declares CRLF for working-tree files and
+# `dotnet format` enforces it, so the repo stores LF and checks out CRLF on Windows.
+* text=auto
+
+*.cs      text diff=csharp
+*.razor   text
+*.csproj  text
+*.props   text
+*.targets text
+*.slnx    text
+*.sln     text eol=crlf
+*.json    text
+*.md      text
+*.css     text
+*.js      text
+*.html    text
+*.ps1     text eol=crlf
+*.sql     text
+
+# Binary assets
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff  binary
+*.woff2 binary
+*.pdf  binary
+*.wasm binary

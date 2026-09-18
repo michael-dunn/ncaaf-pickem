@@ -1,0 +1,81 @@
+Feature 08: Authentication and Accounts
+Overview reference: "Login" section of Overview
+
+Summary
+-------
+Users need an account so picks are attributed to them across devices. The audience is a small
+family group, there is no email provider, and almost all access is from mobile browsers or an
+iOS home-screen web app. Login must be low-friction and require no email confirmation or password
+reset flow.
+
+Recommended Approach
+--------------------
+Sign in with Google is the only sign-in method. It requires no password management, no email
+sending, and works well on mobile. Every family member has a Google account, so no fallback
+login and no Apple sign-in are needed.
+
+User Stories
+------------
+- As a user, I can sign in with my Google account in a couple of taps.
+- As a user, I stay signed in on my phone for the whole season without re-authenticating weekly.
+- As a user, I can set a display name that the league sees instead of my Google name.
+- As a user, I can sign out.
+
+Acceptance Criteria
+-------------------
+Sign in
+- Given a new user, when they sign in with Google for the first time, then an account is created
+  with their Google email as the unique identifier and their Google name as the initial display
+  name.
+- Given a returning user, when they sign in with Google, then they are matched to their existing
+  account by Google subject ID (not by display name).
+- Sign-in works inside an iOS home-screen web app (standalone mode), including the redirect back.
+
+Sessions
+- Sessions persist for at least 90 days of inactivity before requiring re-login.
+- Sessions are stored in an HttpOnly, Secure cookie.
+- Given a user signs out, then their session is invalidated server-side.
+
+Profile
+- Given a user, when they set a display name of 1 to 30 characters, then that name is used
+  everywhere in the app (leaderboards, dashboards, pick grids).
+- Display names must be unique within a league.
+
+Authorization
+- Every league-scoped endpoint verifies the caller is a member of that league.
+- Commissioner-only actions (config, point values, corrections, member management) verify the
+  caller is the commissioner of that league.
+- Given a non-member, when they request any league data, then they receive a 403/404 and no data.
+
+Resolved Questions
+------------------
+- Is Google alone acceptable for all family members, or does anyone lack a Google account?
+  If so, a fallback "magic code" login (commissioner generates a one-time code) avoids email. A: google is acceptable
+- Add Sign in with Apple in a later iteration? A: Google is fine, no apple needed
+
+Provider Options (for a C# / .NET minimal API on the home server)
+-----------------------------------------------------------------
+Option A: ASP.NET Core cookie authentication + Google OAuth, no Identity  (RECOMMENDED)
+- Built into the framework: AddAuthentication().AddCookie().AddGoogle(). No extra packages beyond
+  Microsoft.AspNetCore.Authentication.Google.
+- On first Google callback, upsert a row in our own Users table keyed by Google subject ID, then
+  issue our own auth cookie. No Identity tables, no password hashing, no email flows.
+- Costs nothing, has no third-party dependency at runtime except Google itself, and fits minimal
+  endpoints cleanly.
+- Setup needed: a Google Cloud OAuth client (web application type) with the app's HTTPS callback
+  URL as an authorized redirect URI. Google requires HTTPS for non-localhost redirects, so the
+  home server needs a real certificate on its Tailscale hostname (Tailscale can issue one).
+- Reference: https://learn.microsoft.com/aspnet/core/security/authentication/social/social-without-identity
+
+Option B: ASP.NET Core Identity with Google as an external login
+- Full user store with roles, claims, lockout, two-factor, passwords, and email confirmation.
+- Adds seven-plus database tables and a lot of surface area that this app will never use (no
+  passwords, no email). Reasonable only if local password accounts are wanted later.
+
+Option C: Hosted identity provider (Auth0, Microsoft Entra External ID, Firebase Auth, Clerk)
+- Free tiers cover a family-sized user count. Handles Google (and Apple, etc.) behind one
+  OpenID Connect integration.
+- Adds an external dependency, a vendor dashboard to maintain, and a second redirect hop on
+  mobile. Overkill for one provider and a handful of users.
+
+Decision: Option A. DECIDED 2026-09-18.

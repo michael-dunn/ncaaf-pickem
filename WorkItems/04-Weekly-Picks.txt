@@ -1,0 +1,73 @@
+Feature 04: Weekly Picks
+Overview reference: Major Feature 4
+
+Summary
+-------
+Members choose a winner for every game in the week's set and submit their picks before the first
+Saturday kickoff. This is the most-used screen in the app and must be fast and comfortable on a
+phone.
+
+User Stories
+------------
+- As a member, I can see this week's games and tap a team to pick it.
+- As a member, I can save partial picks and come back later to finish.
+- As a member, I can submit my picks once all games have a selection.
+- As a member, I can change my picks any number of times before lock.
+- As a member, I can clearly see whether my picks are submitted, in progress, or locked.
+- As a member, I can view my picks (read-only) after lock and for any past week.
+- As a commissioner, I can see which members have and have not submitted for the current week.
+
+Acceptance Criteria
+-------------------
+Picking
+- Given the week's game set, when a member opens the picks page, then every game is listed with
+  both teams, rank (if any), kickoff time, and point value.
+- Given a game, when the member taps a team, then that team is marked as the pick and the other
+  team is unmarked. Tapping the already-picked team does not unpick it.
+- Picks auto-save on each tap (no separate save button required); a subtle indicator confirms the
+  save.
+- Given a network failure during auto-save, then the member is told the pick did not save and the
+  UI reverts that game to its last saved state.
+
+Submission
+- Given a member with a pick on every game, when they tap Submit, then their status becomes
+  "Submitted" for the week.
+- Given a member with one or more unpicked games, then the Submit action is disabled and the
+  count of remaining games is shown.
+- Given a submitted member, when they change a pick before lock, then the change is saved and the
+  status remains "Submitted".
+- Members can only ever pick from the current week's set; past weeks are read-only.
+- Given a submitted member, when a game is added to the week's set before lock, then their status
+  reverts to "In Progress", the new game is highlighted on the picks page, and they receive a
+  notification (Feature 11).
+- Reminder notifications for unsubmitted picks (Friday 8 PM ET, Saturday 1 hour before lock) and
+  the commissioner summary (Friday 9 PM ET) are specified in Feature 11.
+
+Lock behavior
+- Given the first Saturday kickoff time for the week's game set has passed, then no picks can be
+  created or changed by any member, including the commissioner.
+- Given a member who did not submit all picks by lock, then any unpicked games count as incorrect
+  (0 points) and the member's status shows "Incomplete".
+- Lock is enforced server-side; the client hiding controls is not sufficient.
+
+Visibility
+- Before lock, a member cannot see any other member's picks.
+- After lock, all members can see every member's picks for that week.
+
+Status
+- Given the league home page, then each member sees their own status: Not Started, In Progress
+  (n of m), Submitted, or Locked.
+- Given the commissioner, then they see a roster with each member's status for the current week.
+
+Mobile
+- Team tap targets are at least 44x44 points.
+- The full list of games is scrollable with the Submit action reachable from the bottom of the
+  list (sticky footer or end-of-list button).
+- The page loads and is interactive within 2 seconds on a typical mobile connection.
+
+Resolved Questions
+------------------
+- Should a "Not Started" member get an automated nudge on Friday night? No email provider exists,
+  so an in-app banner or a commissioner "copy reminder text" button may be the practical version. A: web notifications should be available. Commissioner is notified on Friday at 9PM Eastern Time if any members haven't submitted. Members are notified Friday at 8PM and Saturday 1 hour before kickoff for unsubmitted picks.
+- If a game is added to the set after a member has submitted, does their status revert to
+  "In Progress"? (Proposed: yes, and the new game is highlighted.) A: Yes, and a notification is sent to them that there are new picks for them.

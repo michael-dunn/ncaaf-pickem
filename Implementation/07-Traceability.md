@@ -1,0 +1,178 @@
+# 07 - Traceability
+
+Every acceptance-criteria group in the 13 stories, the task that delivers it, and the test or check that proves it. P8-04 walks this table and records a result per row in `STATUS.md`. "Manual" rows need a recorded manual verification with date and device.
+
+Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual check at 375px (screenshot), **Ops** = manual operational check.
+
+## Feature 01 - Leagues and Members
+
+| AC group | Task | Proof |
+|---|---|---|
+| League creation (name, season, creator is commissioner + member, 50-char name) | P1-01 | A `LeagueEndpointsTests.Create*` |
+| One season per league, no rollover | P1-01 | A: SeasonYear required; no rollover endpoint exists |
+| 50-member cap and "league is full" | P1-01 | A `InviteAcceptTests.GivenFullLeague_*` |
+| Invite generation shareable by text | P1-01, P1-02 | A `InviteTests`; UI share sheet |
+| Valid invite joins and lands on home; revoked/expired message; no double join | P1-01, P1-02 | A `InviteAcceptTests` x4 |
+| Mid-season join: 0 points, no earlier weeks | P1-01, P5-03 | A `StandingsTests.GivenLateJoiner_*` |
+| Remove member keeps picks as former member | P1-01, P5-03 | A `MembershipTests.Remove*`, `WeekLeaderboardTests.FormerMember*` |
+| Cannot remove self; transfer demotes only the transferer; promote/demote; at least one commissioner | P1-01 | A `RoleTests` x5 |
+| League home shows name, week, my status, links | P1-02 | UI |
+| Multi-league picker | P1-02 | UI + A `MeTests.ListsLeagues` |
+| Mobile 375px | P1-02 | UI |
+
+## Feature 02 - Weekly Game Set Configuration
+
+| AC group | Task | Proof |
+|---|---|---|
+| Rules saved to default config | P3-03 | A `GameSetRulesEndpointsTests` |
+| Union of rules, distinct | P3-01 | D `GameSetGeneratorTests.Union*` |
+| Top 25 uses current AP poll | P3-01 | D `*.UsesCurrentPoll`, `*.FallsBackToPriorPoll` |
+| Conference-games-only | P3-01 | D |
+| Team bye yields nothing | P3-01 | D |
+| Saturday in Eastern only | P3-01, P0-05 | D `SeasonCalendarTests.FridayPacificIsSaturdayEastern`, generator test |
+| FCS excluded | P3-01 | D |
+| AP only | P3-03 | A: RuleType enum has no other poll |
+| 50-game cap with preview warning | P3-01, P3-03, P3-05 | D `ExceedsMax`, A 409, UI warning |
+| Cancelled/postponed excluded and removed | P3-01, P3-04 | D, A `RegenerationTests.PostponedRemoved` |
+| Week override leaves default intact | P3-03 | A |
+| Manual remove sticky across regen; manual add included | P3-01 | D `StickyRemoval`, `ManualAddKept` |
+| Preview lists matchups with ranks and count | P3-03, P3-05 | A, UI |
+| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `RegenerationJobTests`, D `NoOpAfterLock` |
+| Member view ordered by kickoff in local time | P3-05 | UI |
+| Tap-only rule editing | P3-05 | UI |
+
+## Feature 03 - Point Values
+
+| AC group | Task | Proof |
+|---|---|---|
+| Default 10; change 1..100 applies to unmatched games | P3-02, P3-03 | D, A |
+| No rule = default; one rule = its value; multiple = highest priority | P3-02 | D `PointValueResolverTests` x3 |
+| Close spread with no spread = no match | P3-02 | D |
+| Daily spread refresh, snapshot at lock | P2-04, P4-02 | A `LockWeekJobTests.SnapshotsSpread` |
+| Commissioner-only weighting | P3-03 | A: no member endpoint exists |
+| Override wins; per-week only | P3-02, P3-03 | D, A |
+| Point value visible and elevated badge | P4-03 | UI |
+| Frozen after lock | P3-03, P4-02 | A 409 after lock |
+| Mid-week change updates submitted members' view, picks valid | P3-03 | A `PointRulesChange_KeepsPicks` |
+
+## Feature 04 - Weekly Picks
+
+| AC group | Task | Proof |
+|---|---|---|
+| Picks page lists teams, rank, kickoff, points | P4-03 | UI |
+| Tap picks, other unmarked, re-tap is no-op | P4-01, P4-03 | A `SetPickTests`, UI |
+| Auto-save with indicator; failure reverts | P4-03 | UI (simulate offline) |
+| Submit only when all picked; remaining count shown | P4-01, P4-03 | A `SubmitTests`, UI |
+| Change after submit keeps Submitted | P4-01 | D `SubmissionStatusTests` |
+| Past weeks read-only | P4-01 | A 409 on old week |
+| Game added reverts to In Progress, highlighted, notified | P4-04, P7-03 | A `GameAddedTests`, UI, A `NotificationTests.GamesAdded` |
+| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests` |
+| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, D `WeekScorerTests.NoPickScoresZero` |
+| Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` |
+| Status values on home; commissioner roster | P4-01, P1-02 | A, UI |
+| 44px targets, sticky submit, 2 s interactive | P4-03, P0-04 | UI, spike measurement |
+
+## Feature 05 - Pick Lock and Influence Dashboard
+
+| AC group | Task | Proof |
+|---|---|---|
+| Lock = earliest Saturday kickoff | P3-01, P0-05 | D `LockAtIsEarliestKickoff` |
+| Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.BeforeLock`, UI |
+| Opposite picks definition; No Pick group; viewer excluded; viewer no-pick case | P6-01 | D `InfluenceCalculatorTests` incl. worked example |
+| Ordering and tie-breaks; Everyone-agrees collapsed | P6-01, P6-03 | D, UI |
+| Game status display; Won/Lost marking | P6-01, P6-03 | D, UI |
+| Points so far and max remaining | P6-01 | D |
+| Card layout, names wrap, live refresh without reload | P6-03 | UI |
+| No view-as-other, no league-wide split | P6-02 | A: endpoint has no member param |
+
+## Feature 06 - Scoring
+
+| AC group | Task | Proof |
+|---|---|---|
+| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests` |
+| Idempotent; not-final unscored | P5-01 | D `RescoreIsIdempotent`, `NotFinalUnscored` |
+| Weekly total; Complete flag | P5-01 | D |
+| Post-midnight delayed game counts | P5-01, P2-03 | D with fixture snapshot 6 |
+| No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` |
+| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D, UI data page |
+| Void removes from scoring, shows Voided | P5-02, P5-04 | A `VoidTests`, UI grid |
+| Override recalculates; audit logged and visible | P5-02, P5-05 | A `OverrideTests`, UI audit |
+| 5-minute checks; score only on Final | P2-04, P2-03 | D `SaturdayPollerScheduleTests`, D `GameMatcherTests.FinalOnlyOnFinal` |
+
+## Feature 07 - Leaderboard
+
+| AC group | Task | Proof |
+|---|---|---|
+| Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, UI |
+| Trend indicator; none on first week | P5-03 | D `TrendTests` |
+| No champion banner | P5-04 | UI |
+| Week rows, correct count, trophy, ties share | P5-03, P5-04 | D, UI |
+| In Progress label | P5-04 | UI |
+| Grid with colors, voided greyed, pinned column, horizontal scroll | P5-04 | UI |
+| Prev/next, jump to current, only generated weeks | P5-04 | UI, A `LeagueWeeksTests` |
+| Former members in past weeks only | P5-03 | D |
+| Under 1 s for 50 members x 15 weeks | P5-03 | A `LeaderboardPerfTests` with seeded data |
+
+## Feature 08 - Authentication
+
+| AC group | Task | Proof |
+|---|---|---|
+| First login creates account; returning matched by subject | P0-03 | A `AuthTests` with fake Google handler |
+| Works in iOS standalone | P0-04, P8-03 | Manual on iPhone |
+| 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03 | A cookie attribute assertions |
+| Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A |
+| Member/commissioner authorization; non-member 404 | P0-03 + every endpoint task | A auth matrix test per group |
+
+## Feature 09 - Game Data Feed
+
+| AC group | Task | Proof |
+|---|---|---|
+| Provider abstraction; local storage only | P2-02, P2-03 | Architecture review; A: features read DbContext only |
+| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` |
+| Idempotent refreshes | P2-02 | A `RefreshTwice_NoDuplicates` |
+| Failure keeps old data, logs; stale banner | P2-04, P6-02 | A, UI |
+| Rate limits respected | P2-04 | D poller cadence, call counter |
+| Data status page | P2-04 | UI |
+
+## Feature 10 - Hosting and Platform
+
+| AC group | Task | Proof |
+|---|---|---|
+| Manifest, standalone, icons | P0-04 | Manual install on iPhone |
+| 375px first; no horizontal scroll; 44px; 16px | all UI tasks | UI checklist in each card |
+| Single deployable; env config; no secrets | P0-01, P8-02 | Ops |
+| Jobs in-process | P0-06 | Architecture |
+| Single DB; nightly backups 30 days; UTC storage | P8-02, P0-02 | Ops, D |
+| No Saturday deploys | P8-02 | deploy script guard |
+
+## Feature 11 - Notifications
+
+| AC group | Task | Proof |
+|---|---|---|
+| Opt in stores subscription; opt out deletes; iOS install guidance; per-member | P7-01, P7-02 | A `PushSubscriptionTests`, UI |
+| In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed | P7-03 | A `ReminderJobTests` x5 |
+| VAPID delivery; 404/410 cleanup; retries; log | P7-01 | A with fake push transport |
+| Text excludes others' picks; opens standalone | P7-02 | Review, manual |
+| Catalog items 1 to 5 | P7-03 | A per type |
+
+## Feature 12 - Data Provider Evaluation
+
+| AC group | Task | Proof |
+|---|---|---|
+| Separate reference and live interfaces | P2-02, P2-03 | Architecture |
+| CFBD via official client and config key | P2-02 | A with recorded fixture |
+| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests` |
+| Monthly counter, warning at 800 | P2-04 | A |
+| Name matching, unmatched surfaced | P2-03 | D `GameMatcherTests`, UI |
+| Follow-ups: tier confirm, sample payload, alias table | P2-01 | Doc in `Implementation/spikes/` |
+
+## Feature 13 - Season Calendar
+
+| AC group | Task | Proof |
+|---|---|---|
+| Current week window; Sunday rollover ends picking | P0-05, P4-01 | D `SeasonCalendarTests`, A |
+| Jump to current | P5-04 | UI |
+| Season range defaults, Week 0 opt-in, regular season only | P0-05, P1-01 | D, A |
+| Before first week / after last week states | P1-02 | UI, A |
+| UTC storage, Eastern logic, local display with zone hint | P0-05, all UI | D, UI |
+| Schedule change before lock removes + notifies; after lock voids | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` |

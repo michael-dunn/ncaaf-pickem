@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- EF Core DbContext, migrations, repositories, providers, push, jobs. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NcaafPickEm.Domain\NcaafPickEm.Domain.csproj" />
+    <ProjectReference Include="..\NcaafPickEm.Shared\NcaafPickEm.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,82 @@
+Feature 02: Weekly Game Set Configuration
+Overview reference: Major Feature 2 (2a, 2ai, 2aii, 2aiii)
+
+Summary
+-------
+Each week, the commissioner decides which Saturday games the league will pick. Rather than
+hand-picking games one at a time, the commissioner configures rules that automatically select
+games. Rules can be combined. Only games scheduled for Saturday are eligible.
+
+Rule Types
+----------
+1. Top 25 AP matchups: any game where at least one team is ranked in the current AP Top 25.
+2. Conference matchups: any game involving a team from one or more selected conferences.
+   Optionally restrict to conference-vs-conference games only (both teams in the conference).
+3. Specific team matchups: any game involving a specifically named team.
+
+User Stories
+------------
+- As a commissioner, I can set a default game set configuration that applies to every week.
+- As a commissioner, I can override the configuration for a single week without changing the
+  default.
+- As a commissioner, I can preview the games a configuration will produce before saving it.
+- As a commissioner, I can manually add or remove an individual game from the week's set after
+  the rules have generated it.
+- As a member, I can see which games are in this week's set.
+
+Acceptance Criteria
+-------------------
+Configuration
+- Given a commissioner, when they add a rule of any type, then the rule is saved to the league's
+  default configuration.
+- Given multiple rules, when the game set is generated, then the result is the UNION of all rules,
+  with each game appearing at most once.
+- Given a Top 25 rule, when the game set is generated, then it uses the AP poll that is current as
+  of generation time (the poll released the Sunday/Monday before the games).
+- Given a conference rule with "conference games only" enabled, then only games where both teams
+  are in the selected conference are included.
+- Given a specific team rule, when that team has a bye week, then no game is added for that rule.
+- Only games with a Saturday kickoff are ever included, regardless of rule. "Saturday" is
+  determined in the Eastern time zone (see Feature 13).
+- Games where either team is FCS (or otherwise non-FBS) are never included, regardless of rule.
+- Only the AP Top 25 poll is supported for ranking rules; Coaches Poll and CFP rankings are out
+  of scope.
+- A week's game set holds at most 50 games. Given a configuration that would produce more than 50,
+  then the preview shows a warning and the commissioner must narrow the rules or remove games
+  before saving.
+- Games that have been cancelled or postponed off Saturday are excluded when generated and removed
+  if already in the set (see Feature 06 for scoring impact).
+
+Weekly override
+- Given a commissioner, when they edit the configuration for a specific week, then only that week
+  changes and the default remains intact.
+- Given a commissioner, when they manually remove a game, then it stays removed even if the rules
+  are re-run for that week.
+- Given a commissioner, when they manually add a game not matched by any rule, then it is included
+  for that week.
+
+Preview
+- Given a commissioner editing rules, when they request a preview, then they see the list of
+  matchups (away @ home, kickoff time, ranks if any) that the configuration would produce for the
+  selected week.
+- Preview shows the count of games so the commissioner can judge whether the week is too large.
+
+Generation timing
+- The game set for a week is generated (or regenerated) when the commissioner saves, and
+  automatically once more early in the week (e.g., Tuesday) to pick up the latest AP poll and
+  schedule changes.
+- Once picks lock on Saturday (Feature 05) the game set is frozen and cannot change.
+
+Member view
+- Given a member, when they view the week, then they see every game in the set, ordered by
+  kickoff time, with team names, ranks, and kickoff time in the member's local time zone.
+
+Mobile
+- Rule editing must be achievable with taps only (pickers/toggles), no complex drag interactions.
+
+Resolved Questions
+------------------
+- Should there be a maximum number of games per week (e.g., 20) to keep picking manageable? A: max of 50 games
+- Should Coaches Poll or CFP rankings be supported in addition to AP? A: Only AP is supported
+- How are FCS vs FBS matchups handled when a rule pulls in an FBS team playing an FCS opponent? A: those games are ignored
+- What defines "Saturday": Eastern time, or each game's local kickoff time? A: Eastern Time Zone

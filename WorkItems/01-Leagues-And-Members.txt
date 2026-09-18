@@ -1,0 +1,66 @@
+Feature 01: Leagues and Members
+Overview reference: Major Feature 1
+
+Summary
+-------
+A league is the top-level container for a season of competition. It has at least one commissioner
+and a set of members. All members of a league pick from the same weekly set of games and appear
+on the same leaderboard.
+
+User Stories
+------------
+- As a user, I can create a league and automatically become its commissioner.
+- As a commissioner, I can invite people to my league so they can join.
+- As a user, I can join a league I have been invited to.
+- As a commissioner, I can remove a member from my league.
+- As a commissioner, I can transfer the commissioner role to another member.
+- As a commissioner, I can share the commissioner role with another member.
+- As a member, I can see the list of members in my league.
+- As a user, I can belong to more than one league and switch between them.
+
+Acceptance Criteria
+-------------------
+League creation
+- Given a logged-in user, when they create a league with a name and season year, then the league
+  exists, the creator is its commissioner, and the creator is also a member.
+- League names must be non-empty and at most 50 characters.
+- A league represents exactly one season (season year is required at creation). A new league is
+  created each year; there is no rollover.
+- A league holds at most 50 members. Given a full league, when a user opens an invite, then they
+  see a "league is full" message and are not added.
+
+Invites and joining
+- Given a commissioner, when they generate an invite, then they receive a shareable link or code
+  that can be sent via text message (no email dependency).
+- Given a valid invite, when a logged-in user opens it, then they are added as a member and land on
+  the league home page.
+- Given an invite that has been revoked or has expired, when a user opens it, then they see a clear
+  message and are not added.
+- A user cannot join the same league twice.
+- Given a user joining mid-season, then they start with 0 points, have no picks for weeks before
+  they joined, and do not appear in weekly leaderboards for those earlier weeks.
+
+Membership management
+- Given a commissioner, when they remove a member, then that member no longer sees the league and
+  their picks are retained for historical scoring (shown as "former member" on past weeks).
+- The commissioner cannot remove themselves; they must transfer the role first.
+- Given a commissioner transferring the role, when the transfer completes, then that member
+  holds the commissioner role, and only the commissioner transferring the role is demoted
+  to member.
+- Given a commissioner promoting another member to commissioner, that member also becomes
+  commissioner. Commissioners are able to demote other commissioners.
+
+League home
+- Given a member, when they open a league, then they see: league name, current week, whether their
+  picks are submitted for the current week, and links to Picks, Dashboard, and Leaderboard.
+- Given a user in multiple leagues, when they log in, then they see a league picker listing each
+  league they belong to.
+
+Mobile
+- All league and member screens are usable on a 375px-wide viewport without horizontal scrolling.
+
+Resolved Questions
+------------------
+- Do we need a maximum member count? (Family use suggests no, but a sane cap like 50 avoids abuse.) A: A cap of 50 is sane.
+- Should a league roll over season-to-season, or is a new league created each year? A: New league created each year.
+- Can a member join mid-season, and if so do they start at 0 points or are past weeks hidden? A: members can join mid season and start at 0.

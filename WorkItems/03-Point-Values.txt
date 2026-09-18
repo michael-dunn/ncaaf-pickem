@@ -1,0 +1,63 @@
+Feature 03: Point Values
+Overview reference: Major Feature 3 (3a, 3b, 3bi, 3bii, 3biii)
+
+Summary
+-------
+Each game in a week's set is worth a number of points to a member who picks it correctly.
+The default is 10. The commissioner can set automatic point rules that adjust values based on
+game attributes, and can override the value of any individual game.
+
+Point Rule Types
+----------------
+1. Conference game bonus: games where both teams are in the same conference (or a specified
+   conference) are worth N points.
+2. Close spread: games where the absolute point spread is below a threshold (e.g., under 3) are
+   worth N points.
+3. Specific team: any game involving a named team is worth N points.
+
+User Stories
+------------
+- As a commissioner, I can change the league default point value from 10.
+- As a commissioner, I can add point rules that automatically set values on matching games.
+- As a commissioner, I can set the order in which point rules apply so conflicts are resolved
+  predictably.
+- As a commissioner, I can override the point value of a single game for a single week.
+- As a member, I can see how many points each game is worth before I submit picks.
+
+Acceptance Criteria
+-------------------
+Defaults
+- Given a new league, then the default point value is 10.
+- Given a commissioner, when they change the default to any integer from 1 to 100, then all games
+  not matched by a rule or override use the new default going forward.
+
+Rules
+- Given a game matched by no rule, then it is worth the league default.
+- Given a game matched by exactly one rule, then it is worth that rule's value.
+- Given a game matched by multiple rules, then it is worth the value of the highest-priority rule
+  (the commissioner orders rules; top of the list wins).
+- Given a close-spread rule, when a game has no spread available, then the rule does not match.
+- Spread data is refreshed once daily (end of day, Feature 09) and may be stale by up to a day;
+  that is acceptable. The value used for scoring is snapshot at pick lock (Saturday first kickoff)
+  so point values do not drift after members have submitted.
+- All weighting is commissioner-driven. Members have no confidence points or pick-of-the-week
+  multipliers.
+
+Overrides
+- Given a commissioner, when they set a manual value on a game, then that value wins over all
+  rules and the default for that game that week.
+- Manual overrides are per week and do not persist to future weeks.
+
+Visibility and locking
+- Given a member on the picks page, then each game shows its point value.
+- Given a member on the picks page, when a game is worth more than the default, then it is
+  visually emphasized (e.g., badge).
+- Once picks lock for the week, point values are frozen and cannot be changed by anyone.
+- Given a commissioner changing a rule or override mid-week before lock, then members who already
+  submitted see the updated values; their picks remain valid.
+
+Resolved Questions
+------------------
+- Should members get any say in weighting (confidence points, pick of the week), or is all
+  weighting commissioner-driven? (Overview implies commissioner-only.) A: Commissioner driven
+- Where does spread data come from and how often is it refreshed? (See Feature 09.) A: Refreshed at the end of each day. Can serve stale spreads. It should come from the easiest provider.

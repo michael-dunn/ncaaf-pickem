@@ -1,0 +1,81 @@
+Feature 05: Pick Lock and Influence Dashboard
+Overview reference: Major Feature 5 and the dashboard example in the Overview
+
+Summary
+-------
+When Saturday games begin, picks lock and each member gets a dashboard showing which games matter
+most to them relative to the rest of the league. For each game in the set, the dashboard lists the
+members who picked the OPPOSITE team from the viewing member. Games where the most members are on
+the other side appear first, because those are the games where the viewer stands to gain or lose
+the most ground.
+
+Worked Example (from Overview)
+------------------------------
+Members: Michael, Alyson, Dance, Alex, Daniel
+
+Michigan vs Texas
+  Michigan: Michael, Alyson, Alex, Daniel
+  Texas: Dance
+
+Maryland vs Rutgers
+  Maryland: Michael, Alyson, Dance, Daniel
+  Rutgers: Alex
+
+Dashboard for Dance:
+  Michigan vs Texas        Opposite Picks: Michael, Alyson, Alex, Daniel   (4)
+  Maryland vs Rutgers      Opposite Picks: Alex                            (1)
+
+Dashboard for Alyson:
+  Michigan vs Texas        Opposite Picks: Dance                           (1)
+  Maryland vs Rutgers      Opposite Picks: Alex                            (1)
+
+User Stories
+------------
+- As a member, once picks lock I can open the dashboard and see, for each game, who picked
+  against me.
+- As a member, I can see the games with the most opposition first.
+- As a member, I can see live/final scores next to each game so I know how my swing games are
+  going.
+- As a member, I can see games where everyone agrees with me, but they are de-emphasized.
+
+Acceptance Criteria
+-------------------
+Lock
+- Given the week's game set, then the lock time is the earliest Saturday kickoff among the games
+  in the set.
+- Given the current time is before lock, when a member opens the dashboard, then they see a
+  countdown to lock and a message that the dashboard becomes available at lock.
+- Given the current time is at or after lock, then the dashboard is available to every member.
+
+Opposite picks list
+- Given a viewing member M and a game G, then the "Opposite Picks" list for G contains every other
+  member who picked the team M did not pick.
+- Members who did not pick G at all (incomplete) are listed in a separate "No Pick" group, not in
+  Opposite Picks.
+- The viewing member never appears in their own Opposite Picks list.
+- Given M did not pick G, then G shows M's own status as "No Pick" and lists picks for both teams.
+
+Ordering
+- Games are ordered by count of Opposite Picks, descending.
+- Ties are broken by point value descending, then by kickoff time ascending.
+- Games with zero Opposite Picks are shown last in a collapsed "Everyone agrees" section.
+
+Game status
+- Each game shows the viewer's pick, the point value, and one of: kickoff time (not started),
+  live score with clock/quarter, or final score.
+- Given a final score, then the game row is marked as Won or Lost for the viewer, and the
+  Opposite Picks members are marked as having gained or lost those points relative to the viewer.
+
+Summary header
+- The dashboard shows the viewer's current points for the week so far, and their maximum possible
+  remaining points.
+
+Mobile
+- Each game is a single card; Opposite Picks names wrap and never truncate silently.
+- Live scores refresh automatically without a full page reload (polling is acceptable).
+
+Resolved Questions
+------------------
+- Should the dashboard also let you view it "as" another member (to see who your rival needs to
+  lose)? Cheap to build since all picks are visible post-lock. A: No, only your own dashboard matters to you
+- Should there be a league-wide view showing, per game, the split of picks (e.g., 4-1)? A: No, only dashboard for each member
