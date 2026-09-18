@@ -67,7 +67,7 @@
 </EditForm>
 
 @code {
-    private readonly CreateLeagueForm _form = new() { SeasonYear = DateTime.Now.Year };
+    private readonly CreateLeagueForm _form = new() { SeasonYear = TimeProvider.System.GetLocalNow().Year };
     private SeasonWeek[]? _weeks;
     private bool _saving;
     private string? _error;
