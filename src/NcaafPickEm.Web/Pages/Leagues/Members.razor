@@ -25,6 +25,10 @@ else
             <li class="member-row">
                 <div class="member-row-main">
                     <span class="member-row-name">@member.DisplayName</span>
+                    @if (member.IsMe)
+                    {
+                        <span class="member-row-you">You</span>
+                    }
                     <RoleBadge Role="member.Role" />
                     @if (member.CurrentWeekStatus is { } status)
                     {
@@ -32,7 +36,7 @@ else
                     }
                 </div>
 
-                @if (_isCommissioner)
+                @if (_isCommissioner && !member.IsMe)
                 {
                     <div class="member-row-actions">
                         @if (member.Role == MembershipRole.Member)
@@ -102,10 +106,9 @@ else
             _isCommissioner = league.MyRole == MembershipRole.Commissioner;
             _members = await LeaguesApi.GetMembersAsync(LeagueId);
 
-            // MemberRow does not identify "me", so every row a commissioner sees offers the same
-            // actions, including their own row. The server enforces the real invariants (cannot
-            // remove self, cannot demote the last commissioner) and ErrorBanner surfaces the 409
-            // if the commissioner taps an action on themselves.
+            // MemberRow.IsMe (P1-03) hides self-actions the server would reject anyway (cannot
+            // remove/demote yourself; transfer the role first). The server still enforces the
+            // real invariants (also the last-commissioner rule) and ErrorBanner surfaces any 409.
         }
         catch (LeaguesApiException ex)
         {

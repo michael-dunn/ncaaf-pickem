@@ -1,0 +1,239 @@
+@page "/me"
+@inject IMeApi MeApi
+@inject ILeaguesApi LeaguesApi
+@inject AppShellState Shell
+
+@*
+    Profile (P1-03, Feature 08). Global display name with inline edit, per-league name section
+    (effective name per league, with a set/clear override control), sign out, and the Phase 7
+    notifications placeholder slot.
+*@
+
+<PageTitle>Profile - NCAAF Pick Em</PageTitle>
+
+<h1>Profile</h1>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_me is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else
+{
+    <div class="card">
+        <h2>Display name</h2>
+        <p class="muted text-sm">
+            Used everywhere you have not set a league-specific nickname below.
+        </p>
+
+        @if (_editingGlobalName)
+        {
+            <div class="field">
+                <label for="global-name">Display name</label>
+                <input id="global-name" class="input" maxlength="30" @bind="_globalNameDraft" />
+            </div>
+            <div class="profile-actions">
+                <button type="button" class="btn btn-primary" disabled="@_savingGlobalName" @onclick="SaveGlobalNameAsync">
+                    @(_savingGlobalName ? "Saving..." : "Save")
+                </button>
+                <button type="button" class="btn btn-secondary" @onclick="CancelEditGlobalName">Cancel</button>
+            </div>
+        }
+        else
+        {
+            <p class="profile-name-display">
+                <strong>@_me.DisplayName</strong>
+                <button type="button" class="btn btn-secondary" @onclick="BeginEditGlobalName">Edit</button>
+            </p>
+        }
+    </div>
+
+    @if (_me.Leagues.Length > 0)
+    {
+        <div class="card">
+            <h2>League nicknames</h2>
+            <p class="muted text-sm">
+                Override your display name for just one league. Clear it to go back to your
+                global name above.
+            </p>
+
+            <ul class="league-name-list">
+                @foreach (LeagueSummary league in _me.Leagues)
+                {
+                    <li class="league-name-row">
+                        <div class="league-name-row-main">
+                            <span>@league.Name</span>
+                        </div>
+
+                        @if (_editingLeagueId == league.LeagueId)
+                        {
+                            <div class="field">
+                                <label for="@($"league-name-{league.LeagueId}")">Nickname in @league.Name</label>
+                                <input id="@($"league-name-{league.LeagueId}")" class="input" maxlength="30"
+                                       placeholder="@_me.DisplayName" @bind="_leagueNameDraft" />
+                            </div>
+                            <div class="profile-actions">
+                                <button type="button" class="btn btn-primary" disabled="@_savingLeagueName"
+                                        @onclick="() => SaveLeagueNameAsync(league.LeagueId)">
+                                    @(_savingLeagueName ? "Saving..." : "Save")
+                                </button>
+                                <button type="button" class="btn btn-secondary" disabled="@_savingLeagueName"
+                                        @onclick="() => ClearLeagueNameAsync(league.LeagueId)">
+                                    Clear
+                                </button>
+                                <button type="button" class="btn btn-secondary" @onclick="CancelEditLeagueName">
+                                    Cancel
+                                </button>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="league-name-row-actions">
+                                <span class="league-name-current">
+                                    @(_effectiveLeagueNames.GetValueOrDefault(league.LeagueId) ?? _me.DisplayName)
+                                </span>
+                                <button type="button" class="btn btn-secondary" @onclick="() => BeginEditLeagueName(league.LeagueId)">
+                                    Set nickname
+                                </button>
+                            </div>
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+
+    <NotificationsSettingsPlaceholder />
+
+    <div class="card">
+        <h2>Account</h2>
+        <LogoutButton />
+    </div>
+}
+
+@code {
+    private MeResponse? _me;
+    private readonly Dictionary<Guid, string> _effectiveLeagueNames = [];
+    private string? _error;
+
+    private bool _editingGlobalName;
+    private string _globalNameDraft = string.Empty;
+    private bool _savingGlobalName;
+
+    private Guid? _editingLeagueId;
+    private string _leagueNameDraft = string.Empty;
+    private bool _savingLeagueName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Shell.ClearLeague();
+        Shell.SetTitle("Profile");
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _me = await MeApi.GetMeAsync();
+            await LoadEffectiveLeagueNamesAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task LoadEffectiveLeagueNamesAsync()
+    {
+        if (_me is null)
+        {
+            return;
+        }
+
+        foreach (LeagueSummary league in _me.Leagues)
+        {
+            try
+            {
+                MemberRow[] members = await LeaguesApi.GetMembersAsync(league.LeagueId);
+                MemberRow? mine = members.FirstOrDefault(m => m.IsMe);
+                if (mine is not null)
+                {
+                    _effectiveLeagueNames[league.LeagueId] = mine.DisplayName;
+                }
+            }
+            catch (LeaguesApiException)
+            {
+                // Best-effort: fall back to the global name shown by default.
+            }
+        }
+    }
+
+    private void BeginEditGlobalName()
+    {
+        _globalNameDraft = _me?.DisplayName ?? string.Empty;
+        _editingGlobalName = true;
+    }
+
+    private void CancelEditGlobalName() => _editingGlobalName = false;
+
+    private async Task SaveGlobalNameAsync()
+    {
+        _savingGlobalName = true;
+        try
+        {
+            _me = await MeApi.UpdateDisplayNameAsync(new UpdateMeRequest(_globalNameDraft));
+            _editingGlobalName = false;
+            _error = null;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _savingGlobalName = false;
+        }
+    }
+
+    private void BeginEditLeagueName(Guid leagueId)
+    {
+        _leagueNameDraft = _effectiveLeagueNames.GetValueOrDefault(leagueId) == _me?.DisplayName
+            ? string.Empty
+            : _effectiveLeagueNames.GetValueOrDefault(leagueId, string.Empty);
+        _editingLeagueId = leagueId;
+    }
+
+    private void CancelEditLeagueName() => _editingLeagueId = null;
+
+    private async Task SaveLeagueNameAsync(Guid leagueId)
+    {
+        await ApplyLeagueNameAsync(leagueId, _leagueNameDraft);
+    }
+
+    private async Task ClearLeagueNameAsync(Guid leagueId)
+    {
+        await ApplyLeagueNameAsync(leagueId, null);
+    }
+
+    private async Task ApplyLeagueNameAsync(Guid leagueId, string? name)
+    {
+        _savingLeagueName = true;
+        try
+        {
+            MemberRow row = await LeaguesApi.SetMyDisplayNameAsync(leagueId, new SetLeagueDisplayNameRequest(name));
+            _effectiveLeagueNames[leagueId] = row.DisplayName;
+            _editingLeagueId = null;
+            _error = null;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _savingLeagueName = false;
+        }
+    }
+}
