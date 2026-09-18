@@ -4,7 +4,6 @@ namespace NcaafPickEm.Domain.Tests;
 
 /// <summary>
 /// Placeholder from P0-01 so <c>dotnet test</c> is green on a clean clone.
-/// Delete once P0-05 adds <c>SeasonCalendarTests</c>.
 /// </summary>
 public sealed class ScaffoldTests
 {
@@ -17,10 +16,13 @@ public sealed class ScaffoldTests
     }
 
     [Fact]
-    public void GivenNoFixturesYet_WhenListingFixtures_ThenLoaderReportsAnEmptySet()
+    public void GivenP2_05Fixtures_WhenListingFixtures_ThenLoaderReportsTheWeek7SampleWeek()
     {
-        // P2-05 fills tests/NcaafPickEm.Fixtures/Data; until then the loader must not throw.
-        FixtureLoader.Names.Should().BeEmpty();
+        // P2-05 filled tests/NcaafPickEm.Fixtures/Data with the Week 7, 2026 sample week and the
+        // Feature 05 worked example; see FixtureLoaderTests for the exact shape assertions.
+        FixtureLoader.Names.Should().NotBeEmpty();
+        FixtureLoader.Names.Should().Contain("Week7_2026/schedule.json");
+        FixtureLoader.Names.Should().Contain("influence-example.json");
     }
 
     [Fact]
