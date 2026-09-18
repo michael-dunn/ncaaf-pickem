@@ -1,0 +1,11 @@
+@* A member's MembershipRole as a small badge. *@
+
+<span class="role-badge @(Role == MembershipRole.Commissioner ? "role-badge-commish" : "role-badge-member")">
+    @(Role == MembershipRole.Commissioner ? "Commissioner" : "Member")
+</span>
+
+@code {
+    /// <summary>The role to render.</summary>
+    [Parameter]
+    public MembershipRole Role { get; set; }
+}

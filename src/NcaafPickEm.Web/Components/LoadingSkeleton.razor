@@ -1,0 +1,15 @@
+@* Placeholder blocks shown while a page's first data fetch is in flight, so the layout does not
+   jump once real content arrives. *@
+
+<div class="loading-skeleton" aria-hidden="true">
+    @for (int i = 0; i < Rows; i++)
+    {
+        <div class="loading-skeleton-row"></div>
+    }
+</div>
+
+@code {
+    /// <summary>How many placeholder rows to show. Default 3.</summary>
+    [Parameter]
+    public int Rows { get; set; } = 3;
+}

@@ -1,0 +1,23 @@
+@* User-facing error message, shown as a banner near the top of the page. Message is expected to
+   already be a user-safe string, e.g. a LeaguesApiException.Message (a ProblemDetails title). *@
+
+@if (!string.IsNullOrWhiteSpace(Message))
+{
+    <div class="error-banner" role="alert">
+        <span>@Message</span>
+        @if (OnDismiss.HasDelegate)
+        {
+            <button type="button" class="error-banner-dismiss" @onclick="OnDismiss" aria-label="Dismiss">&#10005;</button>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The message to show. Nothing renders when null or blank.</summary>
+    [Parameter]
+    public string? Message { get; set; }
+
+    /// <summary>Raised when the dismiss button is tapped. Omit to render without a dismiss button.</summary>
+    [Parameter]
+    public EventCallback OnDismiss { get; set; }
+}

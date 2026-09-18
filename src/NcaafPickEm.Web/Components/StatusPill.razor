@@ -1,0 +1,34 @@
+@* A member's SubmissionStatus as a small colored pill. Null (no game set yet) renders nothing
+   visible; callers that need a message for that case show one themselves (05-Conventions.md
+   naming glossary: Submission). *@
+
+@if (Status is { } status)
+{
+    <span class="status-pill @CssClass(status)">@Label(status)</span>
+}
+
+@code {
+    /// <summary>The status to render, or null when the week has no game set yet.</summary>
+    [Parameter]
+    public SubmissionStatus? Status { get; set; }
+
+    private static string Label(SubmissionStatus status) => status switch
+    {
+        SubmissionStatus.NotStarted => "Not Started",
+        SubmissionStatus.InProgress => "In Progress",
+        SubmissionStatus.Submitted => "Submitted",
+        SubmissionStatus.Locked => "Locked",
+        SubmissionStatus.Incomplete => "Incomplete",
+        _ => status.ToString(),
+    };
+
+    private static string CssClass(SubmissionStatus status) => status switch
+    {
+        SubmissionStatus.NotStarted => "status-pill-neutral",
+        SubmissionStatus.InProgress => "status-pill-warning",
+        SubmissionStatus.Submitted => "status-pill-success",
+        SubmissionStatus.Locked => "status-pill-brand",
+        SubmissionStatus.Incomplete => "status-pill-danger",
+        _ => "status-pill-neutral",
+    };
+}

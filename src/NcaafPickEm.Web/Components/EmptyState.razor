@@ -1,0 +1,25 @@
+@* A centered "nothing here yet" card: title, explanatory body, and an optional action
+   (e.g. the league picker's "no leagues yet, ask for an invite" state). *@
+
+<div class="empty-state card">
+    <h2>@Title</h2>
+    <p class="muted">@Body</p>
+    @if (Action is not null)
+    {
+        <div class="empty-state-action">@Action</div>
+    }
+</div>
+
+@code {
+    /// <summary>Short heading.</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Explanatory sentence or two.</summary>
+    [Parameter, EditorRequired]
+    public string Body { get; set; } = string.Empty;
+
+    /// <summary>Optional call to action, e.g. a "Create league" button.</summary>
+    [Parameter]
+    public RenderFragment? Action { get; set; }
+}
