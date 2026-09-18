@@ -1,0 +1,149 @@
+@page "/leagues/{LeagueId:guid}/settings"
+@inject ILeaguesApi LeaguesApi
+@inject ISeasonsApi SeasonsApi
+@inject AppShellState Shell
+@inject NavigationManager Navigation
+
+@*
+    Settings (P1-02). Name, weeks, default point value. Commissioner only; a member who lands
+    here (deep link, demoted mid-visit) sees a plain message instead of the form.
+*@
+
+<PageTitle>Settings - NCAAF Pick Em</PageTitle>
+
+<h1>League settings</h1>
+
+<ErrorBanner Message="@_error" />
+
+@if (_league is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else if (_league.MyRole != MembershipRole.Commissioner)
+{
+    <p class="muted">Only a commissioner can change league settings.</p>
+}
+else
+{
+    <EditForm Model="_form" OnValidSubmit="SaveAsync" FormName="league-settings">
+        <DataAnnotationsValidator />
+
+        <div class="field">
+            <label for="settings-name">League name</label>
+            <InputText id="settings-name" @bind-Value="_form.Name" maxlength="50" />
+            <ValidationMessage For="() => _form.Name" />
+        </div>
+
+        <div class="field">
+            <label for="settings-first-week">First week</label>
+            <select id="settings-first-week" class="input" @bind="_form.FirstWeek">
+                @foreach (int week in RegularSeasonWeeks)
+                {
+                    <option value="@week">Week @week</option>
+                }
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="settings-last-week">Last week</label>
+            <select id="settings-last-week" class="input" @bind="_form.LastWeek">
+                @foreach (int week in RegularSeasonWeeks)
+                {
+                    <option value="@week">Week @week</option>
+                }
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="settings-points">Default point value</label>
+            <InputNumber id="settings-points" @bind-Value="_form.DefaultPointValue" inputmode="numeric" />
+            <ValidationMessage For="() => _form.DefaultPointValue" />
+        </div>
+
+        <button type="submit" class="btn btn-primary" disabled="@_saving">
+            @(_saving ? "Saving..." : "Save settings")
+        </button>
+
+        @if (_saved)
+        {
+            <p class="text-sm" style="color: var(--color-success);">Saved.</p>
+        }
+    </EditForm>
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private LeagueDetail? _league;
+    private SeasonWeek[]? _weeks;
+    private readonly SettingsForm _form = new();
+    private bool _saving;
+    private bool _saved;
+    private string? _error;
+
+    private IEnumerable<int> RegularSeasonWeeks =>
+        (_weeks ?? []).Where(w => w.IsRegularSeason).Select(w => w.Week);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Settings");
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            _form.Name = _league.Name;
+            _form.FirstWeek = _league.FirstWeek;
+            _form.LastWeek = _league.LastWeek;
+            _form.DefaultPointValue = _league.DefaultPointValue;
+
+            try
+            {
+                _weeks = await SeasonsApi.GetWeeksAsync(_league.SeasonYear);
+            }
+            catch (LeaguesApiException)
+            {
+                _weeks = [];
+            }
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        _saving = true;
+        _saved = false;
+        try
+        {
+            _league = await LeaguesApi.UpdateSettingsAsync(
+                LeagueId,
+                new UpdateLeagueSettingsRequest(_form.Name.Trim(), _form.FirstWeek, _form.LastWeek, _form.DefaultPointValue));
+            _saved = true;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private sealed class SettingsForm
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Enter a league name.")]
+        [System.ComponentModel.DataAnnotations.StringLength(50, MinimumLength = 1)]
+        public string Name { get; set; } = string.Empty;
+
+        public int FirstWeek { get; set; }
+
+        public int LastWeek { get; set; }
+
+        [System.ComponentModel.DataAnnotations.Range(1, 100, ErrorMessage = "Point value must be 1 to 100.")]
+        public int DefaultPointValue { get; set; }
+    }
+}

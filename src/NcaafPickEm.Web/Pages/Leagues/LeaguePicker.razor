@@ -1,0 +1,73 @@
+@page "/"
+@inject ILeaguesApi LeaguesApi
+@inject AppShellState Shell
+@inject NavigationManager Navigation
+
+@*
+    League picker (P1-02). Replaces the P0-04 shell placeholder at "/": every league the caller
+    belongs to, with role, current week, and submission status pill; a "Create league" button;
+    and an empty state that explains invites for a brand-new account.
+*@
+
+<PageTitle>NCAAF Pick Em</PageTitle>
+
+<h1>Your leagues</h1>
+
+<ErrorBanner Message="@_error" />
+
+@if (_leagues is null)
+{
+    <LoadingSkeleton Rows="2" />
+}
+else if (_leagues.Length == 0)
+{
+    <EmptyState Title="No leagues yet"
+                Body="Ask your commissioner for an invite link, or start your own league and invite family.">
+        <Action>
+            <a class="btn btn-primary" href="/leagues/new">Create a league</a>
+        </Action>
+    </EmptyState>
+}
+else
+{
+    <ul class="league-list">
+        @foreach (LeagueSummary league in _leagues)
+        {
+            <li>
+                <a class="league-card" href="@($"/leagues/{league.LeagueId}")">
+                    <div class="league-card-main">
+                        <span class="league-card-name">@league.Name</span>
+                        <span class="text-sm muted">@RoleLabel(league) &middot; Week @league.CurrentWeek</span>
+                    </div>
+                    <StatusPill Status="league.MyCurrentWeekStatus" />
+                </a>
+            </li>
+        }
+    </ul>
+
+    <a class="btn btn-secondary" href="/leagues/new">Create another league</a>
+}
+
+@code {
+    private LeagueSummary[]? _leagues;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Shell.ClearLeague();
+        Shell.SetTitle("Home");
+
+        try
+        {
+            _leagues = await LeaguesApi.GetMyLeaguesAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+            _leagues = [];
+        }
+    }
+
+    private static string RoleLabel(LeagueSummary league) =>
+        league.MyRole == MembershipRole.Commissioner ? "Commissioner" : "Member";
+}

@@ -1,0 +1,10 @@
+.league-home-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
+}
+
+.league-home-action {
+    width: 100%;
+}

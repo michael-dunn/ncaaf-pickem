@@ -195,6 +195,11 @@ img {
     color: var(--color-text);
 }
 
+.btn-danger {
+    background: var(--color-danger);
+    color: var(--color-text-inverse);
+}
+
 /* ----------------------------------------------------- validation styles */
 .valid.modified:not([type=checkbox]) {
     outline: 1px solid var(--color-success);

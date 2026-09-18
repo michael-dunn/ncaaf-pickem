@@ -1,0 +1,106 @@
+@page "/join/{Code}"
+@inject ILeaguesApi LeaguesApi
+@inject AppShellState Shell
+@inject NavigationManager Navigation
+
+@*
+    Join (P1-02). Preview card and Join button; renders State-specific copy for every
+    InviteState. A 401 here is handled by UnauthorizedRedirectHandler, which sends the caller to
+    /login?returnUrl=/join/{code} and back.
+*@
+
+<PageTitle>Join a league - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" />
+
+@if (_preview is null && _error is null)
+{
+    <LoadingSkeleton Rows="2" />
+}
+else if (_preview is { } preview)
+{
+    <div class="card join-card">
+        <h1>@preview.LeagueName</h1>
+        <p class="muted">Season @preview.SeasonYear &middot; @preview.MemberCount member@(preview.MemberCount == 1 ? "" : "s")</p>
+
+        @switch (preview.State)
+        {
+            case InviteState.Valid:
+                <p>You're invited to join this league.</p>
+                <button type="button" class="btn btn-primary" @onclick="JoinAsync" disabled="@_joining">
+                    @(_joining ? "Joining..." : "Join league")
+                </button>
+                break;
+
+            case InviteState.AlreadyMember:
+                <p>You're already a member of this league.</p>
+                <a class="btn btn-primary" href="@ExistingLeagueHref">Go to league</a>
+                break;
+
+            case InviteState.Expired:
+                <p>This invite link has expired. Ask the commissioner for a new link.</p>
+                break;
+
+            case InviteState.Revoked:
+                <p>This invite link is no longer valid. Ask the commissioner for a new link.</p>
+                break;
+
+            case InviteState.Full:
+                <p>This league is full. Ask the commissioner for a new link once there's room.</p>
+                break;
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Invite code from the route.</summary>
+    [Parameter]
+    public string Code { get; set; } = string.Empty;
+
+    private InvitePreview? _preview;
+    private bool _joining;
+    private string? _error;
+
+    // AlreadyMember has no league id in InvitePreview; the acceptance response would carry it,
+    // but for an already-joined caller the safest link back is the league picker, which lists
+    // every league they belong to.
+    private const string ExistingLeagueHref = "/";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.ClearLeague();
+        Shell.SetTitle("Join a league");
+        try
+        {
+            _preview = await LeaguesApi.GetInvitePreviewAsync(Code);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task JoinAsync()
+    {
+        _joining = true;
+        try
+        {
+            InviteAcceptOutcome outcome = await LeaguesApi.AcceptInviteAsync(Code);
+            if (outcome.League is { } league)
+            {
+                Navigation.NavigateTo($"/leagues/{league.LeagueId}");
+                return;
+            }
+
+            _preview = outcome.Preview;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _joining = false;
+        }
+    }
+}
