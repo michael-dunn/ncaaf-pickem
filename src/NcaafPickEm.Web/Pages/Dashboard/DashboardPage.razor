@@ -1,0 +1,224 @@
+@page "/leagues/{LeagueId:guid}/weeks/{Week:int}/dashboard"
+@inject ILeaguesApi LeaguesApi
+@inject IDashboardApi DashboardApi
+@inject AppShellState Shell
+@inject IJSRuntime JsRuntime
+@implements IAsyncDisposable
+
+@*
+    Influence dashboard (Feature 05, P6-03): once picks lock, shows each game ordered by how much
+    opposition the viewer faces, with a collapsed "Everyone agrees" section at the bottom.
+    Auto-refreshes every 60 s while any game is not Final (03-API-Contracts.md "Influence
+    dashboard"), pausing while the tab is hidden via wwwroot/js/visibility.js - no full page
+    reload, just a state swap plus the "Updated h:mm" line below the header.
+*@
+
+<PageTitle>Week @Week dashboard - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null || _dashboard is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else if (!_dashboard.IsAvailable)
+{
+    <h1>Week @Week dashboard</h1>
+    <div class="card dashboard-prelock-card">
+        <LockTime LockAtUtc="_dashboard.LockAtUtc" EasternDisplay="@_dashboard.LockAtEasternDisplay" NoLockText="No games yet" ShowCountdown="true" />
+        <p class="muted dashboard-prelock-note">Dashboard opens at kickoff.</p>
+    </div>
+}
+else
+{
+    DashboardResponse dashboard = _dashboard;
+
+    <h1>Week @Week dashboard</h1>
+
+    @if (dashboard.ScoresMayBeStale)
+    {
+        <StaleBanner />
+    }
+
+    <div class="card dashboard-stats-card">
+        <StatCard Label="Points so far" Value="dashboard.PointsSoFar" />
+        <StatCard Label="Max remaining" Value="dashboard.MaxRemaining" />
+    </div>
+
+    @if (_lastUpdatedLocal is { } updated)
+    {
+        <p class="muted dashboard-updated">Updated @updated.ToString("h:mm tt")</p>
+    }
+
+    @if (dashboard.Games.Length == 0 && dashboard.EveryoneAgrees.Length == 0)
+    {
+        <EmptyState Title="No games yet" Body="The commissioner has not set up this week's games." />
+    }
+    else
+    {
+        @foreach (DashboardGameDto game in dashboard.Games)
+        {
+            <DashboardGameCard Dto="game" />
+        }
+
+        @if (dashboard.EveryoneAgrees.Length > 0)
+        {
+            <CollapsibleSection Title="@($"Everyone agrees ({dashboard.EveryoneAgrees.Length})")">
+                @foreach (DashboardGameDto game in dashboard.EveryoneAgrees)
+                {
+                    <DashboardGameCard Dto="game" />
+                }
+            </CollapsibleSection>
+        }
+    }
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    /// <summary>Week from the route.</summary>
+    [Parameter]
+    public int Week { get; set; }
+
+    private LeagueDetail? _league;
+    private DashboardResponse? _dashboard;
+    private string? _error;
+    private DateTimeOffset? _lastUpdatedLocal;
+
+    private bool _isVisible = true;
+    private IJSObjectReference? _visibilityModule;
+    private DotNetObjectReference<DashboardPage>? _selfRef;
+    private PeriodicTimer? _timer;
+    private CancellationTokenSource? _pollCts;
+    private Task? _pollLoop;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle($"Week {Week} dashboard");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, Week);
+            await LoadAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        _visibilityModule = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/visibility.js");
+        _selfRef = DotNetObjectReference.Create(this);
+        VisibilityState initial =
+            await _visibilityModule.InvokeAsync<VisibilityState>("subscribe", _selfRef, nameof(OnVisibilityChanged));
+        _isVisible = initial.IsVisible;
+        StartPollingIfNeeded();
+    }
+
+    /// <summary>Called by <c>wwwroot/js/visibility.js</c> whenever the tab's visibility changes.</summary>
+    [JSInvokable]
+    public void OnVisibilityChanged(bool isVisible) => _isVisible = isVisible;
+
+    private async Task LoadAsync()
+    {
+        _dashboard = await DashboardApi.GetDashboardAsync(LeagueId, Week);
+        _lastUpdatedLocal = DateTimeOffset.Now;
+        StartPollingIfNeeded();
+    }
+
+    private void StartPollingIfNeeded()
+    {
+        if (_pollLoop is not null || _dashboard is null || !_dashboard.IsAvailable || !NeedsPolling(_dashboard))
+        {
+            return;
+        }
+
+        _pollCts = new CancellationTokenSource();
+        _pollLoop = PollLoopAsync(_pollCts.Token);
+    }
+
+    private static bool NeedsPolling(DashboardResponse dashboard) =>
+        dashboard.Games.Concat(dashboard.EveryoneAgrees).Any(g => g.Game.Status != GameStatus.Final);
+
+    // Runs for the lifetime of the page once started. The 60 s tick never stops on its own -
+    // ticks that land while the tab is hidden are simply skipped (no fetch, no re-render), which
+    // is what "pauses while hidden" means for a poll: no network traffic, no UI change, and no
+    // teardown/recreation of the timer across a JS callback that fires on the browser's own
+    // event loop. The loop exits for good once every game (including "Everyone agrees") is Final.
+    private async Task PollLoopAsync(CancellationToken cancellationToken)
+    {
+        _timer = new PeriodicTimer(TimeSpan.FromSeconds(60));
+        try
+        {
+            while (await _timer.WaitForNextTickAsync(cancellationToken))
+            {
+                if (!_isVisible)
+                {
+                    continue;
+                }
+
+                DashboardResponse refreshed;
+                try
+                {
+                    refreshed = await DashboardApi.GetDashboardAsync(LeagueId, Week, cancellationToken);
+                }
+                catch (LeaguesApiException)
+                {
+                    // Leave the last good state on screen; try again on the next tick.
+                    continue;
+                }
+
+                _dashboard = refreshed;
+                _lastUpdatedLocal = DateTimeOffset.Now;
+                await InvokeAsync(StateHasChanged);
+
+                if (!NeedsPolling(refreshed))
+                {
+                    return;
+                }
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected on dispose.
+        }
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        _pollCts?.Cancel();
+        _timer?.Dispose();
+
+        if (_visibilityModule is not null)
+        {
+            if (_selfRef is not null)
+            {
+                try
+                {
+                    await _visibilityModule.InvokeVoidAsync("unsubscribe", _selfRef);
+                }
+                catch (JSException)
+                {
+                    // Nothing left to unsubscribe from (e.g. the page is already tearing down).
+                }
+            }
+
+            await _visibilityModule.DisposeAsync();
+        }
+
+        _selfRef?.Dispose();
+        _pollCts?.Dispose();
+    }
+}

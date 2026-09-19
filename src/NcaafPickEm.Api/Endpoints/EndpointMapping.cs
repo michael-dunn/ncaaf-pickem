@@ -28,6 +28,7 @@ public static class EndpointMapping
             .AddEndpointFilter<CsrfEndpointFilter>();
 
         api.MapAdminEndpoints();
+        api.MapDashboardEndpoints();
         api.MapGameSetEndpoints();
         api.MapInviteEndpoints();
         api.MapLeaderboardEndpoints();
@@ -37,8 +38,7 @@ public static class EndpointMapping
         api.MapReferenceEndpoints();
         api.MapSeasonEndpoints();
 
-        // One line per feature, alphabetical. Later phases add:
-        //   api.MapDashboardEndpoints();     (P6-02)
+        // One line per feature, alphabetical.
         api.MapMeEndpoints();
         api.MapPushEndpoints();
 

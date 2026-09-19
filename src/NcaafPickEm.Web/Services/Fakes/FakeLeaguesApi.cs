@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using NcaafPickEm.Shared.Contracts.Invites;
 using NcaafPickEm.Shared.Contracts.Leagues;
+using NcaafPickEm.Shared.Contracts.Seasons;
 using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Web.Services.Fakes;
@@ -155,6 +156,25 @@ public sealed class FakeLeaguesApi : ILeaguesApi
                 isCommish ? m.CurrentWeekStatus : null,
                 IsMe: m.MembershipId == _callerMembershipId))
             .ToArray());
+    }
+
+    /// <inheritdoc />
+    public Task<LeagueWeek[]> GetLeagueWeeksAsync(Guid leagueId, CancellationToken cancellationToken = default)
+    {
+        FakeLeague league = RequireLeague(leagueId);
+        var weeks = new LeagueWeek[league.LastWeek - league.FirstWeek + 1];
+        for (int week = league.FirstWeek; week <= league.LastWeek; week++)
+        {
+            weeks[week - league.FirstWeek] = new LeagueWeek(
+                Week: week,
+                HasGameSet: week == league.CurrentWeek,
+                IsCurrent: week == league.CurrentWeek,
+                IsLocked: false,
+                IsComplete: week < league.CurrentWeek,
+                LockAtUtc: week == league.CurrentWeek ? league.LockAtUtc : null);
+        }
+
+        return Task.FromResult(weeks);
     }
 
     /// <inheritdoc />
