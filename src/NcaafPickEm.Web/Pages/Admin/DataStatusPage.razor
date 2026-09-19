@@ -1,0 +1,292 @@
+@page "/admin/data"
+@inject IAdminApi AdminApi
+@inject AppShellState Shell
+
+@*
+    Data status (P2-04, Features 09 and 12): commissioner-only operational view of provider
+    freshness, the CFBD monthly counter, live-score source health, unmatched games, and games
+    needing review. Phase 5 fills in the override/void actions the needs-review rows link to.
+*@
+
+<PageTitle>Data status - NCAAF Pick Em</PageTitle>
+
+<h1>Data status</h1>
+
+@if (_forbidden)
+{
+    <div class="card">
+        <p>This page is only available to league commissioners.</p>
+    </div>
+}
+else
+{
+    <ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+    @if (_status is null)
+    {
+        <LoadingSkeleton Rows="5" />
+    }
+    else
+    {
+        <div class="data-status-grid">
+            @foreach (RefreshStatusDto refresh in _status.Refreshes)
+            {
+                <div class="card data-status-card">
+                    <div class="data-status-card-header">
+                        <h2>@refresh.DataType</h2>
+                        <button type="button" class="btn btn-secondary" disabled="@IsRefreshing(refresh.DataType)"
+                                @onclick="() => RefreshAsync(refresh.DataType)">
+                            @(IsRefreshing(refresh.DataType) ? "Refreshing..." : "Refresh")
+                        </button>
+                    </div>
+                    <p class="text-sm">
+                        Last success: @Relative(refresh.LastSuccessUtc)
+                    </p>
+                    <p class="muted text-sm">
+                        Last attempt: @Relative(refresh.LastAttemptUtc)
+                    </p>
+                    @if (!string.IsNullOrWhiteSpace(refresh.LastError))
+                    {
+                        <p class="data-status-error">@refresh.LastError</p>
+                    }
+                    @if (_refreshResults.TryGetValue(refresh.DataType, out string? result))
+                    {
+                        <p class="muted text-sm">@result</p>
+                    }
+                </div>
+            }
+        </div>
+
+        <div class="card">
+            <h2>CFBD calls this month</h2>
+            <p class="@(_status.CfbdWarning ? "data-status-counter-warning" : "data-status-counter")">
+                @_status.CfbdCallsThisMonth of 1,000
+            </p>
+            @if (_status.CfbdWarning)
+            {
+                <p class="text-sm data-status-error">
+                    Approaching the free-tier monthly limit.
+                </p>
+            }
+        </div>
+
+        <div class="card">
+            <h2>Live scores</h2>
+            <p class="text-sm">
+                Configured: <strong>@_status.LiveScoreSource</strong> &mdash; active:
+                <strong>@_status.ActiveLiveScoreSource</strong>
+            </p>
+            @if (_status.ScoresMayBeStale)
+            {
+                <p class="data-status-error">
+                    Scores may be stale: the CFBD fallback has no period, clock, live odds, or
+                    Postponed/Cancelled status.
+                </p>
+            }
+        </div>
+
+        @if (_status.Unmatched.Count > 0)
+        {
+            <div class="card">
+                <h2>Unmatched games</h2>
+                <ul class="data-status-list">
+                    @foreach (UnmatchedGameDto row in _status.Unmatched)
+                    {
+                        <li class="data-status-list-row">
+                            <span>@row.RawAwayName @@ @row.RawHomeName (@row.GameDate, @row.Source)</span>
+                            <button type="button" class="btn btn-secondary" @onclick="() => BeginResolve(row)">
+                                Resolve
+                            </button>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @if (_status.NeedsReview.Count > 0)
+        {
+            <div class="card">
+                <h2>Needs review</h2>
+                <ul class="data-status-list">
+                    @foreach (NeedsReviewGameDto row in _status.NeedsReview)
+                    {
+                        <li class="data-status-list-row">
+                            <span>
+                                @row.AwayTeam @row.AwayScore - @row.HomeTeam @row.HomeScore
+                                (@row.LeagueName, week @row.Week, @row.Reason)
+                            </span>
+                            <a class="btn btn-secondary" href="@($"/leagues/{row.LeagueId}/config/week/{row.Week}")">
+                                Review
+                            </a>
+                        </li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="card">
+            <h2>Recent job runs</h2>
+            <div class="data-status-table-scroll">
+                <table class="data-status-table">
+                    <thead>
+                        <tr>
+                            <th>Job</th>
+                            <th>Scheduled for</th>
+                            <th></th>
+                            <th>Duration</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (JobRunDto run in _status.RecentJobs)
+                        {
+                            <tr>
+                                <td>@run.JobName</td>
+                                <td>@run.ScheduledForUtc.ToLocalTime().ToString("MMM d, h:mm tt")</td>
+                                <td>@(run.Success ? "OK" : "FAIL")</td>
+                                <td>@Duration(run)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    }
+}
+
+<BottomSheet IsOpen="@(_resolving is not null)" Title="Resolve unmatched game" OnClose="CancelResolve">
+    @if (_resolving is not null)
+    {
+        <p class="text-sm">
+            @_resolving.RawAwayName @@ @_resolving.RawHomeName (@_resolving.GameDate)
+        </p>
+        <div class="field">
+            <label for="resolve-game-id">Game id</label>
+            <input id="resolve-game-id" class="input" @bind="_resolveGameIdDraft"
+                   placeholder="00000000-0000-0000-0000-000000000000" />
+        </div>
+        <div class="profile-actions">
+            <button type="button" class="btn btn-primary" disabled="@_resolvingBusy" @onclick="ConfirmResolveAsync">
+                @(_resolvingBusy ? "Resolving..." : "Resolve")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelResolve">Cancel</button>
+        </div>
+    }
+</BottomSheet>
+
+@code {
+    private DataStatusResponse? _status;
+    private string? _error;
+    private bool _forbidden;
+    private readonly HashSet<RefreshDataType> _refreshing = [];
+    private readonly Dictionary<RefreshDataType, string> _refreshResults = [];
+
+    private UnmatchedGameDto? _resolving;
+    private string _resolveGameIdDraft = string.Empty;
+    private bool _resolvingBusy;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Shell.ClearLeague();
+        Shell.SetTitle("Data status");
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            _status = await AdminApi.GetDataStatusAsync();
+            _forbidden = false;
+        }
+        catch (LeaguesApiException ex) when (ex.StatusCode == 403)
+        {
+            _forbidden = true;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private bool IsRefreshing(RefreshDataType dataType) => _refreshing.Contains(dataType);
+
+    private async Task RefreshAsync(RefreshDataType dataType)
+    {
+        _refreshing.Add(dataType);
+        try
+        {
+            ManualRefreshResponse result = await AdminApi.RefreshAsync(dataType);
+            _refreshResults[dataType] = result.Success
+                ? "Refreshed just now."
+                : $"Failed: {result.Error}";
+            await ReloadAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _refreshing.Remove(dataType);
+        }
+    }
+
+    private void BeginResolve(UnmatchedGameDto row)
+    {
+        _resolving = row;
+        _resolveGameIdDraft = string.Empty;
+    }
+
+    private void CancelResolve()
+    {
+        _resolving = null;
+        _resolveGameIdDraft = string.Empty;
+    }
+
+    private async Task ConfirmResolveAsync()
+    {
+        if (_resolving is null || !Guid.TryParse(_resolveGameIdDraft, out Guid gameId))
+        {
+            _error = "Enter a valid game id.";
+            return;
+        }
+
+        _resolvingBusy = true;
+        try
+        {
+            await AdminApi.ResolveUnmatchedAsync(_resolving.Id, new ResolveUnmatchedRequest(gameId));
+            _resolving = null;
+            await ReloadAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _resolvingBusy = false;
+        }
+    }
+
+    private static string Relative(DateTimeOffset? value)
+    {
+        if (value is not DateTimeOffset when)
+        {
+            return "Never";
+        }
+
+        TimeSpan elapsed = DateTimeOffset.UtcNow - when;
+        return elapsed switch
+        {
+            _ when elapsed < TimeSpan.FromMinutes(1) => "Just now",
+            _ when elapsed < TimeSpan.FromHours(1) => $"{(int)elapsed.TotalMinutes} min ago",
+            _ when elapsed < TimeSpan.FromDays(1) => $"{(int)elapsed.TotalHours} hr ago",
+            _ => $"{(int)elapsed.TotalDays} d ago",
+        };
+    }
+
+    private static string Duration(JobRunDto run) =>
+        run.FinishedUtc is DateTimeOffset finished
+            ? $"{(finished - run.StartedUtc).TotalSeconds:0.0}s"
+            : "running";
+}

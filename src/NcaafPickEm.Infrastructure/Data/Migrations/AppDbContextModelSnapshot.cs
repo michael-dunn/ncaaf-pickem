@@ -317,6 +317,46 @@ namespace NcaafPickEm.Infrastructure.Data.Migrations
                     b.ToTable("NotificationLog", (string)null);
                 });
 
+            modelBuilder.Entity("NcaafPickEm.Domain.Notifications.PushRetry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Attempt")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("CreatedUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("NextAttemptUtc")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("NotificationLogId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<Guid>("SubscriptionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("TtlSeconds")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NextAttemptUtc");
+
+                    b.HasIndex("SubscriptionId");
+
+                    b.HasIndex("NotificationLogId", "SubscriptionId")
+                        .IsUnique();
+
+                    b.ToTable("PushRetries", (string)null);
+                });
+
             modelBuilder.Entity("NcaafPickEm.Domain.Notifications.PushSubscription", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1119,6 +1159,25 @@ namespace NcaafPickEm.Infrastructure.Data.Migrations
                     b.Navigation("League");
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("NcaafPickEm.Domain.Notifications.PushRetry", b =>
+                {
+                    b.HasOne("NcaafPickEm.Domain.Notifications.NotificationLogEntry", "NotificationLogEntry")
+                        .WithMany()
+                        .HasForeignKey("NotificationLogId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("NcaafPickEm.Domain.Notifications.PushSubscription", "Subscription")
+                        .WithMany()
+                        .HasForeignKey("SubscriptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("NotificationLogEntry");
+
+                    b.Navigation("Subscription");
                 });
 
             modelBuilder.Entity("NcaafPickEm.Domain.Notifications.PushSubscription", b =>

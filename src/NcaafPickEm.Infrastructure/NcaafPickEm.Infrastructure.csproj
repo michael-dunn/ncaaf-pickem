@@ -22,6 +22,9 @@
          (NU1510) refuses an explicit reference to it. -->
     <PackageReference Include="CollegeFootballData" />
     <PackageReference Include="Microsoft.Kiota.Http.HttpClientLibrary" />
+
+    <!-- VAPID key generation and encrypted web-push delivery (Feature 11, P7-01). -->
+    <PackageReference Include="WebPush" />
   </ItemGroup>
 
   <ItemGroup>

@@ -53,6 +53,51 @@ public sealed class CfbdMappingTests
     }
 
     [Fact]
+    public void GivenARealTeamWithAVenueLocation_WhenMapped_ThenLocationIsNeverUsedAsAName()
+    {
+        Team appState = ReadCapture<Team>("cfbd-teams-fbs.json")
+            .Single(t => t.School == "App State");
+
+        // CFBD's Team.location is the *stadium* ("Kidd Brewer Stadium"), not the school name the
+        // way ESPN's team.location is — the name collision the spike calls out.
+        appState.Location!.Name.Should().Be("Kidd Brewer Stadium");
+
+        ProviderTeam mapped = CfbdMapping.MapTeam(appState, new Dictionary<string, int>())!;
+
+        mapped.School.Should().Be("App State");
+        mapped.School.Should().NotBe(appState.Location.Name);
+        mapped.AlternateNames.Should().NotContain(appState.Location.Name);
+    }
+
+    [Fact]
+    public void GivenTheRealGamesCapture_WhenMapped_ThenKickoffTbdNeutralSiteAndVenueRoundTrip()
+    {
+        Game wakeForest = ReadCapture<Game>("cfbd-games-2025-week3.json")
+            .Single(g => g.HomeTeam == "Wake Forest");
+
+        ProviderGame mapped = CfbdMapping.MapGame(wakeForest)!;
+
+        mapped.KickoffUtc.Should().Be(new DateTime(2025, 9, 11, 23, 30, 0, DateTimeKind.Utc));
+        mapped.StartTimeTbd.Should().BeFalse();
+        mapped.NeutralSite.Should().BeFalse();
+        mapped.IsConferenceGame.Should().BeTrue();
+        mapped.Venue.Should().Be("Allegacy Federal Credit Union Stadium");
+    }
+
+    [Theory]
+    [InlineData("fbs", TeamClassification.Fbs)]
+    [InlineData("FBS", TeamClassification.Fbs)]
+    [InlineData("fcs", TeamClassification.Fcs)]
+    [InlineData("ii", TeamClassification.Other)]
+    [InlineData("ii/iii", TeamClassification.Other)]
+    [InlineData("iii", TeamClassification.Other)]
+    [InlineData(null, TeamClassification.Other)]
+    public void GivenACfbdClassificationString_WhenMapped_ThenItLandsOnTheRightEnumValue(
+        string? raw,
+        TeamClassification expected) =>
+        CfbdMapping.MapClassification(raw).Should().Be(expected);
+
+    [Fact]
     public void GivenTheRealConferencesCapture_WhenMapped_ThenNameIsTheShortFormNotShortName()
     {
         Conference acc = ReadCapture<Conference>("cfbd-conferences-2025.json")

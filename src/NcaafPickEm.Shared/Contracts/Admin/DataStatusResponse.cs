@@ -15,7 +15,20 @@ namespace NcaafPickEm.Shared.Contracts.Admin;
 /// True once <paramref name="CfbdCallsThisMonth" /> reaches the warning threshold of 800.
 /// </param>
 /// <param name="LiveScoreSource">The configured <c>Providers:LiveScores</c>: Espn, Cfbd, or Fixture.</param>
+/// <param name="ActiveLiveScoreSource">
+/// What is actually being called right now (<c>ILiveScoreHealth.ActiveSource</c>), which differs
+/// from <paramref name="LiveScoreSource"/> once the ESPN-to-CFBD fallback has engaged
+/// (04-Domain-Algorithms.md section 10).
+/// </param>
+/// <param name="ScoresMayBeStale">
+/// True once the fallback has engaged: the CFBD fallback has no period, no clock, no live odds
+/// and no Postponed or Cancelled (D-012).
+/// </param>
 /// <param name="Unmatched">Provider games still waiting to be matched to a <c>Games</c> row.</param>
+/// <param name="NeedsReview">
+/// Final games in an active league set with no determinable winner (a tie or a missing score),
+/// P2-04 additive.
+/// </param>
 /// <param name="RecentJobs">The 50 most recent job runs, newest first.</param>
 public sealed record DataStatusResponse(
     IReadOnlyList<RefreshStatusDto> Refreshes,
@@ -23,4 +36,11 @@ public sealed record DataStatusResponse(
     bool CfbdWarning,
     string LiveScoreSource,
     IReadOnlyList<UnmatchedGameDto> Unmatched,
-    IReadOnlyList<JobRunDto> RecentJobs);
+    IReadOnlyList<JobRunDto> RecentJobs,
+    string ActiveLiveScoreSource = "",
+    bool ScoresMayBeStale = false,
+    IReadOnlyList<NeedsReviewGameDto>? NeedsReview = null)
+{
+    /// <summary>Never null on the wire; defaults to empty so older callers deserialize safely.</summary>
+    public IReadOnlyList<NeedsReviewGameDto> NeedsReview { get; init; } = NeedsReview ?? [];
+}

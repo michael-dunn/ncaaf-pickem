@@ -22,4 +22,12 @@ public interface IProviderCallRecorder
         string operation,
         Func<CancellationToken, Task<T>> call,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// How many calls to <paramref name="provider"/> were recorded in the current UTC calendar
+    /// month, for the free-tier quota counter on the data status page (Feature 12).
+    /// </summary>
+    /// <param name="provider">Which provider to count.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    Task<int> CountThisMonthAsync(ProviderSource provider, CancellationToken cancellationToken = default);
 }

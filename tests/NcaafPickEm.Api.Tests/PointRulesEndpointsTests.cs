@@ -7,6 +7,7 @@ using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Picks;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Shared.Contracts.GameSets;
+using NcaafPickEm.Shared.Contracts.Leagues;
 using NcaafPickEm.Shared.Contracts.Points;
 using NcaafPickEm.Shared.Enums;
 
@@ -120,14 +121,21 @@ public sealed class PointRulesEndpointsTests
             await db.SaveChangesAsync();
         });
 
-        PointRuleDto[] rules = [new(null, 0, PointRuleType.Team, null, null, null, 42)];
-        await client.PutAsJsonAsync($"/api/leagues/{league.Id}/point-rules", rules);
+        Guid ohioStateTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900105);
+        PointRuleDto[] rules = [new(null, 0, PointRuleType.Team, null, ohioStateTeamId, null, 42)];
+        using HttpResponseMessage putResponse = await client.PutAsJsonAsync($"/api/leagues/{league.Id}/point-rules", rules);
+        putResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         await _fixture.Factory.ExecuteDbAsync(async db =>
         {
             WeekGameSetGame lockedRow = await db.WeekGameSetGames.SingleAsync(r => r.Id == lockedGameSetGameId);
             lockedRow.ResolvedPointValue.Should().Be(99, "a locked week's resolved point values must never change");
         });
+
+        // ... while the unlocked week the same game sits in did pick the new rule up.
+        using HttpResponseMessage getResponse = await client.GetAsync($"/api/leagues/{league.Id}/weeks/7/gameset");
+        WeekGameSetResponse? body = await getResponse.Content.ReadFromJsonAsync<WeekGameSetResponse>();
+        body!.Games.Single(g => g.GameId == ohioStateGameId).PointValue.Should().Be(42);
     }
 
     [Fact]
@@ -154,11 +162,16 @@ public sealed class PointRulesEndpointsTests
             await db.SaveChangesAsync();
         });
 
-        PointRuleDto[] rules = [new(null, 0, PointRuleType.Team, null, null, null, 33)];
-        await client.PutAsJsonAsync($"/api/leagues/{league.Id}/point-rules", rules);
+        Guid ohioStateTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900105);
+        PointRuleDto[] rules = [new(null, 0, PointRuleType.Team, null, ohioStateTeamId, null, 33)];
+        using HttpResponseMessage putResponse = await client.PutAsJsonAsync($"/api/leagues/{league.Id}/point-rules", rules);
+        putResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         await _fixture.Factory.ExecuteDbAsync(async db =>
         {
+            WeekGameSetGame row = await db.WeekGameSetGames.SingleAsync(r => r.Id == gameSetGameId);
+            row.ResolvedPointValue.Should().Be(33, "the rule change must re-resolve the unlocked week");
+
             Pick pick = await db.Picks.SingleAsync(p => p.WeekGameSetGameId == gameSetGameId);
             pick.PickedTeamId.Should().Be(michiganId);
         });
@@ -202,6 +215,25 @@ public sealed class PointRulesEndpointsTests
             $"/api/leagues/{league.Id}/weeks/7/gameset/games/{gameId}/points", new SetPointOverrideRequest(50));
 
         response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
+    public async Task GivenAChangedLeagueDefault_WhenUpdatingSettings_ThenUnlockedWeeksReResolveImmediately()
+    {
+        (League league, HttpClient client, _) = await CreateCommishLeagueAsync();
+        await AddGameAsync(client, league.Id, 7, 700005); // no rule matches it, so it sits on the default
+
+        using HttpResponseMessage settingsResponse = await client.PutAsJsonAsync(
+            $"/api/leagues/{league.Id}/settings",
+            new UpdateLeagueSettingsRequest(league.Name, league.FirstWeek, league.LastWeek, 30));
+        settingsResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using HttpResponseMessage getResponse = await client.GetAsync($"/api/leagues/{league.Id}/weeks/7/gameset");
+        WeekGameSetResponse? body = await getResponse.Content.ReadFromJsonAsync<WeekGameSetResponse>();
+
+        GameSetGameDto game = body!.Games.Single(g => g.HomeTeam.School == "Ohio State");
+        game.PointValue.Should().Be(30, "changing the league default must re-resolve every unlocked week at once");
+        game.IsPointValueElevated.Should().BeFalse("a game sitting on the default is never elevated");
     }
 
     [Fact]

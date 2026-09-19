@@ -11,7 +11,7 @@ namespace NcaafPickEm.Api.Tests.Infrastructure;
 
 /// <summary>
 /// <see cref="ProviderCallRecorder"/> (P2-03's singleton shape, P2-02's
-/// <see cref="ProviderCallRecorder.CountThisMonthAsync"/> addition, D-062): a successful call
+/// <see cref="ProviderCallRecorder.CountThisMonthAsync"/> addition, D-063): a successful call
 /// writes a success row, a failing call writes a failure row with the error and status code (via
 /// either <see cref="HttpRequestException"/> or Kiota's <see cref="ApiException"/>), and the
 /// monthly count only counts the requested provider.
@@ -88,12 +88,49 @@ public sealed class ProviderCallRecorderTests : IAsyncLifetime
         (await recorder.CountThisMonthAsync(ProviderSource.Espn)).Should().Be(1);
     }
 
-    private ProviderCallRecorder CreateRecorder()
+    [Fact]
+    public async Task GivenCallsOnEitherSideOfTheUtcMonthBoundary_WhenCountingThisMonth_ThenOnlyThisMonthCounts()
+    {
+        var clock = new PinnedClock(new DateTimeOffset(2026, 2, 28, 23, 30, 0, TimeSpan.Zero));
+        ProviderCallRecorder recorder = CreateRecorder(clock);
+
+        // Last day of February, 23:30 UTC — still last month.
+        await recorder.RecordAsync(ProviderSource.Cfbd, "GetTeams", _ => Task.FromResult(1));
+
+        // 00:30 UTC on 1 March: the first call of the new month, even though it is still February
+        // in Eastern time. The boundary is UTC, not local (Feature 12's quota is CFBD's).
+        clock.UtcNow = new DateTimeOffset(2026, 3, 1, 0, 30, 0, TimeSpan.Zero);
+        await recorder.RecordAsync(ProviderSource.Cfbd, "GetGames", _ => Task.FromResult(1));
+
+        (await recorder.CountThisMonthAsync(ProviderSource.Cfbd)).Should().Be(1);
+
+        // Back in February, only February's call is inside the month.
+        clock.UtcNow = new DateTimeOffset(2026, 2, 28, 23, 45, 0, TimeSpan.Zero);
+        (await recorder.CountThisMonthAsync(ProviderSource.Cfbd)).Should().Be(1);
+    }
+
+    private ProviderCallRecorder CreateRecorder(TimeProvider? timeProvider = null)
     {
         var services = new ServiceCollection();
         services.AddDbContext<AppDbContext>(options => options.UseSqlServer(_database.ConnectionString));
         IServiceScopeFactory scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
 
-        return new ProviderCallRecorder(scopeFactory, TimeProvider.System, NullLogger<ProviderCallRecorder>.Instance);
+        return new ProviderCallRecorder(
+            scopeFactory,
+            timeProvider ?? TimeProvider.System,
+            NullLogger<ProviderCallRecorder>.Instance);
+    }
+
+    /// <summary>A settable clock; the repo has no FakeTimeProvider package.</summary>
+    private sealed class PinnedClock : TimeProvider
+    {
+        public PinnedClock(DateTimeOffset utcNow)
+        {
+            UtcNow = utcNow;
+        }
+
+        public DateTimeOffset UtcNow { get; set; }
+
+        public override DateTimeOffset GetUtcNow() => UtcNow;
     }
 }

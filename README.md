@@ -141,6 +141,26 @@ calls CFBD automatically — P2-04's jobs (and, until then, a manual call to
 `Implementation/AGENT-NOTES.md` ("Reference data ingest") for the service names and how ingest
 failures are recorded on `GET /api/admin/data-status`.
 
+### Web push (VAPID) keys
+
+Web push needs a VAPID key pair. The app **boots fine without one** — `GET /api/push/vapid-public-key`
+answers 503 and notifications are logged as Failed — so only set these when you want push to work.
+
+```powershell
+./deploy/generate-vapid.ps1                 # Push__* environment-variable lines
+./deploy/generate-vapid.ps1 -Format Json    # a "Push" block for appsettings
+./deploy/generate-vapid.ps1 -Format UserSecret
+```
+
+The script wraps the Api's hidden `generate-vapid` argument
+(`dotnet run --project src/NcaafPickEm.Api -- generate-vapid`), which prints a pair and exits
+without touching the database or opening a port. Nothing is written to disk: paste the values into
+`appsettings.Development.json`, user secrets, or the service's environment. `Push__Subject` must be
+a real `mailto:` or `https:` contact — push services reject anything else.
+
+**Keep the pair.** Replacing it invalidates every stored subscription, and every member has to turn
+notifications on again. Never commit the private key.
+
 ## Google OAuth dev setup
 
 Sign-in is ASP.NET Core cookie authentication plus the Google handler, with no Identity (D-004).

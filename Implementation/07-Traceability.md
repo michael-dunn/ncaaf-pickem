@@ -128,11 +128,12 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | AC group | Task | Proof |
 |---|---|---|
 | Provider abstraction; local storage only | P2-02, P2-03 | Architecture review; A: features read DbContext only |
-| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` |
+| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` (incl. the 2026-11-01 DST week) |
 | Idempotent refreshes | P2-02 | A `RefreshTwice_NoDuplicates` |
-| Failure keeps old data, logs; stale banner | P2-04, P6-02 | A, UI |
-| Rate limits respected | P2-04 | D poller cadence, call counter |
-| Data status page | P2-04 | UI |
+| Failure keeps old data, logs; stale banner | P2-02, P2-04, P6-02 | A `ReferenceIngestTests`; UI `DataStatusPage`'s `ScoresMayBeStale` banner |
+| Rate limits respected | P2-04 | D `SaturdayPollerScheduleTests` (window/cadence/fallback); A `AdminEndpointsTests` (CFBD counter warning at 800) |
+| Data status page | P2-04 | UI `Pages/Admin/DataStatusPage.razor`, `Implementation/screenshots/p2-04-data-status-375.png` |
+| Saturday poller applies fixture snapshots, scores every game | P2-04 | A `SaturdayPollerIntegrationTests` (Phase 2 exit criterion) |
 
 ## Feature 10 - Hosting and Platform
 
@@ -161,8 +162,8 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 |---|---|---|
 | Separate reference and live interfaces | P2-02, P2-03 | Architecture |
 | CFBD via official client and config key | P2-02 | A with recorded fixture |
-| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests` |
-| Monthly counter, warning at 800 | P2-04 | A |
+| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests` (cadence follows `ILiveScoreHealth.ActiveSource`) |
+| Monthly counter, warning at 800 | P2-04 | A `AdminEndpointsTests` (799 -> no warning, 800 -> warning) |
 | Name matching, unmatched surfaced | P2-03 | D `GameMatcherTests`, UI |
 | Follow-ups: tier confirm, sample payload, alias table | P2-01 | Doc in `Implementation/spikes/` |
 

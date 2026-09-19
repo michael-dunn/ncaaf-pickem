@@ -104,7 +104,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: MemberPickDto[] { GameSetGameId, TeamId? } } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/picks/status` | Commish | `MemberStatusRow[] { MembershipId, DisplayName, Status, PickedCount, TotalCount }` |
 
-**P4-01 clarifications** (D-069, D-071, D-072, D-073):
+**P4-01 clarifications** (D-082, D-084, D-085, D-086):
 - `MyPickGameDto` **composes** the game rather than flattening it: `MyPickGameDto { Game: GameSetGameDto, MyTeamId?, IsNewSinceSubmit }`, the same shape `DashboardGameDto` uses. `Games` lists every non-removed game ordered by kickoff; a voided game is still listed (`Game.IsVoided`) but counts towards neither `PickedCount` nor `TotalCount`.
 - `MyPicksResponse.IsLocked` is "picks are frozen now" — `LockedUtc != null` **or** `now >= LockAtUtc` — which is deliberately broader than `WeekGameSetResponse.IsLocked` ("the lock job has run"). The server refuses picks from `LockAtUtc` onwards whether or not P4-02's job has run.
 - `{gameId}` on the set-pick route is the `Games.Id`, matching the conventions and the game-set routes; the response carries both ids per game.
@@ -140,19 +140,27 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 | Method | Route | Scope | Response |
 |---|---|---|---|
-| GET | `/api/admin/data-status` | Commish (any league) | `DataStatusResponse { Refreshes: { DataType, LastSuccessUtc?, LastAttemptUtc?, LastError? }[], CfbdCallsThisMonth, CfbdWarning (>= 800), LiveScoreSource, Unmatched: UnmatchedGameDto[], RecentJobs: JobRunDto[] }` |
-| POST | `/api/admin/refresh/{dataType}` | Commish | dataType in Teams, Schedule, Rankings, Lines, Scores; runs now; audit logged |
-| POST | `/api/admin/unmatched/{id}/resolve` | Commish | `ResolveUnmatchedRequest { GameId }` creates TeamAliases |
+| GET | `/api/admin/data-status` | Commish (any league) | `DataStatusResponse { Refreshes: { DataType, LastSuccessUtc?, LastAttemptUtc?, LastError? }[], CfbdCallsThisMonth, CfbdWarning (>= 800), LiveScoreSource (configured), ActiveLiveScoreSource, ScoresMayBeStale, Unmatched: UnmatchedGameDto[], RecentJobs: JobRunDto[], NeedsReview: NeedsReviewGameDto[] { GameId, LeagueId, LeagueName, Week, HomeTeam, AwayTeam, HomeScore?, AwayScore?, Reason } }` (P2-04 additive: `ActiveLiveScoreSource`, `ScoresMayBeStale`, `NeedsReview`; `LiveScoreSource` keeps its P0-06 meaning, the *configured* provider — see D-080) |
+| POST | `/api/admin/refresh/{dataType}` | Commish | dataType in Teams, Schedule, Rankings, Lines, Scores; runs synchronously against the current season/week (Scores runs one live-score poll for today's Eastern date regardless of the Saturday window); 202 `ManualRefreshResponse { DataType, Success, Error? }`; audit logged as `ManualRefresh` against the caller's first commissioner league (D-079); 400 for an unrecognized dataType |
+| POST | `/api/admin/unmatched/{id}/resolve` | Commish | `ResolveUnmatchedRequest { GameId }`; creates `TeamAliases(Source = the unmatched row's own Source)` for the raw home/away names, learns `Games.EspnEventId` from the raw payload when the source is Espn and it is not already set, marks `ResolvedUtc`; 204; 404 for an unknown unmatched id; 400 for an unknown `GameId` |
 
 ## Push (Feature 11)
 
 | Method | Route | Scope | Request / Response |
 |---|---|---|---|
-| GET | `/api/push/vapid-public-key` | Auth | `{ PublicKey }` |
-| POST | `/api/push/subscriptions` | Auth | `PushSubscriptionRequest { Endpoint, P256dh, Auth, UserAgent }` upsert |
-| DELETE | `/api/push/subscriptions` | Auth | `{ Endpoint }` |
-| GET | `/api/push/status` | Auth | `{ HasSubscriptionForThisDevice }` (client passes `?endpoint=`) |
-| GET | `/api/leagues/{leagueId}/notifications/log` | Commish | `NotificationLogRow[]` last 200 |
+| GET | `/api/push/vapid-public-key` | Auth | `VapidPublicKeyResponse { PublicKey }`, or **503** `ProblemDetails` when `Push__*` is unset or invalid (D-073) |
+| POST | `/api/push/subscriptions` | Auth | `PushSubscriptionRequest { Endpoint, P256dh, Auth, UserAgent? }` upsert by `Endpoint` -> **204** |
+| DELETE | `/api/push/subscriptions` | Auth | body `DeletePushSubscriptionRequest { Endpoint }` -> **204**, idempotent |
+| GET | `/api/push/status?endpoint=` | Auth | `PushStatusResponse { HasSubscriptionForThisDevice }` |
+| POST | `/api/push/test` | Commish (any league) | **Development/Testing only.** Sends "Test notification" to the caller's own devices; returns the `NotificationResult`. |
+| GET | `/api/leagues/{leagueId}/notifications/log` | Commish | `NotificationLogRow[] { CreatedUtc, UserDisplayName, Week, Type, Result, Error }` last 200, newest first |
+
+DTOs live in `NcaafPickEm.Shared/Contracts/Push/`. Notes P7-02 needs:
+
+- `POST /subscriptions` is an **upsert keyed on `Endpoint`**: posting the same endpoint twice leaves one row, and posting an endpoint another account owns re-owns it (D-075). `Endpoint` must be an absolute https URL of at most 2048 characters and both keys must be non-empty, or it is 400 with an `errors` dictionary.
+- `DELETE /subscriptions` only removes the caller's own subscription; an unknown endpoint, or one owned by somebody else, is still 204.
+- `GET /status` with no `endpoint` query value answers `false` rather than 400.
+- The 503 from `vapid-public-key` is the "notifications unavailable on this server" signal; the settings page should hide the turn-on action rather than retry.
 
 ## Health
 

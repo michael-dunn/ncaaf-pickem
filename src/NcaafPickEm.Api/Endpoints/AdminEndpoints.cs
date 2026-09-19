@@ -1,23 +1,25 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Auth;
+using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Operations;
+using NcaafPickEm.Domain.Scoring;
+using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Jobs.Refresh;
+using NcaafPickEm.Infrastructure.Providers;
+using NcaafPickEm.Infrastructure.Providers.Models;
+using NcaafPickEm.Infrastructure.Services;
 using NcaafPickEm.Shared.Contracts.Admin;
 using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Api.Endpoints;
 
 /// <summary>
-/// Operational reporting for commissioners (Features 09, 12).
+/// Operational reporting for commissioners (Features 09, 12), plus the manual refresh and
+/// unmatched-game resolution actions P2-04 adds.
 /// </summary>
-/// <remarks>
-/// P2-04 extends this group with <c>POST /api/admin/refresh/{dataType}</c> and
-/// <c>POST /api/admin/unmatched/{id}/resolve</c>, and fills the counters this endpoint already
-/// reports: nothing writes <c>DataRefreshStatus</c>, <c>ProviderCalls</c> or <c>UnmatchedGames</c>
-/// until then, so those parts of the response are empty or zero by construction rather than by
-/// accident.
-/// </remarks>
 public static class AdminEndpoints
 {
     /// <summary>Calls to CFBD in a month at which the page starts warning about the free tier.</summary>
@@ -29,7 +31,7 @@ public static class AdminEndpoints
     /// <summary>Configuration key naming the live score provider.</summary>
     private const string LiveScoreSourceKey = "Providers:LiveScores";
 
-    /// <summary>Maps <c>GET /api/admin/data-status</c>.</summary>
+    /// <summary>Maps every <c>/api/admin/*</c> route.</summary>
     /// <param name="builder">The <c>/api</c> group.</param>
     public static RouteGroupBuilder MapAdminEndpoints(this RouteGroupBuilder builder)
     {
@@ -40,6 +42,8 @@ public static class AdminEndpoints
             .RequireAnyLeagueCommissioner();
 
         admin.MapGet("/data-status", GetDataStatusAsync).WithName("AdminDataStatus");
+        admin.MapPost("/refresh/{dataType}", RefreshAsync).WithName("AdminManualRefresh");
+        admin.MapPost("/unmatched/{id:guid}/resolve", ResolveUnmatchedAsync).WithName("AdminResolveUnmatched");
 
         return builder;
     }
@@ -48,6 +52,7 @@ public static class AdminEndpoints
         AppDbContext database,
         IConfiguration configuration,
         TimeProvider timeProvider,
+        ILiveScoreHealth liveScoreHealth,
         CancellationToken cancellationToken)
     {
         Dictionary<RefreshDataType, DataRefreshStatus> refreshes = await database.DataRefreshStatuses
@@ -91,13 +96,304 @@ public static class AdminEndpoints
             .Take(RecentJobCount)
             .ToListAsync(cancellationToken);
 
+        List<NeedsReviewGameDto> needsReview = await GetNeedsReviewAsync(database, cancellationToken);
+
         return TypedResults.Ok(new DataStatusResponse(
             refreshRows,
             cfbdCalls,
             cfbdCalls >= CfbdMonthlyCallWarningThreshold,
             configuration[LiveScoreSourceKey] ?? string.Empty,
             [.. unmatched.Select(ToDto)],
-            [.. recentJobs.Select(ToDto)]));
+            [.. recentJobs.Select(ToDto)],
+            liveScoreHealth.ActiveSource.ToString(),
+            liveScoreHealth.ScoresMayBeStale,
+            needsReview));
+    }
+
+    private static async Task<List<NeedsReviewGameDto>> GetNeedsReviewAsync(
+        AppDbContext database,
+        CancellationToken cancellationToken)
+    {
+        var rows = await database.WeekGameSetGames
+            .AsNoTracking()
+            .Where(setGame => !setGame.IsRemoved
+                && !setGame.IsVoided
+                && setGame.ResultOverrideWinnerTeamId == null
+                && setGame.Game!.Status == GameStatus.Final
+                && (setGame.Game.HomeScore == null
+                    || setGame.Game.AwayScore == null
+                    || setGame.Game.HomeScore == setGame.Game.AwayScore))
+            .Select(setGame => new
+            {
+                setGame.GameId,
+                setGame.WeekGameSet!.LeagueId,
+                LeagueName = setGame.WeekGameSet.League!.Name,
+                setGame.WeekGameSet.Week,
+                HomeTeam = setGame.Game!.HomeTeam!.School,
+                AwayTeam = setGame.Game.AwayTeam!.School,
+                setGame.Game.HomeScore,
+                setGame.Game.AwayScore,
+            })
+            .ToListAsync(cancellationToken);
+
+        return [.. rows.Select(row => new NeedsReviewGameDto(
+            row.GameId,
+            row.LeagueId,
+            row.LeagueName,
+            row.Week,
+            row.HomeTeam,
+            row.AwayTeam,
+            row.HomeScore,
+            row.AwayScore,
+            row.HomeScore is null || row.AwayScore is null ? "Missing score" : "Tie"))];
+    }
+
+    private static async Task<Results<Accepted<ManualRefreshResponse>, ProblemHttpResult>> RefreshAsync(
+        string dataType,
+        HttpContext httpContext,
+        AppDbContext database,
+        ReferenceDataIngestService ingest,
+        ISeasonWeekSource weekSource,
+        ILiveScoreProvider liveScoreProvider,
+        LiveScoreApplyService liveScoreApplyService,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        if (!Enum.TryParse(dataType, ignoreCase: true, out RefreshDataType parsed)
+            || !Enum.IsDefined(parsed))
+        {
+            return TypedResults.Problem(
+                title: "Unknown data type",
+                detail: $"'{dataType}' is not a refreshable slice.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        DateTimeOffset nowUtc = timeProvider.GetUtcNow();
+        int season = RefreshJobSupport.CurrentSeasonYear(nowUtc);
+
+        ManualRefreshResponse result = parsed switch
+        {
+            RefreshDataType.Teams => ToResponse(parsed, await ingest.IngestTeamsAsync(season, cancellationToken)),
+            RefreshDataType.Schedule => await RefreshScheduleAsync(ingest, weekSource, season, nowUtc, cancellationToken),
+            RefreshDataType.Rankings => await RefreshRankingsAsync(ingest, weekSource, season, nowUtc, cancellationToken),
+            RefreshDataType.Lines => await RefreshLinesAsync(ingest, weekSource, season, nowUtc, cancellationToken),
+            RefreshDataType.Scores => await RefreshScoresNowAsync(
+                liveScoreProvider, liveScoreApplyService, database, timeProvider, cancellationToken),
+            _ => new ManualRefreshResponse(parsed, false, "Not implemented"),
+        };
+
+        await WriteManualRefreshAuditAsync(database, httpContext, parsed, timeProvider, cancellationToken);
+
+        return TypedResults.Accepted((string?)null, result);
+    }
+
+    private static ManualRefreshResponse ToResponse(RefreshDataType dataType, TeamsIngestResult result) =>
+        new(dataType, result.Success, result.Error);
+
+    private static async Task<ManualRefreshResponse> RefreshScheduleAsync(
+        ReferenceDataIngestService ingest,
+        ISeasonWeekSource weekSource,
+        int season,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        int? week = await RefreshJobSupport.CurrentWeekAsync(weekSource, season, nowUtc, cancellationToken);
+        if (week is not int currentWeek)
+        {
+            return new ManualRefreshResponse(RefreshDataType.Schedule, false, "No calendar on file for this season yet");
+        }
+
+        ScheduleIngestResult result = await ingest.IngestScheduleAsync(season, currentWeek, cancellationToken);
+        return new ManualRefreshResponse(RefreshDataType.Schedule, result.Success, result.Error);
+    }
+
+    private static async Task<ManualRefreshResponse> RefreshRankingsAsync(
+        ReferenceDataIngestService ingest,
+        ISeasonWeekSource weekSource,
+        int season,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        int? week = await RefreshJobSupport.CurrentWeekAsync(weekSource, season, nowUtc, cancellationToken);
+        if (week is not int currentWeek)
+        {
+            return new ManualRefreshResponse(RefreshDataType.Rankings, false, "No calendar on file for this season yet");
+        }
+
+        RankingsIngestResult result = await ingest.IngestRankingsAsync(season, currentWeek, cancellationToken);
+        return new ManualRefreshResponse(RefreshDataType.Rankings, result.Success, result.Error);
+    }
+
+    private static async Task<ManualRefreshResponse> RefreshLinesAsync(
+        ReferenceDataIngestService ingest,
+        ISeasonWeekSource weekSource,
+        int season,
+        DateTimeOffset nowUtc,
+        CancellationToken cancellationToken)
+    {
+        int? week = await RefreshJobSupport.CurrentWeekAsync(weekSource, season, nowUtc, cancellationToken);
+        if (week is not int currentWeek)
+        {
+            return new ManualRefreshResponse(RefreshDataType.Lines, false, "No calendar on file for this season yet");
+        }
+
+        LinesIngestResult result = await ingest.IngestLinesAsync(season, currentWeek, cancellationToken);
+        return new ManualRefreshResponse(RefreshDataType.Lines, result.Success, result.Error);
+    }
+
+    private static async Task<ManualRefreshResponse> RefreshScoresNowAsync(
+        ILiveScoreProvider liveScoreProvider,
+        LiveScoreApplyService liveScoreApplyService,
+        AppDbContext database,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        DateOnly easternDate = DateOnly.FromDateTime(SeasonCalendar.ToEastern(timeProvider.GetUtcNow()).Date);
+
+        try
+        {
+            IReadOnlyList<LiveScoreUpdate> updates =
+                await liveScoreProvider.GetScoresAsync(easternDate, cancellationToken);
+            await liveScoreApplyService.ApplyAsync(easternDate, updates, cancellationToken);
+
+            DataRefreshStatus? status = await database.DataRefreshStatuses
+                .FirstOrDefaultAsync(row => row.DataType == RefreshDataType.Scores, cancellationToken);
+            if (status is null)
+            {
+                status = new DataRefreshStatus { DataType = RefreshDataType.Scores };
+                database.DataRefreshStatuses.Add(status);
+            }
+
+            DateTime nowUtc = timeProvider.GetUtcNow().UtcDateTime;
+            status.LastAttemptUtc = nowUtc;
+            status.LastSuccessUtc = nowUtc;
+            status.LastError = null;
+            await database.SaveChangesAsync(cancellationToken);
+
+            return new ManualRefreshResponse(RefreshDataType.Scores, true, null);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new ManualRefreshResponse(RefreshDataType.Scores, false, ex.Message);
+        }
+    }
+
+    private static async Task WriteManualRefreshAuditAsync(
+        AppDbContext database,
+        HttpContext httpContext,
+        RefreshDataType dataType,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        Guid userId = httpContext.RequestServices.GetRequiredService<ICurrentUser>().UserId;
+
+        // /api/admin/* is not scoped to a {leagueId}, but AuditLog requires one; the caller's
+        // first commissioner league (by JoinedUtc) stands in, since RequireAnyLeagueCommissioner
+        // already guarantees at least one exists (see 03-API-Contracts.md).
+        Membership? membership = await database.Memberships
+            .Where(member => member.UserId == userId
+                && member.RemovedUtc == null
+                && member.Role == MembershipRole.Commissioner)
+            .OrderBy(member => member.JoinedUtc)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        if (membership is null)
+        {
+            return;
+        }
+
+        database.AuditLog.Add(new AuditLogEntry
+        {
+            Id = Guid.CreateVersion7(),
+            LeagueId = membership.LeagueId,
+            ActorMembershipId = membership.Id,
+            Action = AuditAction.ManualRefresh,
+            TargetId = null,
+            Details = JsonSerializer.Serialize(new { DataType = dataType.ToString() }),
+            CreatedUtc = timeProvider.GetUtcNow().UtcDateTime,
+        });
+
+        await database.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task<Results<NoContent, NotFound, ProblemHttpResult>> ResolveUnmatchedAsync(
+        Guid id,
+        ResolveUnmatchedRequest request,
+        AppDbContext database,
+        TimeProvider timeProvider,
+        CancellationToken cancellationToken)
+    {
+        UnmatchedGame? unmatched = await database.UnmatchedGames
+            .FirstOrDefaultAsync(row => row.Id == id, cancellationToken);
+        if (unmatched is null)
+        {
+            return TypedResults.NotFound();
+        }
+
+        Game? game = await database.Games
+            .FirstOrDefaultAsync(row => row.Id == request.GameId, cancellationToken);
+        if (game is null)
+        {
+            return TypedResults.Problem(
+                title: "Unknown game",
+                detail: $"Game {request.GameId} does not exist.",
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+
+        await AddAliasIfMissingAsync(database, unmatched.Source, unmatched.RawHomeName, game.HomeTeamId, cancellationToken);
+        await AddAliasIfMissingAsync(database, unmatched.Source, unmatched.RawAwayName, game.AwayTeamId, cancellationToken);
+
+        if (unmatched.Source == ProviderSource.Espn && game.EspnEventId is null)
+        {
+            try
+            {
+                LiveScoreUpdate? payload = JsonSerializer.Deserialize<LiveScoreUpdate>(unmatched.RawPayload);
+                if (payload is not null
+                    && long.TryParse(payload.SourceEventId, out long espnEventId))
+                {
+                    game.EspnEventId = espnEventId;
+                }
+            }
+            catch (JsonException)
+            {
+                // The raw payload is kept verbatim for a human to read; a shape change there must
+                // never block resolving the game, only skip learning the event id from it.
+            }
+        }
+
+        unmatched.ResolvedUtc = timeProvider.GetUtcNow().UtcDateTime;
+
+        await database.SaveChangesAsync(cancellationToken);
+
+        return TypedResults.NoContent();
+    }
+
+    private static async Task AddAliasIfMissingAsync(
+        AppDbContext database,
+        ProviderSource source,
+        string alias,
+        Guid teamId,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(alias))
+        {
+            return;
+        }
+
+        bool exists = await database.TeamAliases
+            .AnyAsync(row => row.TeamId == teamId && row.Source == source && row.Alias == alias, cancellationToken);
+        if (exists)
+        {
+            return;
+        }
+
+        database.TeamAliases.Add(new TeamAlias
+        {
+            Id = Guid.CreateVersion7(),
+            TeamId = teamId,
+            Source = source,
+            Alias = alias,
+        });
     }
 
     private static UnmatchedGameDto ToDto(UnmatchedGame game) => new(

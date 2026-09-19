@@ -331,8 +331,10 @@ public sealed class GameSetService
             return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
         }
 
+        // Every path from here adds one more active row - a brand new one, or a removed one
+        // flipped back - so the cap applies to a re-add exactly as it does to a first add.
         int activeCount = existingRows.Count(r => !r.IsRemoved);
-        if (row is null && activeCount >= GameSetLimits.MaxGames)
+        if (activeCount >= GameSetLimits.MaxGames)
         {
             throw new GameSetRuleViolation(
                 GameSetRuleViolationCode.ExceedsMax,
@@ -409,7 +411,10 @@ public sealed class GameSetService
             throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, "This week is already locked.");
         }
 
+        // Game is included because RecalculateLockAtUtc reads KickoffUtc off the rows that stay
+        // active; without it the week's LockAtUtc would be recomputed as null.
         List<WeekGameSetGame> rows = await _database.WeekGameSetGames
+            .Include(r => r.Game)
             .Where(r => r.WeekGameSetId == set.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -938,13 +943,32 @@ public sealed class GameSetService
         return results;
     }
 
+    /// <summary>
+    /// Recomputes the week's lock instant as the earliest kickoff among its active rows
+    /// (04-Domain-Algorithms.md section 2 step 9). Every row must have its <c>Game</c> loaded: a
+    /// missing navigation would silently drop that kickoff and, if it dropped them all, blank out
+    /// <c>LockAtUtc</c> so the lock job never locks the week.
+    /// </summary>
     private static void RecalculateLockAtUtc(WeekGameSet set, IReadOnlyList<WeekGameSetGame> rows)
     {
-        DateTime? earliest = rows
-            .Where(r => !r.IsRemoved && r.Game is not null)
-            .Select(r => r.Game!.KickoffUtc)
-            .Cast<DateTime?>()
-            .Min();
+        DateTime? earliest = null;
+
+        foreach (WeekGameSetGame row in rows)
+        {
+            if (row.IsRemoved)
+            {
+                continue;
+            }
+
+            Game game = row.Game
+                ?? throw new InvalidOperationException(
+                    $"WeekGameSetGame {row.Id} was passed to RecalculateLockAtUtc without its Game loaded.");
+
+            if (earliest is null || game.KickoffUtc < earliest)
+            {
+                earliest = game.KickoffUtc;
+            }
+        }
 
         set.LockAtUtc = earliest;
     }

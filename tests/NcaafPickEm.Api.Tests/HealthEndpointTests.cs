@@ -44,13 +44,15 @@ public sealed class HealthEndpointTests
         string[] applied = await _fixture.Factory.QueryDbAsync(async database =>
             (await database.Database.GetAppliedMigrationsAsync()).ToArray());
 
-        // Every migration the assembly holds is applied, starting with the initial schema. Later
-        // phases append migrations (P4-01 was the first), so this counts none of them by hand.
+        // Every migration in the assembly, not just the first: phases add their own (P4-01 added
+        // Phase4_01_GameSetGameAddedUtc, P7-01 Phase7_01_PushRetries), and a test database missing
+        // any of them fails confusingly later.
         applied.Should().NotBeEmpty();
         applied[0].Should().EndWith("Phase0_02_InitialSchema");
 
         string[] pending = await _fixture.Factory.QueryDbAsync(async database =>
             (await database.Database.GetPendingMigrationsAsync()).ToArray());
+
         pending.Should().BeEmpty();
 
         _fixture.Database.DatabaseName.Should().StartWith("NcaafPickEm_Test_");

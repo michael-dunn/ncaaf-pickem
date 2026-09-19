@@ -79,7 +79,20 @@ public sealed class ReferenceDataIngestService
     /// Upserts <c>SeasonWeeks</c> from CFBD's calendar, normalized per
     /// <see cref="CfbdCalendarNormalization"/>.
     /// </summary>
-    public Task<CalendarIngestResult> IngestCalendarAsync(int season, CancellationToken cancellationToken = default) =>
+    public async Task<CalendarIngestResult> IngestCalendarAsync(int season, CancellationToken cancellationToken = default)
+    {
+        CalendarIngestResult result = await IngestCalendarCoreAsync(season, cancellationToken).ConfigureAwait(false);
+
+        if (result.Success)
+        {
+            // DbSeasonWeekSource caches weeks per season for a few minutes; the rows just changed.
+            DbSeasonWeekSource.Invalidate(season);
+        }
+
+        return result;
+    }
+
+    private Task<CalendarIngestResult> IngestCalendarCoreAsync(int season, CancellationToken cancellationToken) =>
         RunAsync(
             CalendarRefreshDataType,
             async () =>
@@ -143,6 +156,16 @@ public sealed class ReferenceDataIngestService
                     .ToListAsync(cancellationToken)
                     .ConfigureAwait(false);
 
+                // Guard: an empty payload is never a real week. A provider that answers with no
+                // games (rather than throwing) must not be mistaken for "this week has no
+                // schedule" and must not stamp LastSuccessUtc.
+                if (providerGames.Count == 0)
+                {
+                    throw new InvalidOperationException(
+                        $"CFBD returned no games at all for season {season} week {week}; " +
+                        "refusing to treat an empty payload as a schedule.");
+                }
+
                 // Guard: a payload that lost more than half of a week we already had is treated
                 // as a bad refresh, not a suddenly-shorter schedule. Nothing is written.
                 if (existingGames.Count > 0 && providerGames.Count < existingGames.Count / 2.0)
@@ -199,7 +222,10 @@ public sealed class ReferenceDataIngestService
                         existing.KickoffEasternDate = kickoffEasternDate;
                         existing.IsSaturdayEastern = isSaturdayEastern;
                         existing.IsConferenceGame = providerGame.IsConferenceGame;
-                        existing.Venue = providerGame.Venue;
+
+                        // A payload that omits the venue means "CFBD did not say", not "there is
+                        // no venue" — keep what we already had.
+                        existing.Venue = providerGame.Venue ?? existing.Venue;
 
                         if (existing.Status == GameStatus.Postponed)
                         {
@@ -463,11 +489,14 @@ public sealed class ReferenceDataIngestService
             if (existingByCfbdId.TryGetValue(providerTeam.CfbdId, out Team? existing))
             {
                 existing.School = providerTeam.School;
-                existing.Mascot = providerTeam.Mascot;
-                existing.Abbreviation = providerTeam.Abbreviation;
-                existing.ConferenceId = conferenceId;
+                existing.ConferenceId = conferenceId ?? existing.ConferenceId;
                 existing.Classification = providerTeam.Classification;
-                existing.LogoUrl = providerTeam.LogoUrl;
+
+                // Optional fields: a payload that omits one means "CFBD did not say", not "clear
+                // it". Only a value actually supplied overwrites what is stored.
+                existing.Mascot = providerTeam.Mascot ?? existing.Mascot;
+                existing.Abbreviation = providerTeam.Abbreviation ?? existing.Abbreviation;
+                existing.LogoUrl = providerTeam.LogoUrl ?? existing.LogoUrl;
                 ids[providerTeam.CfbdId] = existing.Id;
             }
             else
@@ -520,7 +549,17 @@ public sealed class ReferenceDataIngestService
 
                 if (existingByAlias.TryGetValue(trimmedAlias, out TeamAlias? existing))
                 {
-                    existing.TeamId = teamId;
+                    // An alias already owned by another team is left alone: P2-03's hand-verified
+                    // TeamAliasSeed rows share this Source and unique index, and silently
+                    // repointing one would break the matcher in a way nothing reports.
+                    if (existing.TeamId != teamId)
+                    {
+                        _logger.LogWarning(
+                            "CFBD alias {Alias} is claimed by team {CfbdId} but is already assigned to another team; keeping the existing assignment",
+                            trimmedAlias,
+                            providerTeam.CfbdId);
+                        continue;
+                    }
                 }
                 else
                 {
@@ -568,7 +607,16 @@ public sealed class ReferenceDataIngestService
             status.LastError = null;
             await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+            _logger.LogInformation("{DataType} ingest succeeded: {Result}", dataType, result);
+
             return result;
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutdown or a cancelled request is not a provider failure: let it propagate so the
+            // caller sees cancellation, and leave LastError describing whatever really went wrong
+            // last. LastAttemptUtc was already committed above.
+            throw;
         }
         catch (Exception ex)
         {

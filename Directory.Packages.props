@@ -54,6 +54,11 @@
     <PackageVersion Include="FluentValidation" Version="11.11.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Web push">
+    <!-- web-push-libs/web-push-csharp, the library 01-Architecture.md names for Feature 11. -->
+    <PackageVersion Include="WebPush" Version="1.0.13" />
+  </ItemGroup>
+
   <ItemGroup Label="Testing">
     <PackageVersion Include="coverlet.collector" Version="6.0.4" />
     <PackageVersion Include="FluentAssertions" Version="7.2.2" />
