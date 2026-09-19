@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using NcaafPickEm.Shared.Contracts.Invites;
 using NcaafPickEm.Shared.Contracts.Leagues;
+using NcaafPickEm.Shared.Contracts.Seasons;
 
 namespace NcaafPickEm.Web.Services;
 
@@ -62,6 +63,15 @@ public sealed class LeaguesApi(HttpClient httpClient) : ILeaguesApi
             await _httpClient.GetAsync($"api/leagues/{leagueId}/members", cancellationToken);
         await EnsureSuccessAsync(response);
         return await ReadAsync<MemberRow[]>(response) ?? [];
+    }
+
+    /// <inheritdoc />
+    public async Task<LeagueWeek[]> GetLeagueWeeksAsync(Guid leagueId, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage response =
+            await _httpClient.GetAsync($"api/leagues/{leagueId}/weeks", cancellationToken);
+        await EnsureSuccessAsync(response);
+        return await ReadAsync<LeagueWeek[]>(response) ?? [];
     }
 
     /// <inheritdoc />
