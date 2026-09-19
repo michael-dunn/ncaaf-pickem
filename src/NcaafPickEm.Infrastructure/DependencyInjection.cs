@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Kiota.Abstractions.Authentication;
 using Microsoft.Kiota.Http.HttpClientLibrary;
 using NcaafPickEm.Domain.Seasons;
+using NcaafPickEm.Domain.Seasons.Events;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Infrastructure.Jobs;
@@ -97,6 +98,10 @@ public static class DependencyInjection
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
         // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.
         services.AddJobScheduler(configuration);
+        // P3-04: Tuesday auto-regeneration (after the P2-04 refresh jobs) and the Sunday
+        // auto-create sweep, both against GameSetService.
+        services.AddScheduledJob<RegenerateGameSetsJob>();
+        services.AddScheduledJob<EnsureCurrentWeekSetsJob>();
         // Reference data and live scores (P2-02/P2-03/P2-05). Providers:ReferenceData and
         // Providers:LiveScores select the implementation; Fixture is the only one today and is
         // the default in Development when the key is unset. The snapshot state is always
@@ -112,6 +117,8 @@ public static class DependencyInjection
         // VAPID pair validates, and adds the PushRetry one-shot job. Missing keys are not a
         // startup failure; see PushRegistrationExtensions.
         services.AddPush(configuration);
+        // P3-04: keeps WeekGameSetGames in sync with a game entering/leaving Postponed/Cancelled.
+        services.AddDomainEventHandler<GameScheduleChanged, ScheduleChangeHandler>();
 
         // Every outbound provider call is recorded in ProviderCalls (Features 09 and 12).
         services.TryAddSingleton<IProviderCallRecorder, ProviderCallRecorder>();

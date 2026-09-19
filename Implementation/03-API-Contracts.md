@@ -63,7 +63,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | GET | `/api/leagues/{leagueId}/gameset-rules` | Commish | `GameSetRuleDto[] { RuleId, RuleType, ConferenceId?, ConferenceName?, TeamId?, TeamName?, ConferenceGamesOnly, SortOrder }` (default config) |
 | PUT | `/api/leagues/{leagueId}/gameset-rules` | Commish | `GameSetRuleDto[]` full replace; **save only** (does not regenerate any week) |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/gameset-rules` | Commish | `WeekRulesResponse { UsesOverride, Rules: GameSetRuleDto[] }` |
-| PUT | `/api/leagues/{leagueId}/weeks/{week}/gameset-rules` | Commish | `WeekRulesResponse`; `UsesOverride=false` clears override; **save only**; 409 if the week is already locked |
+| PUT | `/api/leagues/{leagueId}/weeks/{week}/gameset-rules` | Commish | `WeekRulesResponse`; `UsesOverride=false` clears override; save only **except** when `{week}` is the league's current week right now, when it also regenerates in the same request (D-082); 409 if the week is already locked, or (current week only) if the saved rules would exceed 50 games |
 | POST | `/api/leagues/{leagueId}/weeks/{week}/gameset/preview` | Commish | `GameSetRuleDto[]` (candidate rules) -> `GameSetPreview { Games: GameSetGameDto[], Count, ExceedsMax }` |
 | POST | `/api/leagues/{leagueId}/weeks/{week}/gameset/generate` | Commish | regenerates from saved rules; 409 if locked or Count > 50 -> `WeekGameSetResponse` |
 | POST | `/api/leagues/{leagueId}/weeks/{week}/gameset/games` | Commish | `AddGameRequest { GameId }` manual add; 409 if locked, not Saturday, non-FBS, or would exceed 50 -> `WeekGameSetResponse` |
@@ -78,10 +78,11 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 `TeamDto { TeamId, School, Abbreviation?, ConferenceId?, LogoUrl? }`, `ConferenceDto { ConferenceId, Name, Abbreviation }`, `GameCandidate { GameId, HomeTeam, AwayTeam, HomeRank?, AwayRank?, KickoffUtc, IsConferenceGame }`. `GameSetPreview` also carries `UsedFallbackRankings`. `GameSetGameId` is null in previews. Record definitions live in `Shared/Contracts/{GameSets,Points,Reference}`.
 
 **P3-03 clarifications** (D-053/D-063, D-054/D-064, D-055/D-065):
-- Both `PUT .../gameset-rules` routes (default and week-override) **save only**; they never call `generate` themselves. The commissioner UI's "Save and generate" action is two calls: `PUT` then `POST .../generate`. The Tuesday auto-regeneration job (P3-04) is the other caller of `generate`.
+- Both `PUT .../gameset-rules` routes (default and week-override) **save only**; they never call `generate` themselves — with one exception (D-082, P3-04): the week-override route also regenerates when `{week}` is the league's current week. The commissioner UI's "Save and generate" action is still two calls (`PUT` then `POST .../generate`); the second call is a no-op on the current week now that the first one already regenerated. The Tuesday auto-regeneration job (P3-04) is the other caller of `generate`.
 - `POST .../gameset/games` and `DELETE .../gameset/games/{gameId}` both return the full `WeekGameSetResponse` (same shape as `generate`/`GET .../gameset`), not a bare `GameSetGameDto` or `204`, so the caller does not need a second round trip to see the updated `LockAtUtc` or games list.
 - Any route carrying `{week}` 404s (`ProblemDetails` title `WeekOutOfRange`) when the week is outside the league's `FirstWeek..LastWeek` range, checked before anything else.
 - A 409 for `Locked` or `GameNotEligible` carries no extra body; a 409 for `ExceedsMax` (on `generate` or the manual-add cap) adds `"count"` to the `ProblemDetails` extensions with how many games the configuration would produce (or the set would hold after the add).
+- `GameSetRuleDto.SortOrder` is taken from the PUT body's array order, not from a field the caller sets independently (contrast `PointRuleDto.Priority` below, which comes from each entry).
 
 ## Point values (Feature 03)
 
