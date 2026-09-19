@@ -1,0 +1,19 @@
+.trend-arrow {
+    display: inline-block;
+    font-size: var(--text-sm);
+    font-weight: 700;
+    width: 1.25em;
+    text-align: center;
+}
+
+.trend-arrow-up {
+    color: var(--color-success);
+}
+
+.trend-arrow-down {
+    color: var(--color-danger);
+}
+
+.trend-arrow-same {
+    color: var(--color-text-muted);
+}

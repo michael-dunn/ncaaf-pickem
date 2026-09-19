@@ -1,0 +1,94 @@
+@page "/leagues/{LeagueId:guid}/weeks/{Week:int}/grid"
+@inject ILeaguesApi LeaguesApi
+@inject ILeaderboardApi LeaderboardApi
+@inject NavigationManager Navigation
+@inject AppShellState Shell
+
+@*
+    Week grid (P5-04): every member's picks for a week alongside the results, colored
+    correct/incorrect/pending/no-pick, voided games greyed. Hidden behind a friendly lock message
+    before the week locks (the endpoint 403s "PicksNotVisible" until then).
+*@
+
+<PageTitle>Week @Week grid - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null || _weeks is null || !_loaded)
+{
+    <LoadingSkeleton Rows="6" />
+}
+else
+{
+    <h1>Week @Week grid</h1>
+
+    <WeekNav Week="Week" Weeks="_weeks" OnNavigate="NavigateToWeek" />
+
+    @if (_grid is not null)
+    {
+        <PickGrid Grid="_grid" />
+    }
+    else if (_notLocked)
+    {
+        <div class="card">
+            <p>Grid opens at kickoff.</p>
+            <LockTime LockAtUtc="_lockAtUtc" NoLockText="No games yet" />
+        </div>
+    }
+
+    <a class="btn btn-secondary" href="@($"/leagues/{LeagueId}/weeks/{Week}/leaderboard")">Week leaderboard</a>
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    /// <summary>Week from the route.</summary>
+    [Parameter]
+    public int Week { get; set; }
+
+    private LeagueDetail? _league;
+    private LeagueWeek[]? _weeks;
+    private WeekGrid? _grid;
+    private DateTimeOffset? _lockAtUtc;
+    private bool _notLocked;
+    private bool _loaded;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle($"Week {Week} grid");
+        _error = null;
+        _grid = null;
+        _notLocked = false;
+        _loaded = false;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, Week);
+            _weeks = await LeaguesApi.GetLeagueWeeksAsync(LeagueId);
+            _lockAtUtc = Array.Find(_weeks, w => w.Week == Week)?.LockAtUtc;
+
+            try
+            {
+                _grid = await LeaderboardApi.GetWeekGridAsync(LeagueId, Week);
+            }
+            catch (LeaguesApiException ex) when (ex.StatusCode == 403)
+            {
+                _notLocked = true;
+            }
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _loaded = true;
+        }
+    }
+
+    private void NavigateToWeek(int week) =>
+        Navigation.NavigateTo($"/leagues/{LeagueId}/weeks/{week}/grid");
+}

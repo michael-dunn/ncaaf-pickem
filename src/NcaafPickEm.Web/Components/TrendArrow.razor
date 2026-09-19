@@ -1,0 +1,37 @@
+@* Season standings trend indicator (P5-04): Up (green triangle), Down (red triangle), Same (dash),
+   None renders nothing (first Complete week, or the member joined after it). *@
+
+@if (Trend != StandingsTrend.None)
+{
+    <span class="trend-arrow @CssClass" aria-label="@Label">@Glyph</span>
+}
+
+@code {
+    /// <summary>Movement to render.</summary>
+    [Parameter, EditorRequired]
+    public StandingsTrend Trend { get; set; }
+
+    private string CssClass => Trend switch
+    {
+        StandingsTrend.Up => "trend-arrow-up",
+        StandingsTrend.Down => "trend-arrow-down",
+        StandingsTrend.Same => "trend-arrow-same",
+        _ => string.Empty,
+    };
+
+    private string Glyph => Trend switch
+    {
+        StandingsTrend.Up => "▲",
+        StandingsTrend.Down => "▼",
+        StandingsTrend.Same => "–",
+        _ => string.Empty,
+    };
+
+    private string Label => Trend switch
+    {
+        StandingsTrend.Up => "Trending up",
+        StandingsTrend.Down => "Trending down",
+        StandingsTrend.Same => "No change",
+        _ => string.Empty,
+    };
+}
