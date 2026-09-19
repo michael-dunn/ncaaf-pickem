@@ -29,6 +29,8 @@ public sealed class PointRuleService
     {
         List<PointRule> rules = await _database.PointRules
             .AsNoTracking()
+            .Include(rule => rule.Conference)
+            .Include(rule => rule.Team)
             .Where(rule => rule.LeagueId == leagueId)
             .OrderBy(rule => rule.Priority)
             .ToListAsync(cancellationToken)
@@ -229,7 +231,9 @@ public sealed class PointRuleService
         rule.ConferenceId,
         rule.TeamId,
         rule.SpreadThreshold,
-        rule.PointValue);
+        rule.PointValue,
+        rule.Conference?.Name,
+        rule.Team?.School);
 
     private static PointRuleInfo ToInfo(PointRuleDto dto) => new(
         dto.Priority,
