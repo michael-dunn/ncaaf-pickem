@@ -1,0 +1,82 @@
+# Local full-stack validation of the container image (P8-05). NOT the home server stack -
+# that is compose.yaml next to this file.
+#
+# Everything here is throwaway: the image is built from the working tree, the sa password is in
+# plain sight, both providers are the offline fixtures, and the demo league is seeded so
+# /auth/dev-login works without a Google client. Run it from the REPO ROOT:
+#
+#   docker compose -f deploy/docker/compose.dev.yaml up --build -d
+#   curl http://127.0.0.1:5000/health/ready
+#   curl -c jar "http://127.0.0.1:5000/auth/dev-login?user=michael" && curl -b jar http://127.0.0.1:5000/api/me
+#   docker compose -f deploy/docker/compose.dev.yaml down -v
+#
+# `down -v` removes the named volumes below, so the next run starts from an empty database.
+
+name: ncaaf-pickem-dev
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ncaaf-dev-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=Local_Dev_Passw0rd!
+      - MSSQL_PID=Developer
+      - MSSQL_MEMORY_LIMIT_MB=2048
+      - TZ=America/Phoenix
+    volumes:
+      # A named volume, not a bind mount: no host directory to chown to uid 10001 first, and
+      # `down -v` takes it with it.
+      - ncaaf-dev-mssql:/var/opt/mssql
+    ports:
+      - "127.0.0.1:14330:1433"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  api:
+    build:
+      # Relative to this file, so the build context is the repo root and ./Dockerfile applies.
+      context: ../..
+      dockerfile: Dockerfile
+    image: ncaaf-pickem:local
+    container_name: ncaaf-dev-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      # Development, so DevAuthEndpoints (/auth/dev-login) and the fixture admin routes are
+      # mapped at all - they are deliberately absent in Production (ProductionBehaviourTests).
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+      - ConnectionStrings__Default=Server=db,1433;Database=NcaafPickEm;User Id=sa;Password=Local_Dev_Passw0rd!;Encrypt=False;TrustServerCertificate=True;
+      - Database__MigrateOnStartup=true
+      - Database__StartupTimeoutSeconds=120
+      # Offline: no CFBD key, no ESPN calls, no Google client.
+      - Providers__ReferenceData=Fixture
+      - Providers__LiveScores=Fixture
+      - Seed__DemoLeague=true
+      # On, so `docker compose logs api` shows the heartbeat and proves the in-process scheduler
+      # really runs inside the container. Safe because every provider above is a fixture: no
+      # scheduled job can reach CFBD, ESPN, or a push endpoint from here.
+      - Jobs__Enabled=true
+      - App__PublicOrigin=http://127.0.0.1:5000
+      # No reverse proxy in front of this one; the flag is stated so the difference from
+      # compose.yaml is visible rather than inherited.
+      - App__BehindProxy=false
+      - DataProtection__KeysPath=/app/keys
+      - Serilog__LogDirectory=/app/logs
+      - TZ=America/Phoenix
+    volumes:
+      - ncaaf-dev-keys:/app/keys
+      - ncaaf-dev-logs:/app/logs
+    ports:
+      - "127.0.0.1:5000:8080"
+
+volumes:
+  ncaaf-dev-mssql:
+  ncaaf-dev-keys:
+  ncaaf-dev-logs:

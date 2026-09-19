@@ -1,5 +1,6 @@
 using FluentValidation;
 using NcaafPickEm.Api.Auth;
+using NcaafPickEm.Api.Hosting;
 using NcaafPickEm.Api.Validation;
 using NcaafPickEm.Shared.Contracts.Admin;
 using NcaafPickEm.Shared.Contracts.GameSets;
@@ -33,6 +34,12 @@ public static class DependencyInjection
 
         // Fixed-window limits on /auth/* and /api/invites/* (P8-01, D-153).
         services.AddAppRateLimiting(configuration);
+
+        // Container deployment (P8-05). Both are no-ops unless their key is configured:
+        // App:BehindProxy for X-Forwarded-* handling behind Tailscale Serve (D-160), and
+        // DataProtection:KeysPath for a key ring that outlives the container (D-161).
+        services.AddAppForwardedHeaders(configuration);
+        services.AddAppDataProtection(configuration);
 
         // FluentValidation validators, run by ValidationFilter<TRequest> on the endpoints that
         // need them (05-Conventions.md). Registered by hand rather than assembly scanning so the

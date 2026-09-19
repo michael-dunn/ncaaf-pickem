@@ -17,6 +17,18 @@
 *.ps1     text eol=crlf
 *.sql     text
 
+# Container / Linux deployment files (P8-05). These are read by a Linux shell or by the Docker
+# daemon, so they must keep LF even when checked out on Windows - a CRLF shebang line makes
+# `./backup.sh` fail with "bad interpreter".
+*.sh           text eol=lf
+*.yaml         text eol=lf
+*.yml          text eol=lf
+Dockerfile     text eol=lf
+.dockerignore  text eol=lf
+# Compose's env-file parser keeps a trailing \r inside the value, which would silently corrupt
+# SA_PASSWORD and friends, so this one is LF everywhere too.
+.env.example   text eol=lf
+
 # Binary assets
 *.png  binary
 *.jpg  binary

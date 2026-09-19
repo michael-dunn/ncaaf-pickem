@@ -1,5 +1,6 @@
 using NcaafPickEm.Api;
 using NcaafPickEm.Api.Endpoints;
+using NcaafPickEm.Api.Hosting;
 using NcaafPickEm.Api.Simulation;
 using NcaafPickEm.Infrastructure;
 using NcaafPickEm.Infrastructure.Push;
@@ -41,6 +42,11 @@ try
     builder.Services.AddApiServices(builder.Configuration);
 
     WebApplication app = builder.Build();
+
+    // P8-05: X-Forwarded-For/Proto/Host from Tailscale Serve, when App__BehindProxy is true
+    // (a no-op otherwise). First in the pipeline, because request logging, the Google
+    // redirect_uri, Secure cookies, and the per-IP rate limiter all read what it rewrites.
+    app.UseAppForwardedHeaders();
 
     app.UseSerilogRequestLogging();
     app.UseExceptionHandler();

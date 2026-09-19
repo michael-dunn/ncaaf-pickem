@@ -1,0 +1,69 @@
+name: Build and publish container image
+
+# Pushes ghcr.io/<owner>/<repo> on every commit to main and on every v* tag. The home server's
+# watchtower (deploy/docker/compose.yaml) polls the `latest` tag every 30 minutes, so a merge to
+# main is the deployment.
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  image:
+    name: Build and push
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          # No PAT needed to PUSH: the job's own GITHUB_TOKEN carries packages:write from the
+          # permissions block above. A PAT is only ever needed on the PULL side, and only while
+          # the package is private (see deploy/docker/.env.example).
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Derive tags
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          # github.repository is already lowercase owner/repo, which GHCR requires; this must
+          # resolve to ghcr.io/michael-dunn/ncaaf-pickem, the image compose.yaml names.
+          images: ghcr.io/${{ github.repository }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          # amd64 only, deliberately. The home server is x86-64, and an arm64 leg would have to
+          # run the whole .NET build under QEMU (the Dockerfile builds inside the SDK image
+          # rather than cross-compiling), which costs far more minutes than a machine nobody
+          # owns is worth. If an arm64 host ever appears: add linux/arm64 here AND switch the
+          # build stage to `FROM --platform=$BUILDPLATFORM` with `dotnet publish -a $TARGETARCH`,
+          # so it cross-compiles instead of emulating. Nothing in the app is arch-specific - the
+          # client is WASM and the server is IL.
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
