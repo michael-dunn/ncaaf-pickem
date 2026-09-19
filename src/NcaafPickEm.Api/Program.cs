@@ -1,5 +1,6 @@
 using NcaafPickEm.Api;
 using NcaafPickEm.Api.Endpoints;
+using NcaafPickEm.Api.Simulation;
 using NcaafPickEm.Infrastructure;
 using NcaafPickEm.Infrastructure.Push;
 using Serilog;
@@ -9,6 +10,14 @@ using Serilog;
 if (args is [VapidKeyGenerator.CommandName, ..])
 {
     VapidKeyGenerator.WriteNewKeyPair(Console.Out);
+    return;
+}
+
+// Hidden operator command (P8-03): drive one fixture week by hand instead of serving. Development
+// only; it builds the app's own container and never starts Kestrel. See SimulateCommand.
+if (args is [SimulateCommand.CommandName, ..])
+{
+    Environment.ExitCode = await SimulateCommand.RunAsync(args);
     return;
 }
 

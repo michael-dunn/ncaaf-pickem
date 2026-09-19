@@ -472,6 +472,48 @@ without touching anything.
   `Stop-Service NcaafPickEm`. Set to auto-restart on crash and start automatically on boot by
   `install-service.ps1`.
 
+### Dry-run a week before the season (P8-03)
+
+`simulate` is a hidden, Development-only argument on the API that drives the Week 7, 2026 fixture
+week by hand, so you can rehearse a whole Saturday - generation, lock, live scores, scoring - before
+any real game is played. It uses the app's own services (the same jobs the server runs) but never
+starts the web server, so it is safe to run against a **separate** database while the real service
+is up. Point it at one with `ConnectionStrings__Default`.
+
+```bash
+# Windows PowerShell, from the repo root
+$env:ConnectionStrings__Default = 'Server=(localdb)\MSSQLLocalDB;Database=NcaafPickEm_Sim;Trusted_Connection=True;TrustServerCertificate=True'
+
+# Seed fixtures + the demo league, then generate week 7's set for it
+dotnet run --project src/NcaafPickEm.Api -- simulate --week 7
+
+# Lock the week now (whatever the clock says) and apply score snapshot 3
+dotnet run --project src/NcaafPickEm.Api -- simulate --week 7 --lock --snapshot 3
+
+# Walk the rest of the Saturday: 4 is the Iowa State / Kansas tie, 6 the post-midnight finish
+dotnet run --project src/NcaafPickEm.Api -- simulate --week 7 --snapshot 4
+dotnet run --project src/NcaafPickEm.Api -- simulate --week 7 --snapshot 6
+
+# Fire a scheduled job by hand, with the clock pinned to that instant
+dotnet run --project src/NcaafPickEm.Api -- simulate --tick "2026-10-16T20:00:00-04:00"   # Friday reminder
+dotnet run --project src/NcaafPickEm.Api -- simulate --tick "2026-10-16T21:00:00-04:00"   # commissioner summary
+```
+
+Options: `--week <n>` (default: the current week), `--snapshot <1-6>`, `--lock`,
+`--tick <instant with offset>`, `--league <name>` (default: the fixture demo league,
+"Family League"). Each run prints the week's games with their status, score and point value, plus
+every member's submission status and points. It refuses to run outside Development or with
+`Providers:ReferenceData` set to anything but `Fixture`.
+
+To sign in as a fixture member while rehearsing, use `/auth/dev-login?user=michael` (also
+Development-only). Members still need to make picks through the UI - `simulate` never picks for
+anyone.
+
+The same flow is asserted automatically by
+`tests/NcaafPickEm.Api.Tests/Simulation/FullWeekSimulationTests.cs`; read it as the executable
+description of a normal week. The manual iPhone walkthrough of the same flow is in
+`Implementation/screenshots/e2e/README.md`.
+
 ## Package versions
 
 Central Package Management is on: every `PackageReference` in the repo is versionless and

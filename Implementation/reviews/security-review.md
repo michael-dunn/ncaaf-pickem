@@ -4,8 +4,11 @@ Branch `p8-01-security-review`, base `main @ 7e57e26`. Reviewer: Opus (`opus-p8-
 Folded in: the mandatory Opus review of **P5-02 (Corrections)**, which was merged without one, plus
 the two open items the P7-03 review left for this task.
 
-Suite at the start: 771 green (306 Domain, 465 Api). Suite at the end: **821 green (306 Domain,
-515 Api)**. `dotnet build` 0 warnings, `dotnet format --verify-no-changes` clean.
+Suite at the start: 771 green (306 Domain, 465 Api). At the end of this branch's own work: 821
+green (306 Domain, 515 Api). After merging `main` @ 969c461 (which brought P5-05 and P8-03):
+**822 green (306 Domain, 516 Api)**, `dotnet build` 0 warnings,
+`dotnet format --verify-no-changes` clean. P5-05 and P8-03 map no new endpoint, so the route
+inventory below is unchanged by that merge.
 
 ---
 
@@ -463,4 +466,4 @@ No finding was left both unresolved and unlogged.
 | `EventNotificationTests.cs` | +2 | §9 |
 | `ReminderJobTests.cs` | +3 cases | §9 |
 
-`dotnet test`: **821 passed, 0 failed** (306 Domain, 515 Api).
+`dotnet test`: **821 passed, 0 failed** (306 Domain, 515 Api) on the branch alone; **822** after merging `main` @ 969c461 (P5-05, P8-03), which adds one simulation test and no endpoint.

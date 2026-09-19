@@ -66,3 +66,16 @@
     white-space: nowrap;
     border-bottom: 1px solid var(--color-border);
 }
+
+/* P5-05: needs-review row actions (Void, Review). */
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.void-sheet-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}

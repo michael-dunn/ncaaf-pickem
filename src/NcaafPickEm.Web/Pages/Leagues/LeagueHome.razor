@@ -90,6 +90,8 @@ else
         <a href="@($"/leagues/{league.LeagueId}/invites")">Invites</a>
         &middot;
         <a href="@($"/leagues/{league.LeagueId}/members")">Members</a>
+        &middot;
+        <a href="@($"/leagues/{league.LeagueId}/audit")">Activity</a>
         @if (league.MyRole == MembershipRole.Commissioner)
         {
             <text> &middot; <a href="@($"/leagues/{league.LeagueId}/settings")">Settings</a></text>

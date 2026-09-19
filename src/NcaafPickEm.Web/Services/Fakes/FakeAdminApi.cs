@@ -8,9 +8,15 @@ namespace NcaafPickEm.Web.Services.Fakes;
 /// unmatched games, one needs-review tie, the CFBD counter near its warning threshold), so the
 /// Data status page (P2-04) can be built and screenshotted without a running Api.
 /// </summary>
-public sealed class FakeAdminApi : IAdminApi
+/// <param name="store">
+/// Shared game set state (P5-05): the needs-review row's <c>GameId</c> is taken from here so the
+/// Data status page's Void action operates on the same in-memory game the week view shows.
+/// </param>
+public sealed class FakeAdminApi(FakeGameSetStore store) : IAdminApi
 {
     private static readonly Guid SampleLeagueId = FakeLeaguesApi.SampleLeagueId;
+
+    private readonly FakeGameSetStore _store = store;
 
     private readonly List<UnmatchedGameDto> _unmatched =
     [
@@ -48,19 +54,21 @@ public sealed class FakeAdminApi : IAdminApi
                 "ESPN timed out after 30s (falling back to CFBD)"),
         ];
 
-        NeedsReviewGameDto[] needsReview =
-        [
-            new(
-                Guid.NewGuid(),
-                SampleLeagueId,
-                "The Family League",
-                7,
-                "Iowa State",
-                "Kansas",
-                24,
-                24,
-                "Tie"),
-        ];
+        NeedsReviewGameDto[] needsReview = _store.IsVoided(_store.NeedsReviewDemoGameId)
+            ? []
+            :
+            [
+                new(
+                    _store.NeedsReviewDemoGameId,
+                    SampleLeagueId,
+                    "The Family League",
+                    7,
+                    "Iowa State",
+                    "Kansas",
+                    24,
+                    24,
+                    "Tie"),
+            ];
 
         JobRunDto[] recentJobs =
         [
