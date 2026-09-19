@@ -63,7 +63,7 @@ public static class ReminderRecipients
 
             if (current.State != SeasonState.InSeason)
             {
-                // Off-season guard (P8-01, D-191). Outside a week window CurrentWeekAt clamps to
+                // Off-season guard (P8-01, D-154). Outside a week window CurrentWeekAt clamps to
                 // the first or last week, so a league whose final week was never locked would keep
                 // drawing a Friday reminder every week of the summer.
                 continue;

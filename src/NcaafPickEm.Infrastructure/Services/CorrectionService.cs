@@ -400,7 +400,7 @@ public sealed class CorrectionService
                 if (details.ValueKind != JsonValueKind.Object)
                 {
                     // TryGetProperty throws InvalidOperationException on anything but an object,
-                    // and that is not a JsonException (P8-01, D-193).
+                    // and that is not a JsonException (P8-01, D-156).
                     return entry.Action.ToString();
                 }
 
@@ -499,7 +499,7 @@ public sealed class CorrectionService
         /// shape must degrade to a vaguer sentence, never throw. <c>JsonElement.GetProperty</c>
         /// and the typed getters raise <see cref="KeyNotFoundException"/> and
         /// <see cref="InvalidOperationException"/>, neither of which the <c>JsonException</c>
-        /// catch above would stop, so one bad row would 500 the whole audit list (P8-01, D-193).
+        /// catch above would stop, so one bad row would 500 the whole audit list (P8-01, D-156).
         /// </summary>
         private static string WeekOf(JsonElement details) =>
             details.TryGetProperty("week", out JsonElement week) && week.ValueKind == JsonValueKind.Number

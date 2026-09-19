@@ -12,7 +12,7 @@ using NcaafPickEm.Infrastructure.Data;
 namespace NcaafPickEm.Api.Tests;
 
 /// <summary>
-/// P8-01 / D-190: the fixed-window rate limits on <c>/auth/*</c> and <c>/api/invites/*</c>.
+/// P8-01 / D-153: the fixed-window rate limits on <c>/auth/*</c> and <c>/api/invites/*</c>.
 /// </summary>
 /// <remarks>
 /// The shared <see cref="ApiFactory"/> turns the limiter off — every in-memory test request has

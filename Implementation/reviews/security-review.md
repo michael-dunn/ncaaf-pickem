@@ -20,7 +20,7 @@ inventory below is unchanged by that merge.
 of "walk every route": a new endpoint is covered the moment it is mapped.
 
 An `IEndpointFilter` leaves no trace in `Endpoint.Metadata`, so the scoping helpers now stamp a
-marker next to the filter they add (D-194): `EndpointScopeMetadata` from `RequireLeagueMember()` /
+marker next to the filter they add (D-157): `EndpointScopeMetadata` from `RequireLeagueMember()` /
 `RequireLeagueCommissioner()` / `RequireAnyLeagueCommissioner()`, and `CsrfProtectedMetadata` from
 the new `RequireCsrfHeader()` (which the `/api` group in `EndpointMapping.cs` now calls instead of
 `AddEndpointFilter<CsrfEndpointFilter>()` - same filter, one extra line of metadata).
@@ -272,7 +272,7 @@ Test code uses `DateTime.UtcNow` freely for seeding; that is not in scope for th
 
 ---
 
-## 5. Rate limiting (D-190)
+## 5. Rate limiting (D-153)
 
 Added: `Api/Auth/RateLimitingSetup.cs`, one fixed window per client IP per policy, one minute wide.
 
@@ -370,7 +370,7 @@ Reviewed `git diff 48fa8be 7e57e26 -- . ':(exclude)Implementation'` (15 files, ~
   (`OverrideTests`).
 * No scoring logic was added here, per the seam P5-01 defined.
 
-**Two defects found and fixed (D-193, commit `a748ad5`).**
+**Two defects found and fixed (D-156, commit `a748ad5`).**
 
 1. **`GetAuditAsync` could 500 the whole league's audit page.** `AuditSummaryBuilder` read
    `details.GetProperty("after")` and `details.GetProperty("week")`, and called `TryGetProperty` on
@@ -399,7 +399,7 @@ stays a 409.
 
 Both closed.
 
-* **GamesAdded re-fire (D-192).** `SubmittedUtc` is never cleared, so the handler's
+* **GamesAdded re-fire (D-155).** `SubmittedUtc` is never cleared, so the handler's
   `SubmittedUtc < OccurredUtc` test stayed true forever: a member who ignored the first add was
   notified again by the second, the third, and every regeneration for the rest of the week. The
   handler now compares `SubmittedUtc` against the newest `AddedUtc` among the rows that were
@@ -408,7 +408,7 @@ Both closed.
   order-independent of P4-04 than before, and a member who re-submits is notified again (submit
   refreshes `SubmittedUtc` whenever the status is not already Submitted).
   `EventNotificationTests` gains both cases.
-* **Off-season guard (D-191).** `SeasonCalendar.CurrentWeekAt` clamps to the first or last week
+* **Off-season guard (D-154).** `SeasonCalendar.CurrentWeekAt` clamps to the first or last week
   outside a week window, and neither clamp says "there is no current week", so a league whose final
   week was never locked drew a Friday reminder every week of the summer.
   `ReminderRecipients.CurrentUnlockedSetsAsync` now skips a season year whose state is not
@@ -435,12 +435,12 @@ Both closed.
 | # | Finding | Severity | Resolution |
 |---|---|---|---|
 | 1 | `ReturnUrl.Sanitize` accepted a control character mid-string, so a CR/LF reached the `Location` header | Low (Kestrel 500; response splitting in principle) | **Fixed**, commit `9f02035` |
-| 2 | `GetAuditAsync` 500s the whole audit page on one oddly-shaped `Details` blob | Medium (availability, member-reachable) | **Fixed**, D-193, commit `a748ad5` |
-| 3 | `ListNeedsVoidReviewAsync` lists removed rows that void/override then 404 | Low (dead action; P5-05 blocker) | **Fixed**, D-193, commit `a748ad5` |
-| 4 | GamesAdded push re-fires on every later add | Medium (notification fatigue) | **Fixed**, D-192, commit `db64eb4` |
-| 5 | Friday reminders fire all off-season | Low | **Fixed**, D-191, commit `db64eb4` |
-| 6 | No rate limit on `/auth/*` or invite redemption | Medium | **Fixed**, D-190 |
-| 7 | Endpoint filters invisible to any structural test, so "every route is scoped" was unverifiable | Process | **Fixed**, D-194 - marker metadata + inventory tests |
+| 2 | `GetAuditAsync` 500s the whole audit page on one oddly-shaped `Details` blob | Medium (availability, member-reachable) | **Fixed**, D-156, commit `a748ad5` |
+| 3 | `ListNeedsVoidReviewAsync` lists removed rows that void/override then 404 | Low (dead action; P5-05 blocker) | **Fixed**, D-156, commit `a748ad5` |
+| 4 | GamesAdded push re-fires on every later add | Medium (notification fatigue) | **Fixed**, D-155, commit `db64eb4` |
+| 5 | Friday reminders fire all off-season | Low | **Fixed**, D-154, commit `db64eb4` |
+| 6 | No rate limit on `/auth/*` or invite redemption | Medium | **Fixed**, D-153 |
+| 7 | Endpoint filters invisible to any structural test, so "every route is scoped" was unverifiable | Process | **Fixed**, D-157 - marker metadata + inventory tests |
 | 8 | `/api/admin/fixture/*` scoped `Authenticated`, not commissioner | Low | **Accepted** (Development/Testing only; §10) |
 | 9 | 400 before 403/404 on three array-bodied routes | Informational | **Accepted** (§10) |
 | 10 | ASP.NET packages one patch behind (10.0.11 vs 10.0.12) | Informational | **Deferred** to P8-02/P8-04 - must move with the installed runtime |

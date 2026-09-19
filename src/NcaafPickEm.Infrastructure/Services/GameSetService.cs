@@ -550,7 +550,7 @@ public sealed class GameSetService
     /// picked the winner by hand (<see cref="WeekGameSetGame.ResultOverrideWinnerTeamId"/>).
     /// Either one drops the row off this list, exactly as P2-04's own "needs review" query on the
     /// data-status page already excludes an overridden game.
-    /// A manually removed row is excluded too (P8-01, D-193): it is not part of the week any more,
+    /// A manually removed row is excluded too (P8-01, D-156): it is not part of the week any more,
     /// and <c>CorrectionService</c> refuses to void or override one (404 <c>GameNotFound</c>), so
     /// listing it would offer the commissioner an action that cannot succeed.
     /// </remarks>

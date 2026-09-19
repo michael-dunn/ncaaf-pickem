@@ -308,7 +308,7 @@ public sealed class ReminderJobTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// P8-01 / D-191: off-season guard. <c>SeasonCalendar.CurrentWeekAt</c> clamps to the first or
+    /// P8-01 / D-154: off-season guard. <c>SeasonCalendar.CurrentWeekAt</c> clamps to the first or
     /// last week outside a week window, so a league whose final week was never locked used to keep
     /// drawing a Friday reminder every week of the off-season. Driving
     /// <see cref="ReminderRecipients.CurrentUnlockedSetsAsync"/> directly is what lets one test

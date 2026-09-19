@@ -24,7 +24,7 @@ namespace NcaafPickEm.Infrastructure.Notifications;
 /// <c>WeekSubmissions.Status</c> at all: a membership counts as "was Submitted" when its
 /// <c>SubmittedUtc</c> is at or after the <c>AddedUtc</c> of the newest game that was <em>already</em>
 /// in the set, which is <c>SubmissionStatusCalculator</c>'s own definition of Submitted evaluated
-/// against the set as it stood a moment ago (D-192).
+/// against the set as it stood a moment ago (D-155).
 /// </para>
 /// <para>
 /// That threshold, rather than the event's <see cref="GameAddedToSet.OccurredUtc"/>, is also what
@@ -78,7 +78,7 @@ public sealed class GamesAddedNotificationHandler : IDomainEventHandler<GameAdde
         // already in the set. Nothing here reads Status, so it does not matter whether P4-04's
         // handler on the same event has already flipped Submitted to InProgress, and - unlike an
         // OccurredUtc comparison - a member who never re-submitted after the first add is not
-        // notified all over again by the second one (P8-01, D-192).
+        // notified all over again by the second one (P8-01, D-155).
         DateTime? priorNewestAddedUtc = await _database.WeekGameSetGames
             .AsNoTracking()
             .Where(row => row.WeekGameSetId == domainEvent.WeekGameSetId

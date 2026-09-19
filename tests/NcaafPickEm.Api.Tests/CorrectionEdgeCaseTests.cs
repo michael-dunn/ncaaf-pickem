@@ -31,7 +31,7 @@ public sealed class CorrectionEdgeCaseTests
     }
 
     /// <summary>
-    /// D-193. <c>AuditSummaryBuilder</c> read <c>after</c> and <c>week</c> with
+    /// D-156. <c>AuditSummaryBuilder</c> read <c>after</c> and <c>week</c> with
     /// <c>JsonElement.GetProperty</c>, which throws <c>KeyNotFoundException</c> — a type the
     /// surrounding <c>catch (JsonException)</c> does not stop. One row whose <c>Details</c> is
     /// valid JSON of the wrong shape therefore 500'd the whole league's audit list.
@@ -83,7 +83,7 @@ public sealed class CorrectionEdgeCaseTests
     }
 
     /// <summary>
-    /// D-193. A row removed before lock is no longer part of the week, and
+    /// D-156. A row removed before lock is no longer part of the week, and
     /// <c>CorrectionService</c> refuses to void or override one (404 <c>GameNotFound</c>), so
     /// listing it as "needs review" offered the commissioner an action that could not succeed.
     /// </summary>

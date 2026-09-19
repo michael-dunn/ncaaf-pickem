@@ -120,7 +120,7 @@ public class ApiFactory : WebApplicationFactory<Program>
         builder.UseSetting(DatabaseDefaults.MigrateOnStartupKey, "false");
 
         // Every test request arrives with no remote IP, so they would all share one rate-limit
-        // partition and a long suite would trip it (P8-01, D-190). RateLimitTests boots its own
+        // partition and a long suite would trip it (P8-01, D-153). RateLimitTests boots its own
         // host with the limiter on and a tiny window.
         builder.UseSetting(RateLimitingSetup.EnabledKey, "false");
 

@@ -81,7 +81,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
             .SingleAsync());
 
         // The submitted member submitted after every game already in the set, and before the
-        // regeneration that is about to add more (D-192: that comparison, not OccurredUtc, is
+        // regeneration that is about to add more (D-155: that comparison, not OccurredUtc, is
         // what "was Submitted at the moment of the add" means).
         await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, DateTime.UtcNow);
 
@@ -109,7 +109,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
     }
 
     /// <summary>
-    /// P8-01 / D-192: <c>SubmittedUtc</c> is never cleared, so the old "submitted at some point
+    /// P8-01 / D-155: <c>SubmittedUtc</c> is never cleared, so the old "submitted at some point
     /// before this event" rule stayed true forever and every later add re-notified a member who
     /// had ignored the first one. The rule is now "submitted after the newest game already in the
     /// set", so a member who never caught up is told once.
