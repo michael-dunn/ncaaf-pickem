@@ -27,6 +27,15 @@ public sealed class GameSetService
     private const string ReasonScheduleChange = "Schedule change";
     private const string ReasonManual = "Manual";
 
+    /// <summary>
+    /// What every refusal of a frozen week says. One message covers both halves of
+    /// <see cref="WeekGameSetLockGuard.IsFrozen"/> — the lock job has run, or the first kickoff
+    /// has simply passed and the job has not caught up yet (D-089) — because from a
+    /// commissioner's point of view they are the same event.
+    /// </summary>
+    private const string LockedMessage =
+        "This week is locked: its games and point values froze at the first kickoff.";
+
     private readonly AppDbContext _database;
     private readonly TimeProvider _timeProvider;
     private readonly DomainEventCollector _collector;
@@ -142,7 +151,8 @@ public sealed class GameSetService
     /// <see cref="GameAddedToSet"/>/<see cref="GameRemovedFromSet"/>.
     /// </summary>
     /// <exception cref="GameSetRuleViolation">
-    /// <see cref="GameSetRuleViolationCode.Locked"/> when the week is already locked, or
+    /// <see cref="GameSetRuleViolationCode.Locked"/> when the week is frozen
+    /// (<see cref="WeekGameSetLockGuard.IsFrozen"/>), or
     /// <see cref="GameSetRuleViolationCode.ExceedsMax"/> when the rules would select more than
     /// <see cref="GameSetLimits.MaxGames"/> games. Neither refusal changes any existing row or
     /// rule - the only thing either can have persisted first is
@@ -179,14 +189,14 @@ public sealed class GameSetService
             Rules = rules,
             Rankings = rankings,
             ExistingGames = existing,
-            IsLocked = set.IsLocked,
+            IsLocked = WeekGameSetLockGuard.IsFrozen(set, _timeProvider.GetUtcNow().UtcDateTime),
         };
 
         GenerationResult result = GameSetGenerator.Generate(request);
 
         if (result.IsLocked)
         {
-            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, "This week is already locked.");
+            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, LockedMessage);
         }
 
         if (result.ExceedsMax)
@@ -315,9 +325,9 @@ public sealed class GameSetService
 
         WeekGameSet set = await GetOrCreateWeekSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
 
-        if (set.IsLocked)
+        if (WeekGameSetLockGuard.IsFrozen(set, _timeProvider.GetUtcNow().UtcDateTime))
         {
-            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, "This week is already locked.");
+            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, LockedMessage);
         }
 
         Game game = await _database.Games
@@ -419,7 +429,10 @@ public sealed class GameSetService
         return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
     }
 
-    /// <summary>Manually removes a game. 409 when the week is already locked.</summary>
+    /// <summary>
+    /// Manually removes a game. 409 once the week is frozen
+    /// (<see cref="WeekGameSetLockGuard.IsFrozen"/>).
+    /// </summary>
     public async Task<WeekGameSetResponse> RemoveGameAsync(
         Membership caller,
         int week,
@@ -436,9 +449,9 @@ public sealed class GameSetService
             .ConfigureAwait(false)
             ?? throw new GameSetRuleViolation(GameSetRuleViolationCode.GameNotFound, "No such game in this week.");
 
-        if (set.IsLocked)
+        if (WeekGameSetLockGuard.IsFrozen(set, _timeProvider.GetUtcNow().UtcDateTime))
         {
-            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, "This week is already locked.");
+            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, LockedMessage);
         }
 
         // Game is included because RecalculateLockAtUtc reads KickoffUtc off the rows that stay
@@ -665,7 +678,7 @@ public sealed class GameSetService
     /// is the league's current week (D-082, superseding D-065 for this one route) - immediately
     /// regenerates it through <see cref="GenerateAsync"/>, exactly as if the caller had made the
     /// two calls the commissioner UI does. Every other week is still save only, as D-065 says.
-    /// 409 when the week is already locked.
+    /// 409 once the week is frozen (<see cref="WeekGameSetLockGuard.IsFrozen"/>).
     /// </summary>
     /// <exception cref="GameSetRuleConfigurationException">A rule is invalid (only checked when
     /// <paramref name="usesOverride"/> is true).</exception>
@@ -688,9 +701,9 @@ public sealed class GameSetService
 
         WeekGameSet set = await GetOrCreateWeekSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
 
-        if (set.IsLocked)
+        if (WeekGameSetLockGuard.IsFrozen(set, _timeProvider.GetUtcNow().UtcDateTime))
         {
-            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, "This week is already locked.");
+            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, LockedMessage);
         }
 
         if (usesOverride)
