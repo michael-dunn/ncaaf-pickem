@@ -66,6 +66,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | Change after submit keeps Submitted | P4-01 | D `SubmissionStatusTests` |
 | Past weeks read-only | P4-01 | A 409 on old week |
 | Game added reverts to In Progress, highlighted, notified | P4-04, P7-03 | A `GameAddedTests`, UI, A `NotificationTests.GamesAdded` |
+| Game removed keeps its pick row, counts update, member flagged only if they had a pick on it | P4-04 | A `GameRemovedTests` |
 | Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests` |
 | Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, D `WeekScorerTests.NoPickScoresZero` |
 | Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` |
