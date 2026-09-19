@@ -334,7 +334,7 @@ majors with no advisory attached.
 
 | Check | Result |
 |---|---|
-| CFBD key prefix `B6GW` anywhere in the repo | **0 hits** |
+| CFBD key prefix the key's first characters anywhere in the repo | **0 hits** |
 | `Bearer ` literal | 1 hit, a doc comment in `CfbdLiveTests.cs`; no token |
 | `VapidPrivateKey` | only config keys, placeholders (`<vapid-private-key>`) and generator code; `WebPushSenderTests` generates a pair at runtime |
 | Connection strings / `ClientSecret` / API-key literals | 0 hits outside placeholders and the deliberate `...-not-configured` Google placeholders in `AuthenticationSetup` |
