@@ -13,7 +13,7 @@ namespace NcaafPickEm.Shared.Contracts.Picks;
 /// <param name="IsLocked">
 /// True when picks are frozen <em>now</em>: the lock job has run, or <see cref="LockAtUtc"/> has
 /// simply passed. Broader than <c>WeekGameSetResponse.IsLocked</c>, which reports only the job
-/// (D-084), because the picks page must go read-only the moment the server stops accepting picks.
+/// (D-086), because the picks page must go read-only the moment the server stops accepting picks.
 /// </param>
 /// <param name="PickedCount">Picks the caller holds on active games.</param>
 /// <param name="TotalCount">Active games in the week's set.</param>

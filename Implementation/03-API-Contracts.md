@@ -104,7 +104,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: MemberPickDto[] { GameSetGameId, TeamId? } } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/picks/status` | Commish | `MemberStatusRow[] { MembershipId, DisplayName, Status, PickedCount, TotalCount }` |
 
-**P4-01 clarifications** (D-082, D-084, D-085, D-086):
+**P4-01 clarifications** (D-084, D-086, D-087, D-088):
 - `MyPickGameDto` **composes** the game rather than flattening it: `MyPickGameDto { Game: GameSetGameDto, MyTeamId?, IsNewSinceSubmit }`, the same shape `DashboardGameDto` uses. `Games` lists every non-removed game ordered by kickoff; a voided game is still listed (`Game.IsVoided`) but counts towards neither `PickedCount` nor `TotalCount`.
 - `MyPicksResponse.IsLocked` is "picks are frozen now" — `LockedUtc != null` **or** `now >= LockAtUtc` — which is deliberately broader than `WeekGameSetResponse.IsLocked` ("the lock job has run"). The server refuses picks from `LockAtUtc` onwards whether or not P4-02's job has run.
 - `{gameId}` on the set-pick route is the `Games.Id`, matching the conventions and the game-set routes; the response carries both ids per game.

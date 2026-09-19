@@ -149,7 +149,7 @@ When `WeekGameSets.UsesOverride = 1` for a week, only rows with that Week are us
 | Id Guid PK | |
 | WeekGameSetId FK, GameId FK | UQ |
 | Source | tinyint: Rule, Manual |
-| AddedUtc | datetime2 | When the game joined the set: written on insert and again when a removed row is re-added (P4-01, D-083). It is "the last time TotalCount increased" in `04-Domain-Algorithms.md` section 4, so `SubmittedUtc >= max(AddedUtc)` is what keeps a member Submitted. |
+| AddedUtc | datetime2 | When the game joined the set: written on insert and again when a removed row is re-added (P4-01, D-085). It is "the last time TotalCount increased" in `04-Domain-Algorithms.md` section 4, so `SubmittedUtc >= max(AddedUtc)` is what keeps a member Submitted. |
 | IsRemoved | bit | manual removal or schedule change before lock; stays removed on regen |
 | RemovedReason | nvarchar(200) null | |
 | PointValueOverride | int null | commissioner manual value |
