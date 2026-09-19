@@ -20,9 +20,10 @@ namespace NcaafPickEm.Infrastructure.Jobs;
 /// to a clock, a database and <see cref="ILiveScoreProvider"/>.
 /// </summary>
 /// <remarks>
-/// Disabled entirely when <c>Jobs:Enabled</c> is false, same as <see cref="JobScheduler"/>. Every
-/// poll — in or out of the window — is a single re-evaluation once a minute; there is no separate
-/// per-Saturday timer to schedule or cancel.
+/// Disabled entirely when <c>Jobs:Enabled</c> is false, same as <see cref="JobScheduler"/>. The
+/// loop re-evaluates the window once a minute — there is no separate per-Saturday timer to
+/// schedule or cancel — but the provider is only called once per <see cref="PollerCadence"/>
+/// interval while the window is open, never on every tick.
 /// </remarks>
 public sealed class SaturdayPoller : BackgroundService
 {
@@ -36,6 +37,7 @@ public sealed class SaturdayPoller : BackgroundService
     private readonly ILogger<SaturdayPoller> _logger;
 
     private DateOnly? _lastWindowOpenedForDate;
+    private DateTimeOffset? _nextPollDueUtc;
 
     /// <summary>Creates the poller.</summary>
     public SaturdayPoller(
@@ -71,13 +73,36 @@ public sealed class SaturdayPoller : BackgroundService
         {
             do
             {
-                await EvaluateOnceAsync(stoppingToken);
+                await EvaluateGuardedAsync(stoppingToken);
             }
             while (await timer.WaitForNextTickAsync(stoppingToken));
         }
         catch (OperationCanceledException)
         {
             // Normal shutdown.
+        }
+    }
+
+    /// <summary>
+    /// One guarded evaluation. A provider outage, a database blip or a bad payload must never
+    /// end the loop for the lifetime of the process — same contract as
+    /// <see cref="JobScheduler"/>'s tick — because a dead <see cref="BackgroundService"/> means
+    /// no live scores for the rest of the Saturday (and, with the default
+    /// <c>BackgroundServiceExceptionBehavior</c>, a stopped host).
+    /// </summary>
+    private async Task EvaluateGuardedAsync(CancellationToken stoppingToken)
+    {
+        try
+        {
+            await EvaluateOnceAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogError(exception, "Saturday poller evaluation failed; retrying on the next tick");
         }
     }
 
@@ -98,21 +123,45 @@ public sealed class SaturdayPoller : BackgroundService
         IReadOnlyList<PollerWeekSet> activeSets = await LoadActiveSetsAsync(database, weekSource, nowUtc, cancellationToken);
         PollerDecision decision = SaturdayPollerSchedule.Evaluate(nowUtc, activeSets, _health.ActiveSource);
 
-        if (!decision.InWindow)
+        if (!decision.InWindow || decision.SaturdayEastern is not DateOnly easternDate)
         {
             _lastWindowOpenedForDate = null;
+            _nextPollDueUtc = null;
             return;
         }
 
-        DateOnly easternDate = DateOnly.FromDateTime(SeasonCalendar.ToEastern(nowUtc).Date);
+        // Keyed on the window's Saturday, not on "today": a tick at 00:30 ET Sunday is still the
+        // same window, and resetting the health there would clear a fallback that engaged hours
+        // earlier and is meant to hold for the rest of the game day.
         if (_lastWindowOpenedForDate != easternDate)
         {
             _health.ResetForNewDay();
             _lastWindowOpenedForDate = easternDate;
+            _nextPollDueUtc = null;
             _logger.LogInformation("Saturday poller window opened for {EasternDate}", easternDate);
         }
 
-        await PollOnceAsync(scope.ServiceProvider, database, _timeProvider, easternDate, _logger, cancellationToken);
+        // The window is re-evaluated every minute; the provider is only called on the cadence the
+        // active source earns (5 min ESPN, 10 min CFBD - 04-Domain-Algorithms.md section 10).
+        if (_nextPollDueUtc is DateTimeOffset dueUtc && nowUtc < dueUtc)
+        {
+            return;
+        }
+
+        // Advanced before the call, not after, so a failing provider is retried on the next
+        // cadence tick rather than once a minute - which would burn a month of CFBD's free tier
+        // in a single Saturday.
+        _nextPollDueUtc = decision.NextPollAtUtc;
+
+        try
+        {
+            await PollOnceAsync(scope.ServiceProvider, database, _timeProvider, easternDate, _logger, cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            await RecordRefreshFailureAsync(database, _timeProvider, exception.Message, cancellationToken);
+            throw;
+        }
     }
 
     /// <summary>
@@ -163,6 +212,52 @@ public sealed class SaturdayPoller : BackgroundService
     {
         DateTime nowUtc = timeProvider.GetUtcNow().UtcDateTime;
 
+        DataRefreshStatus status = await GetOrAddScoresStatusAsync(database, cancellationToken).ConfigureAwait(false);
+
+        status.LastAttemptUtc = nowUtc;
+        status.LastSuccessUtc = nowUtc;
+        status.LastError = null;
+
+        await database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Records a failed poll on <c>DataRefreshStatus(Scores)</c> so the data status page can show
+    /// it, best-effort: if the database is what failed, the caller's own error is the one that
+    /// matters and this must not mask it.
+    /// </summary>
+    /// <remarks>
+    /// The change tracker is cleared first: the failure may have happened part way through
+    /// <see cref="LiveScoreApplyService.ApplyAsync"/>, and saving here must not commit a
+    /// half-applied snapshot (the same ordering <c>ReferenceDataIngestService</c> relies on).
+    /// </remarks>
+    private static async Task RecordRefreshFailureAsync(
+        AppDbContext database,
+        TimeProvider timeProvider,
+        string error,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            database.ChangeTracker.Clear();
+
+            DataRefreshStatus status = await GetOrAddScoresStatusAsync(database, cancellationToken).ConfigureAwait(false);
+
+            status.LastAttemptUtc = timeProvider.GetUtcNow().UtcDateTime;
+            status.LastError = error;
+
+            await database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            // Swallowed on purpose; the original exception is rethrown by the caller and logged.
+        }
+    }
+
+    private static async Task<DataRefreshStatus> GetOrAddScoresStatusAsync(
+        AppDbContext database,
+        CancellationToken cancellationToken)
+    {
         DataRefreshStatus? status = await database.DataRefreshStatuses
             .FirstOrDefaultAsync(row => row.DataType == RefreshDataType.Scores, cancellationToken)
             .ConfigureAwait(false);
@@ -173,11 +268,7 @@ public sealed class SaturdayPoller : BackgroundService
             database.DataRefreshStatuses.Add(status);
         }
 
-        status.LastAttemptUtc = nowUtc;
-        status.LastSuccessUtc = nowUtc;
-        status.LastError = null;
-
-        await database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        return status;
     }
 
     /// <summary>
@@ -214,7 +305,7 @@ public sealed class SaturdayPoller : BackgroundService
                 continue;
             }
 
-            int currentWeek = SeasonCalendar.CurrentWeekAt(nowUtc, weeks).Week;
+            int currentWeek = SeasonCalendar.CurrentWeekAt(GameDayInstant(nowUtc), weeks).Week;
             Guid[] leagueIds = [.. bySeasonYear.Select(league => league.Id)];
 
             var rows = await database.WeekGameSetGames
@@ -243,6 +334,32 @@ public sealed class SaturdayPoller : BackgroundService
         }
 
         return sets;
+    }
+
+    /// <summary>
+    /// The instant to resolve "which week is the poller working" at. A season week ends Saturday
+    /// 23:59:59.999 ET (04-Domain-Algorithms.md section 1), but the poller's window runs to 03:00
+    /// ET on Sunday: between those two the calendar has already rolled to the next week while the
+    /// late game is still playing. Asking the calendar about Saturday evening instead keeps that
+    /// game's set loaded until the window closes for real.
+    /// </summary>
+    /// <remarks>
+    /// Shifting the Eastern calendar date, not the UTC instant, is what makes this right on the
+    /// November DST Sunday, where 02:00 ET happens twice and a fixed three-hour subtraction lands
+    /// on the wrong side of midnight.
+    /// </remarks>
+    private static DateTimeOffset GameDayInstant(DateTimeOffset nowUtc)
+    {
+        DateTimeOffset eastern = SeasonCalendar.ToEastern(nowUtc);
+
+        if (eastern.DayOfWeek != DayOfWeek.Sunday
+            || eastern.Hour >= SaturdayPollerSchedule.HardCloseHourEastern)
+        {
+            return nowUtc;
+        }
+
+        DateOnly saturday = DateOnly.FromDateTime(eastern.Date).AddDays(-1);
+        return SeasonCalendar.ToUtc(saturday.ToDateTime(new TimeOnly(23, 0)));
     }
 
     private static bool IsTerminal(GameStatus status) =>

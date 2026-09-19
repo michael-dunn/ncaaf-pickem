@@ -8,12 +8,14 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Kiota.Abstractions.Authentication;
 using Microsoft.Kiota.Http.HttpClientLibrary;
+using NcaafPickEm.Domain.GameSets.Events;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Seasons.Events;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Infrastructure.Jobs.Refresh;
+using NcaafPickEm.Infrastructure.Notifications;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Espn;
@@ -105,6 +107,8 @@ public static class DependencyInjection
         // auto-create sweep, both against GameSetService.
         services.AddScheduledJob<RegenerateGameSetsJob>();
         services.AddScheduledJob<EnsureCurrentWeekSetsJob>();
+        // P4-02: the per-week lock. A one-shot, so every tick simply asks which weeks are due.
+        services.AddOneShotJob<LockWeekJob>();
         // Reference data and live scores (P2-02/P2-03/P2-05). Providers:ReferenceData and
         // Providers:LiveScores select the implementation; Fixture is the only one today and is
         // the default in Development when the key is unset. The snapshot state is always
@@ -122,6 +126,19 @@ public static class DependencyInjection
         services.AddPush(configuration);
         // P3-04: keeps WeekGameSetGames in sync with a game entering/leaving Postponed/Cancelled.
         services.AddDomainEventHandler<GameScheduleChanged, ScheduleChangeHandler>();
+        // P4-04: recomputes WeekSubmissions status and HasUnseenGameChanges when a game enters or
+        // leaves the set (order relative to P7-03's notification handlers does not matter).
+        services.AddDomainEventHandler<GameAddedToSet, GameAddedPickHandler>();
+        services.AddDomainEventHandler<GameRemovedFromSet, GameRemovedPickHandler>();
+
+        // Reminder jobs and event notifications (P7-03, Feature 11 section 11). The two Friday
+        // crons and the per-week Saturday one-shot; GameAddedToSet/GameRemovedFromSet handlers
+        // send immediately.
+        services.AddScheduledJob<FridayMemberReminderJob>();
+        services.AddScheduledJob<FridayCommissionerSummaryJob>();
+        services.AddOneShotJob<SaturdayReminderOneShot>();
+        services.AddDomainEventHandler<GameAddedToSet, GamesAddedNotificationHandler>();
+        services.AddDomainEventHandler<GameRemovedFromSet, GameRemovedNotificationHandler>();
 
         // Every outbound provider call is recorded in ProviderCalls (Features 09 and 12).
         services.TryAddSingleton<IProviderCallRecorder, ProviderCallRecorder>();

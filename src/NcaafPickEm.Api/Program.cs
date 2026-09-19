@@ -21,6 +21,11 @@ try
 
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
 
+    // P8-02: registers proper Windows Service Control Manager integration (start pending/running
+    // status, graceful stop) when launched by the SCM (deploy/install-service.ps1). A no-op
+    // everywhere else (dotnet run, tests, Docker) - it detects the hosting context itself.
+    builder.Host.UseWindowsService();
+
     builder.Host.UseSerilog(SerilogConfiguration.Configure);
 
     builder.Services.AddInfrastructure(builder.Configuration, builder.Environment);

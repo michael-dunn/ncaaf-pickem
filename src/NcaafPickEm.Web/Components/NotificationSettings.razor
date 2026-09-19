@@ -1,0 +1,367 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+@inject IPushApi PushApi
+@inject NavigationManager Nav
+
+@*
+    Notifications section on the Profile page (Feature 11, P7-02). Replaces
+    NotificationsSettingsPlaceholder.razor (P1-03's slot). States, in the order checked:
+    unsupported browser, iOS not installed, server unavailable (503 vapid key), permission
+    denied, off, "off on this device" (browser has a subscription the server does not), on.
+
+    A Development-only `?simulate=ios|off|on|unavailable` query flag (D-106) forces one of these
+    states without touching the browser's real Push API, so headless screenshots do not depend on
+    whether the capturing browser actually supports service workers/push in that context.
+*@
+
+<div class="card notification-settings">
+    <h2>Notifications</h2>
+
+    <ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+    @switch (_state)
+    {
+        case SettingsState.Loading:
+            <LoadingSkeleton Rows="2" />
+            break;
+
+        case SettingsState.Unsupported:
+            <p class="muted">Push notifications aren't supported in this browser.</p>
+            break;
+
+        case SettingsState.IosNotInstalled:
+            <p class="muted">
+                On iPhone and iPad, notifications only work once Pick Em is added to your Home
+                Screen. In Safari:
+            </p>
+            <ol class="notification-ios-steps">
+                <li>Tap the <strong>Share</strong> icon in Safari's toolbar.</li>
+                <li>Scroll down and tap <strong>Add to Home Screen</strong>.</li>
+                <li>Open Pick Em from the icon on your Home Screen, then come back here.</li>
+            </ol>
+            break;
+
+        case SettingsState.Unavailable:
+            <p class="muted">Notifications aren't available on this server right now.</p>
+            break;
+
+        case SettingsState.PermissionDenied:
+            <p class="muted">
+                Notifications are blocked for Pick Em in your browser or device settings. Turn
+                them back on there (Settings &gt; Notifications on iOS, or the site settings icon
+                in your browser's address bar), then reload this page.
+            </p>
+            break;
+
+        case SettingsState.Off:
+            <p class="muted">Get a reminder before picks lock and when the games change.</p>
+            <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="TurnOnAsync">
+                @(_busy ? "Turning on..." : "Turn on notifications")
+            </button>
+            break;
+
+        case SettingsState.OffOnThisDevice:
+            <p class="muted">Notifications are off on this device.</p>
+            <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="TurnOnExistingAsync">
+                @(_busy ? "Turning on..." : "Turn on notifications")
+            </button>
+            break;
+
+        case SettingsState.On:
+            <p class="muted">Notifications are on for this device.</p>
+            <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="TurnOffAsync">
+                @(_busy ? "Turning off..." : "Turn off notifications")
+            </button>
+
+            @if (ShowTestButton)
+            {
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="SendTestAsync">
+                    Send test notification
+                </button>
+
+                @if (_testResult is not null)
+                {
+                    <p class="muted text-sm">Test result: @_testResult</p>
+                }
+            }
+            break;
+    }
+</div>
+
+@code {
+    private enum SettingsState
+    {
+        Loading,
+        Unsupported,
+        IosNotInstalled,
+        Unavailable,
+        PermissionDenied,
+        Off,
+        OffOnThisDevice,
+        On,
+    }
+
+    private IJSObjectReference? _module;
+    private SettingsState _state = SettingsState.Loading;
+    private PushSupportInfo? _support;
+    private PushSubscriptionInfo? _existing;
+    private string? _vapidKey;
+    private string? _error;
+    private bool _busy;
+    private NotificationResult? _testResult;
+
+    /// <summary>
+    /// True when the caller commissions at least one league. The "Send test notification" button
+    /// (Development/Testing only server-side; also compiled out of a Release client build) is
+    /// further gated on this, matching the server's <c>POST /api/push/test</c> requiring
+    /// commissioner of any league.
+    /// </summary>
+    [Parameter]
+    public bool IsCommissioner { get; set; }
+
+#if DEBUG
+    private bool ShowTestButton => IsCommissioner;
+#else
+    private bool ShowTestButton => false;
+#endif
+
+    protected override async Task OnInitializedAsync()
+    {
+#if DEBUG
+        if (TryGetSimulateQueryValue() is string simulate)
+        {
+            ApplySimulationOverride(simulate);
+            return;
+        }
+#endif
+
+        try
+        {
+            _module = await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/push.js");
+            _support = await _module.InvokeAsync<PushSupportInfo>("getSupport");
+
+            if (!_support.Supported)
+            {
+                _state = _support.IsIos && !_support.IsStandalone
+                    ? SettingsState.IosNotInstalled
+                    : SettingsState.Unsupported;
+                return;
+            }
+
+            _vapidKey = await PushApi.GetVapidPublicKeyAsync();
+            if (_vapidKey is null)
+            {
+                _state = SettingsState.Unavailable;
+                return;
+            }
+
+            if (_support.Permission == "denied")
+            {
+                _state = SettingsState.PermissionDenied;
+                return;
+            }
+
+            await RefreshFromExistingSubscriptionAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task RefreshFromExistingSubscriptionAsync()
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        _existing = await _module.InvokeAsync<PushSubscriptionInfo?>("getExistingSubscription");
+        if (_existing is null)
+        {
+            _state = SettingsState.Off;
+            return;
+        }
+
+        bool serverHasIt = await PushApi.GetStatusAsync(_existing.Endpoint);
+        _state = serverHasIt ? SettingsState.On : SettingsState.OffOnThisDevice;
+    }
+
+    private async Task TurnOnAsync()
+    {
+        if (_module is null || _vapidKey is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            PushSubscribeResult result = await _module.InvokeAsync<PushSubscribeResult>("subscribe", _vapidKey);
+
+            if (!result.Granted || result.Endpoint is null || result.P256dh is null || result.Auth is null)
+            {
+                _state = SettingsState.PermissionDenied;
+                return;
+            }
+
+            await PushApi.SubscribeAsync(
+                new PushSubscriptionRequest(result.Endpoint, result.P256dh, result.Auth, result.UserAgent));
+
+            _existing = new PushSubscriptionInfo(result.Endpoint, result.P256dh, result.Auth, result.UserAgent);
+            _state = SettingsState.On;
+            _error = null;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task TurnOnExistingAsync()
+    {
+        if (_existing is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await PushApi.SubscribeAsync(new PushSubscriptionRequest(
+                _existing.Endpoint,
+                _existing.P256dh,
+                _existing.Auth,
+                _existing.UserAgent));
+
+            _state = SettingsState.On;
+            _error = null;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task TurnOffAsync()
+    {
+        if (_existing is null)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await PushApi.UnsubscribeAsync(_existing.Endpoint);
+
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("unsubscribe");
+            }
+
+            _existing = null;
+            _testResult = null;
+            _state = SettingsState.Off;
+            _error = null;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SendTestAsync()
+    {
+        _busy = true;
+        try
+        {
+            _testResult = await PushApi.SendTestAsync();
+            _error = null;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+#if DEBUG
+    // Screenshot-only: never compiled into a Release publish (DEBUG is off there, same guard as
+    // the fake API switch). Reads the query string directly rather than [SupplyParameterFromQuery]
+    // so this stays a plain if-check with zero footprint outside DEBUG.
+    private string? TryGetSimulateQueryValue()
+    {
+        Uri uri = Nav.ToAbsoluteUri(Nav.Uri);
+        string query = uri.Query.TrimStart('?');
+        foreach (string pair in query.Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] parts = pair.Split('=', 2);
+            if (parts.Length == 2 && parts[0] == "simulate")
+            {
+                return Uri.UnescapeDataString(parts[1]);
+            }
+        }
+
+        return null;
+    }
+
+    private void ApplySimulationOverride(string simulate)
+    {
+        switch (simulate)
+        {
+            case "ios":
+                _state = SettingsState.IosNotInstalled;
+                break;
+
+            case "unavailable":
+                _state = SettingsState.Unavailable;
+                break;
+
+            case "on":
+                _existing = new PushSubscriptionInfo(
+                    "https://fake.example/push/screenshot-endpoint",
+                    "screenshot-p256dh",
+                    "screenshot-auth",
+                    "Screenshot UA");
+                _state = SettingsState.On;
+                break;
+
+            default:
+                _state = SettingsState.Off;
+                break;
+        }
+    }
+#endif
+
+    async ValueTask IAsyncDisposable.DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try
+            {
+                await _module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit/runtime is already gone (page navigation tore down the WASM host
+                // reference) - nothing to clean up on the JS side any more.
+            }
+        }
+    }
+}

@@ -81,6 +81,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 - Both `PUT .../gameset-rules` routes (default and week-override) **save only**; they never call `generate` themselves — with one exception (D-082, P3-04): the week-override route also regenerates when `{week}` is the league's current week. The commissioner UI's "Save and generate" action is still two calls (`PUT` then `POST .../generate`); the second call is a no-op on the current week now that the first one already regenerated. The Tuesday auto-regeneration job (P3-04) is the other caller of `generate`.
 - `POST .../gameset/games` and `DELETE .../gameset/games/{gameId}` both return the full `WeekGameSetResponse` (same shape as `generate`/`GET .../gameset`), not a bare `GameSetGameDto` or `204`, so the caller does not need a second round trip to see the updated `LockAtUtc` or games list.
 - Any route carrying `{week}` 404s (`ProblemDetails` title `WeekOutOfRange`) when the week is outside the league's `FirstWeek..LastWeek` range, checked before anything else.
+- **"409 if locked" on every configuration route means frozen, not merely job-run** (D-110): `LockedUtc != null` **or** `now >= LockAtUtc`, the same test picks use. A commissioner cannot regenerate, add, remove, re-rule or re-price a week once its first game has kicked off, whether or not P4-02's lock job has caught up. `WeekGameSetResponse.IsLocked` keeps its narrower meaning ("the lock job has run"), so the UI can still tell the two apart.
 - A 409 for `Locked` or `GameNotEligible` carries no extra body; a 409 for `ExceedsMax` (on `generate` or the manual-add cap) adds `"count"` to the `ProblemDetails` extensions with how many games the configuration would produce (or the set would hold after the add).
 - `GameSetRuleDto.SortOrder` is taken from the PUT body's array order, not from a field the caller sets independently (contrast `PointRuleDto.Priority` below, which comes from each entry).
 
@@ -89,7 +90,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | Method | Route | Scope | Request / Response |
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/point-rules` | Commish | `PointRuleDto[] { RuleId, Priority, RuleType, ConferenceId?, TeamId?, SpreadThreshold?, PointValue, ConferenceName?, TeamName? }` |
-| PUT | `/api/leagues/{leagueId}/point-rules` | Commish | full replace; `Priority` is taken from each entry, not from array order (must be unique — validated); re-resolves all unlocked weeks immediately |
+| PUT | `/api/leagues/{leagueId}/point-rules` | Commish | full replace; `Priority` is taken from each entry, not from array order (must be unique — validated); re-resolves every not-yet-frozen week immediately (a week at or past its `LockAtUtc` is left alone, D-110) |
 | PUT | `/api/leagues/{leagueId}/weeks/{week}/gameset/games/{gameId}/points` | Commish | `SetPointOverrideRequest { PointValue? }` null clears; 409 if locked; re-resolves immediately -> `GameSetGameDto` |
 
 `ConferenceName`/`TeamName` (D-068) are read-only display echoes, added trailing/additive to `PointRuleDto` at P3-05's request while building the config UI in parallel — matches `GameSetRuleDto`'s existing echo fields.
@@ -119,7 +120,9 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/weeks/{week}/dashboard` | Member | Before lock: `DashboardResponse { IsAvailable=false, LockAtUtc }`. After: `{ IsAvailable=true, PointsSoFar, MaxRemaining, ScoresMayBeStale, Games: DashboardGameDto[], EveryoneAgrees: DashboardGameDto[] }` |
 
-`DashboardGameDto { Game: GameSetGameDto, MyTeamId?, MyOutcome: Pending/Won/Lost/NoPick, OppositeCount, OppositePicks: MemberRef[], NoPick: MemberRef[], SwingPoints }`. Ordering rules in `04-Domain-Algorithms.md` section 6. Client polls every 60 s while any game is not Final.
+`DashboardGameDto { Game: GameSetGameDto, MyTeamId?, MyOutcome: InfluenceOutcome (Pending/Won/Lost/NoPick), OppositeCount, OppositePicks: MemberRef[], NoPick: MemberRef[], HomePickers: MemberRef[], AwayPickers: MemberRef[], SwingPoints }`. `InfluenceOutcome` is in `Shared/Enums` (D-014), written by P6-01. `HomePickers`/`AwayPickers` are how the card shows "picks for both teams" when the viewer has no pick on the game; they are filled either way. Ordering rules in `04-Domain-Algorithms.md` section 6. Client polls every 60 s while any game is not Final.
+
+Record definitions live in `Shared/Contracts/Dashboard/` (`DashboardResponse`, `DashboardGameDto` with a nested `Game: GameSetGameDto`, `MemberRef { MembershipId, DisplayName, IsFormer }`); the pre-lock response also carries `LockAtEasternDisplay`.
 
 ## Scoring and corrections (Feature 06)
 
@@ -131,6 +134,8 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 ## Leaderboard (Feature 07)
 
+Record definitions live in `Shared/Contracts/Leaderboard/` (`SeasonLeaderboard`, `SeasonRow`, `WeekLeaderboard`, `WeekRow`, `WeekGrid`, `GridMember`, `GridCell`) with enums `StandingsTrend` and `GridOutcome` in `Shared/Enums`; `SeasonLeaderboard.ThroughWeek` is null before the first scored week. Scoring request/response records live in `Shared/Contracts/Scoring/` (`OverrideResultRequest`, `VoidGameRequest`, `AuditEntry`).
+
 | Method | Route | Scope | Response |
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/leaderboard` | Member | `SeasonLeaderboard { ThroughWeek, Rows: SeasonRow[] { Rank, MembershipId, DisplayName, TotalPoints, PointsBehind, WeeklyWins, Trend: Up/Down/Same/None, IsMe } }` |
@@ -141,9 +146,9 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 | Method | Route | Scope | Response |
 |---|---|---|---|
-| GET | `/api/admin/data-status` | Commish (any league) | `DataStatusResponse { Refreshes: { DataType, LastSuccessUtc?, LastAttemptUtc?, LastError? }[], CfbdCallsThisMonth, CfbdWarning (>= 800), LiveScoreSource (configured), ActiveLiveScoreSource, ScoresMayBeStale, Unmatched: UnmatchedGameDto[], RecentJobs: JobRunDto[], NeedsReview: NeedsReviewGameDto[] { GameId, LeagueId, LeagueName, Week, HomeTeam, AwayTeam, HomeScore?, AwayScore?, Reason } }` (P2-04 additive: `ActiveLiveScoreSource`, `ScoresMayBeStale`, `NeedsReview`; `LiveScoreSource` keeps its P0-06 meaning, the *configured* provider — see D-080) |
+| GET | `/api/admin/data-status` | Commish (any league) | `DataStatusResponse { Refreshes: { DataType, LastSuccessUtc?, LastAttemptUtc?, LastError? }[], CfbdCallsThisMonth, CfbdWarning (>= 800), LiveScoreSource (configured), ActiveLiveScoreSource, ScoresMayBeStale, Unmatched: UnmatchedGameDto[], RecentJobs: JobRunDto[], NeedsReview: NeedsReviewGameDto[] { GameId, LeagueId, LeagueName, Week, HomeTeam, AwayTeam, HomeScore?, AwayScore?, Reason } }` (P2-04 additive: `ActiveLiveScoreSource`, `ScoresMayBeStale`, `NeedsReview`; `LiveScoreSource` keeps its P0-06 meaning, the *configured* provider — see D-080). `NeedsReview` carries two kinds of row (D-100): a `Final` game with no determinable winner (`Reason` `"Tie"`/`"Missing score"`), and a game inside an **already-locked** week that has since been postponed or cancelled and is not yet voided or result-overridden (`Reason` `"Postponed"`/`"Cancelled"`, scores null) |
 | POST | `/api/admin/refresh/{dataType}` | Commish | dataType in Teams, Schedule, Rankings, Lines, Scores; runs synchronously against the current season/week (Scores runs one live-score poll for today's Eastern date regardless of the Saturday window); 202 `ManualRefreshResponse { DataType, Success, Error? }`; audit logged as `ManualRefresh` against the caller's first commissioner league (D-079); 400 for an unrecognized dataType |
-| POST | `/api/admin/unmatched/{id}/resolve` | Commish | `ResolveUnmatchedRequest { GameId }`; creates `TeamAliases(Source = the unmatched row's own Source)` for the raw home/away names, learns `Games.EspnEventId` from the raw payload when the source is Espn and it is not already set, marks `ResolvedUtc`; 204; 404 for an unknown unmatched id; 400 for an unknown `GameId` |
+| POST | `/api/admin/unmatched/{id}/resolve` | Commish | `ResolveUnmatchedRequest { GameId }`; creates `TeamAliases(Source = the unmatched row's own Source)` for the raw home/away names, learns `Games.EspnEventId` from the raw payload when the source is Espn and it is not already set, marks `ResolvedUtc`; 204; 404 for an unknown unmatched id; 400 for an unknown or empty `GameId`; 409 when a raw name is already an alias of a *different* team (D-089) |
 
 ## Push (Feature 11)
 

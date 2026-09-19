@@ -31,7 +31,7 @@ The generator is pure and takes flattened records, not entities: `GameSetGenerat
 5. Exclude any GameId whose existing row has `IsRemoved = 1` (sticky removal).
 6. `ExceedsMax = Count > 50`. Generation is refused (409) when true; preview reports it. The full list is still returned so the preview can show what the rules produced.
 7. Regeneration diff: `Added = new - old active`, `Removed = old active rule-sourced rows the rules no longer select` (manual rows are never in `Removed`), `RemovedIneligible = old active rows of either source whose game left the step 1 pool`. Emit `GameAddedToSet` and `GameRemovedFromSet` events per diff item. Removed rows are marked `IsRemoved = 1` rather than deleted so picks remain, with `RemovedReason = "Rule regeneration"` for `Removed` and `"Schedule change"` for `RemovedIneligible`.
-8. After lock (`LockedUtc != null`) generation is a no-op. The domain function returns `GenerationResult.Locked` - `IsLocked = true`, empty games and empty diff - and the caller turns that into the 409; the Tuesday regeneration job just skips the week.
+8. From the week's lock instant generation is a no-op. "Locked" here means `GameSets/WeekGameSetLockGuard.IsFrozen(set, nowUtc)` = `LockedUtc != null` **or** `nowUtc >= LockAtUtc` (D-110), so a lock job that is running late does not leave a window in which the set can still be regenerated after picks have stopped. The service passes that answer in as `IsLocked`; the domain function returns `GenerationResult.Locked` - `IsLocked = true`, empty games and empty diff - and the caller turns that into the 409. The Tuesday regeneration job just skips the week. Manual add, manual remove and the week rule override use the same guard.
 9. `LockAtUtc` = min `KickoffUtc` over active games, or null. Games are returned ordered by `KickoffUtc` then `GameId`, so two runs over the same inputs produce the same list.
 
 Preview runs steps 1 to 7 with candidate rules and without persisting, and ignores lock: only saving is refused after lock.
@@ -58,9 +58,9 @@ The resolver takes slim input records, not entities (P3-02): `PointGameInfo(Home
 A rule missing the field its type needs (a close-spread rule with no threshold, a team rule with no team) never matches; `PointRuleValidation` is what reports that, and it is the only gate on the 1..100 range. `Resolve` returns whatever value it is handed.
 
 Rules:
-- `ResolvedPointValue` is recomputed for every active game in every unlocked week whenever league default, point rules, or an override change, and on every generation.
+- `ResolvedPointValue` is recomputed for every active game in every week that is not yet frozen whenever league default, point rules, or an override change, and on every generation. "Frozen" is `GameSets/WeekGameSetLockGuard.IsFrozen` again (D-110): the sweep query uses the matching `IsNotFrozen` expression, and the per-game override route 409s from `LockAtUtc` onwards. A league-level `PUT .../point-rules` or default change still succeeds - it just leaves the frozen weeks alone.
 - `IsPointValueElevated = PointValueResolver.IsElevated(ResolvedPointValue, league.DefaultPointValue)` = `ResolvedPointValue > league.DefaultPointValue`. Equal to the default is not elevated.
-- At lock, `SpreadAtLock` = current spread and `ResolvedPointValue` is computed one final time, then frozen. Nothing after lock may change it. Values 1..100 only.
+- At lock, `SpreadAtLock` = the newest `GameLines.Spread` and `ResolvedPointValue` is resolved one final time *against that same spread*, then frozen. Nothing after lock may change either. Values 1..100 only.
 
 ## 4. Picks and submission status (Feature 04)
 
@@ -74,43 +74,54 @@ Given the member's picks over active games in the set, before lock:
 - Changing a pick while `Submitted` keeps `Submitted` (`SubmittedUtc` stays).
 - A game removed from the set: its pick row is kept but ignored; if the member was `Submitted` they stay `Submitted`.
 
-At lock (job): for each active membership at lock time, `Submitted` -> `Locked`; anything else -> `Incomplete`. Members who joined after lock get no row for that week.
+At lock (job): for each active membership at lock time, `Submitted` -> `Locked`; anything else -> `Incomplete`. "Active at lock" is `RemovedUtc == null` and `JoinedUtc <= LockAtUtc` (D-111), so members who joined after lock get no row for that week and members removed before it get none either.
 
-Rules enforced server-side, every call: reject pick/submit when `nowUtc >= LockAtUtc` or `LockedUtc != null` (409). Reject pick where `TeamId` is not home/away of the game (400). Reject picks on removed or voided games (409). Tapping the already-picked team is a no-op success.
+Rules enforced server-side, every call: reject pick/submit when `nowUtc >= LockAtUtc` or `LockedUtc != null` (409) - `GameSets/WeekGameSetLockGuard.IsFrozen`, the same predicate configuration uses since D-110. Reject pick where `TeamId` is not home/away of the game (400). Reject picks on removed or voided games (409). Tapping the already-picked team is a no-op success.
 
 Visibility: `/picks` (all members) and `/grid` return 403 until `LockedUtc != null`.
 
 ## 5. Lock job (Features 04, 05)
 
-Owner: `Infrastructure/Jobs/LockWeekJob` calling `Domain/Picks/WeekLocker`. Tests: `WeekLockerTests`, `LockWeekJobTests`.
+Owner: `Infrastructure/Jobs/LockWeekJob` calling `Domain/Picks/WeekLocker`. Tests: `WeekLockerTests`, `LockWeekJobTests`, `PostLockMutationTests`.
 
-Runs every minute on Saturdays (and Friday night for early-Saturday-ET kickoffs). For each `WeekGameSets` with `LockAtUtc <= now AND LockedUtc IS NULL`:
-1. Snapshot: for each active game set `SpreadAtLock` and final `ResolvedPointValue`.
-2. Set statuses per section 4.
+`LockWeekJob` is an `IOneShotJob` (D-034): the scheduler ticks every minute all week and asks `GetDueAsync` what is outstanding, which is every `WeekGameSets` row with `LockAtUtc <= now AND LockedUtc IS NULL`, offered as `OneShotOccurrence(Key = WeekGameSetId, DueUtc = LockAtUtc)`. There is therefore no window to be inside or outside of: the card's "swept every minute Friday 18:00 to Sunday 03:00 Eastern" is what that query does anyway, and a week whose lock instant passed while the process was down is still offered on the first tick after it comes back. A lock instant that moves before kickoff is a new `DueUtc`, so it is a genuinely new occurrence rather than a duplicate.
+
+For each due week:
+1. Snapshot: for each **active** (neither removed nor voided) game set `SpreadAtLock` = the newest `GameLines.Spread` and `ResolvedPointValue` = `PointValueResolver.Resolve` against that same spread.
+2. Set statuses per section 4: one `WeekSubmissions` row per membership that is active (`RemovedUtc == null`) and had `JoinedUtc <= LockAtUtc` (D-111), `Submitted` -> `Locked` and anything else -> `Incomplete`. The Submitted test is `SubmissionStatusCalculator`'s, so a game added after a member pressed Submit still leaves them Incomplete. Members who joined after the lock instant get no row; rows belonging to memberships that drop out are left as they are, not deleted.
 3. Set `LockedUtc = now` (not LockAtUtc, so late runs are visible in logs).
-4. Emit `WeekLocked`.
+4. Emit `WeekLocked(LeagueId, Week, WeekGameSetId, LockedUtc)` (`Domain/GameSets/Events/`, D-112) through the collector + dispatcher after `SaveChangesAsync`.
 
-Idempotent: a second run finds `LockedUtc` set and skips.
+Idempotent: `RunAsync` reloads the set and returns immediately if `LockedUtc` is already set, and the week stops answering `GetDueAsync` as soon as it is, so the `JobRuns` claim and the reload guard the same thing twice.
+
+The job is *not* what stops picks or configuration: section 4's picks guard and D-110's `WeekGameSetLockGuard` both refuse from `LockAtUtc` onwards, whether or not it has run.
 
 ## 6. Influence dashboard (Feature 05)
 
-Owner: `Dashboard/InfluenceCalculator`. Tests: `InfluenceCalculatorTests` including the Overview worked example verbatim (Michael, Alyson, Dance, Alex, Daniel).
+Owner: `Dashboard/InfluenceCalculator`. Tests: `InfluenceCalculatorTests` including the Overview worked example verbatim (Michael, Alyson, Dance, Alex, Daniel), driven from `influence-example.json`.
 
-Input: viewer membership M, active games in the locked set, all picks by active-at-lock members (former members who were active at lock are included; members who joined after lock are excluded), game statuses.
+The calculator is pure and takes flattened records, not entities (P6-01, D-095): `InfluenceRequest { ViewerMembershipId, Games: InfluenceGame[], MembersActiveAtLock: InfluenceMember[], Picks: InfluencePick[] }` in, `InfluenceResult { Games, EveryoneAgrees, PointsSoFar, MaxRemaining }` out, where each entry is an `InfluenceGameResult { GameSetGameId, MyTeamId?, MyOutcome, OppositeCount, OppositePicks, NoPick, HomePickers, AwayPickers, SwingPoints, WinnerTeamId? }`. `InfluenceOutcome` (Pending / Won / Lost / NoPick) lives in `Shared/Enums` so the DTO can use it too (D-014).
+
+`MembersActiveAtLock` is the caller's answer, not the calculator's: the service lists the memberships with a `WeekSubmissions` row for the set, which is what includes a member who has since been removed (`IsFormer = true`) and excludes one who joined after lock. The calculator never looks past that list - a pick from an unlisted membership is ignored outright - so a post-lock joiner cannot appear even if their pick rows are handed in.
+
+**Voided games are left out entirely** (D-096): out of `Games`, out of `EveryoneAgrees`, and out of both header totals. Section 6 works over the *active* games in the locked set, and a void is how a game stops being active after lock, exactly as in section 7's scoring.
 
 For each game G:
-- `MyTeam` = M's pick or null.
-- `OppositePicks` = members (not M) whose pick is the team M did not pick. If M has no pick, `OppositePicks` is empty and the DTO carries both team's pickers in `NoPick`-adjacent fields as "Picks for both teams" (UI shows both lists); `MyOutcome = NoPick`.
+- `MyTeamId` = M's pick or null.
+- `OppositePicks` = members (not M) whose pick is the team M did not pick. If M has no pick, `OppositePicks` is empty and `MyOutcome = NoPick`; `HomePickers` / `AwayPickers` are what the UI shows instead as "Picks for both teams".
 - `NoPick` = members (not M) with no pick on G.
+- `HomePickers` / `AwayPickers` = members (not M) who picked that side. Always filled, whether or not M has a pick.
 - `OppositeCount = OppositePicks.Count`.
 - `SwingPoints = PointValue * OppositeCount` (informational).
-- `MyOutcome`: `Pending` unless Final: `Won` if winner == MyTeam, `Lost` otherwise; `NoPick` if no pick.
+- `MyOutcome`: `NoPick` when M has no pick; otherwise `Won` / `Lost` as soon as the game has a **determinable winner** (below), and `Pending` until then. A Final tie or a Final game with a score missing has no winner, so it reads `Pending` - the "needs review" path of section 7, not a loss.
 
-Ordering of `Games`: `OppositeCount desc`, then `PointValue desc`, then `KickoffUtc asc`. Games with `OppositeCount == 0` go to `EveryoneAgrees` (same secondary ordering) unless `MyOutcome == NoPick`, which stays in `Games`.
+M never appears in any of their own lists, and everybody else is listed in the order `MembersActiveAtLock` gave.
 
-Header: `PointsSoFar` = sum of PointValue over Final games where Won. `MaxRemaining` = sum of PointValue over non-Final, non-voided games where M has a pick.
+Ordering of `Games`: `OppositeCount desc`, then `PointValue desc`, then `KickoffUtc asc`, then `GameSetGameId asc` so two runs over the same inputs produce the same list (D-099). Games with `OppositeCount == 0` go to `EveryoneAgrees` (same secondary ordering) unless `MyOutcome == NoPick`, which stays in `Games`: a game M skipped has a zero count for want of a pick, not for want of disagreement, and still has both teams' pickers to show.
 
-Winner determination: `ResultOverrideWinnerTeamId` if set, else higher score when `Status == Final`. Tie or missing scores when Final = no winner (flag for review, treat as Pending in the dashboard).
+Header (D-097): `PointsSoFar` = sum of PointValue over games where `MyOutcome == Won`, which matches what section 7 will actually award M. `MaxRemaining` = sum of PointValue over games where M has a pick, the game is not Final, and it has no winner yet - the last clause only bites on a correction applied before a game went Final, and stops one game counting as both earned and still to come.
+
+Winner determination is `Scoring/WinnerResolver` (D-098), shared with sections 7 and 8 and with `GameSetGameDtoMapper` / `LiveScoreApplyService`: `ResultOverrideWinnerTeamId` if set, else the higher score when `Status == Final`. Tie or missing scores when Final = no winner (flag for review, treat as Pending in the dashboard).
 
 ## 7. Scoring (Feature 06)
 
@@ -120,7 +131,7 @@ Trigger: `GameWentFinal`, `ResultOverridden`, `GameVoided`, and a nightly full r
 
 `ScoreWeek(set, picks, memberships)` recomputes `WeekResults` for every membership that was active at lock (has a `WeekSubmissions` row) from scratch, then upserts. Because it is a full recompute from source rows, it is idempotent.
 
-Per member: for each active game with a determinable winner: `Points += PointValue` and `CorrectCount++` if pick == winner. Voided games contribute nothing and are excluded from `ActiveGameCount`. `IsWeekComplete` = every active game is Final with a winner (or voided). When a week first becomes Complete, write `SeasonStandingsSnapshots` for `ThroughWeek = week` (section 8) and emit nothing else.
+Per member: for each active game with a determinable winner - `Scoring/WinnerResolver.Resolve` / `HasDeterminableWinner`, the shared rule P6-01 built and section 6 also uses (D-098); never re-derive it here - `Points += PointValue` and `CorrectCount++` if pick == winner. Voided games contribute nothing and are excluded from `ActiveGameCount`. `IsWeekComplete` = every active game is Final with a winner (or voided). When a week first becomes Complete, write `SeasonStandingsSnapshots` for `ThroughWeek = week` (section 8) and emit nothing else.
 
 Ties/no winner: game stays unscored (0 to everyone) and appears in the data status page under "needs review" until overridden or voided.
 

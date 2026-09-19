@@ -35,7 +35,18 @@ public sealed record PollerWeekSet(Guid LeagueId, DateTime? LockAtUtc, bool AllG
 /// The polling interval for the currently active source, reported even when
 /// <see cref="InWindow"/> is false so a caller always knows what cadence would apply.
 /// </param>
-public sealed record PollerDecision(bool InWindow, DateTimeOffset? NextPollAtUtc, PollerCadence Cadence);
+/// <param name="SaturdayEastern">
+/// The Eastern calendar date the open window covers — always the <em>Saturday</em> the games
+/// kick off on, never "today". A poll at 01:30 ET on Sunday is still polling Saturday's
+/// scoreboard, because ESPN buckets its payload by Eastern date and a 22:30 ET kickoff that goes
+/// final after midnight stays on the Saturday date (Implementation/spikes/providers.md,
+/// 04-Domain-Algorithms.md section 9). Null when there is no window.
+/// </param>
+public sealed record PollerDecision(
+    bool InWindow,
+    DateTimeOffset? NextPollAtUtc,
+    PollerCadence Cadence,
+    DateOnly? SaturdayEastern = null);
 
 /// <summary>
 /// The pure decision logic behind <see cref="SaturdayPoller"/> (04-Domain-Algorithms.md
@@ -109,6 +120,6 @@ public static class SaturdayPollerSchedule
         }
 
         DateTimeOffset nextPoll = nowUtc + TimeSpan.FromMinutes((int)cadence);
-        return new PollerDecision(true, nextPoll, cadence);
+        return new PollerDecision(true, nextPoll, cadence, saturdayEastern);
     }
 }

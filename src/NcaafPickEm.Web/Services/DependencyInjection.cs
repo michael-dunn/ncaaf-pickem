@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddScoped<IPointRulesApi, Fakes.FakePointRulesApi>();
         services.AddScoped<IAdminApi, Fakes.FakeAdminApi>();
         services.AddScoped<IPicksApi, Fakes.FakePicksApi>();
+        services.AddScoped<IPushApi, Fakes.FakePushApi>();
 #else
         services.AddScoped<ILeaguesApi, LeaguesApi>();
         services.AddScoped<ISeasonsApi, SeasonsApi>();
@@ -53,6 +54,7 @@ public static class DependencyInjection
         services.AddScoped<IPointRulesApi, PointRulesApi>();
         services.AddScoped<IAdminApi, AdminApi>();
         services.AddScoped<IPicksApi, PicksApi>();
+        services.AddScoped<IPushApi, PushApi>();
 #endif
 
         return services;

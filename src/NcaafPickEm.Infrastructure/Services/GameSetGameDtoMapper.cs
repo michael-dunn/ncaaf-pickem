@@ -1,4 +1,5 @@
 using NcaafPickEm.Domain.Points;
+using NcaafPickEm.Domain.Scoring;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Reference;
@@ -10,7 +11,8 @@ namespace NcaafPickEm.Infrastructure.Services;
 /// The one place a <see cref="Game"/> (plus its resolved point value and rank) becomes a
 /// <see cref="GameSetGameDto"/>. Every game-bearing endpoint in P3-03 goes through this — and
 /// P4-01/P5-03/P6-02 are expected to reuse it rather than re-derive <c>WinnerTeamId</c> or
-/// <c>IsPointValueElevated</c> by hand.
+/// <c>IsPointValueElevated</c> by hand. The winner itself comes from
+/// <see cref="WinnerResolver"/>, the one place that rule lives.
 /// </summary>
 public static class GameSetGameDtoMapper
 {
@@ -50,7 +52,13 @@ public static class GameSetGameDtoMapper
         ArgumentNullException.ThrowIfNull(game.HomeTeam);
         ArgumentNullException.ThrowIfNull(game.AwayTeam);
 
-        Guid? winnerTeamId = resultOverrideWinnerTeamId ?? WinnerFromScore(game);
+        Guid? winnerTeamId = WinnerResolver.Resolve(
+            resultOverrideWinnerTeamId,
+            game.Status,
+            game.HomeScore,
+            game.AwayScore,
+            game.HomeTeamId,
+            game.AwayTeamId);
 
         return new GameSetGameDto(
             gameSetGameId,
@@ -70,20 +78,5 @@ public static class GameSetGameDtoMapper
             game.Clock,
             isVoided,
             winnerTeamId);
-    }
-
-    private static Guid? WinnerFromScore(Game game)
-    {
-        if (game.Status != GameStatus.Final || game.HomeScore is null || game.AwayScore is null)
-        {
-            return null;
-        }
-
-        if (game.HomeScore == game.AwayScore)
-        {
-            return null;
-        }
-
-        return game.HomeScore > game.AwayScore ? game.HomeTeamId : game.AwayTeamId;
     }
 }

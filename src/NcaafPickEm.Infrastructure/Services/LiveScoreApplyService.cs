@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NcaafPickEm.Domain.Events;
 using NcaafPickEm.Domain.Operations;
+using NcaafPickEm.Domain.Scoring;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Seasons.Events;
 using NcaafPickEm.Infrastructure.Data;
@@ -314,17 +315,18 @@ public sealed class LiveScoreApplyService
 
     /// <summary>
     /// The winning team, or null when the feed reported a tie or no scores - which is the
-    /// "needs review" path in 04-Domain-Algorithms.md section 7, not a win for anybody.
+    /// "needs review" path in 04-Domain-Algorithms.md section 7, not a win for anybody. Only ever
+    /// called on the transition into <see cref="GameStatus.Final"/>, and there is no commissioner
+    /// override to consult at that point: an override is a post-lock correction of what this
+    /// produced.
     /// </summary>
-    private static Guid? DetermineWinner(Game game)
-    {
-        if (game.HomeScore is not int home || game.AwayScore is not int away || home == away)
-        {
-            return null;
-        }
-
-        return home > away ? game.HomeTeamId : game.AwayTeamId;
-    }
+    private static Guid? DetermineWinner(Game game) => WinnerResolver.Resolve(
+        resultOverrideWinnerTeamId: null,
+        game.Status,
+        game.HomeScore,
+        game.AwayScore,
+        game.HomeTeamId,
+        game.AwayTeamId);
 
     private static bool IsDisrupted(GameStatus status) =>
         status is GameStatus.Postponed or GameStatus.Cancelled;

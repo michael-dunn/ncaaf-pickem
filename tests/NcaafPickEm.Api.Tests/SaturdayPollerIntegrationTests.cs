@@ -55,6 +55,24 @@ public sealed class SaturdayPollerIntegrationTests
             allFinalEvents.AddRange(result.Events.OfType<GameWentFinal>());
         }
 
+        // Re-applying the last snapshot must change nothing and raise nothing: that is what makes
+        // the five-minute cadence, the catch-up window and a manual refresh all harmless
+        // (04-Domain-Algorithms.md section 9).
+        await using (AsyncServiceScope scope = factory.Services.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope())
+        {
+            AppDbContext database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            LiveScoreApplyResult replay = await SaturdayPoller.PollOnceAsync(
+                scope.ServiceProvider,
+                database,
+                scope.ServiceProvider.GetRequiredService<TimeProvider>(),
+                FixtureSaturday,
+                scope.ServiceProvider.GetRequiredService<ILogger<SaturdayPoller>>(),
+                CancellationToken.None);
+
+            replay.Changed.Should().Be(0, "snapshot 6 was already applied");
+            replay.Events.Should().BeEmpty("a repeated snapshot raises nothing");
+        }
+
         List<Guid> finalizedGameIds = [.. allFinalEvents.Select(e => e.GameId)];
 
         foreach (Guid gameId in gameIds)
