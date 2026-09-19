@@ -12,7 +12,7 @@ namespace NcaafPickEm.Domain.Leaderboard;
 /// Ranking is always "competition" ranking ("1224"): equal scores share a rank and the next rank
 /// skips. Rows are ordered by score descending, then by display name (case-insensitively), then by
 /// membership id, so two runs over the same inputs produce the same list. The rows this returns are
-/// the <c>Shared/Contracts/Leaderboard</c> records the endpoints serve verbatim (D-140).
+/// the <c>Shared/Contracts/Leaderboard</c> records the endpoints serve verbatim (D-139).
 /// </remarks>
 public static class StandingsCalculator
 {

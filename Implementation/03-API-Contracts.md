@@ -54,7 +54,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | Method | Route | Scope | Response |
 |---|---|---|---|
 | GET | `/api/seasons/{year}/weeks` | Auth | `SeasonWeek[] { Week, StartUtc, EndUtc, IsRegularSeason }`; 404 when the calendar has no such season (P0-05). Weeks are ordered ascending and `Week` may be 0. |
-| GET | `/api/leagues/{leagueId}/weeks` | Member | `LeagueWeek[] { Week, HasGameSet, IsCurrent, IsLocked, IsComplete, LockAtUtc? }` restricted to First..Last. `HasGameSet` is true only when the week holds at least one active game, i.e. a set has actually been generated (D-141) |
+| GET | `/api/leagues/{leagueId}/weeks` | Member | `LeagueWeek[] { Week, HasGameSet, IsCurrent, IsLocked, IsComplete, LockAtUtc? }` restricted to First..Last. `HasGameSet` is true only when the week holds at least one active game, i.e. a set has actually been generated (D-140) |
 
 ## Game set configuration (Feature 02)
 
@@ -103,7 +103,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | PUT | `/api/leagues/{leagueId}/weeks/{week}/picks/me/{gameId}` | Member | `SetPickRequest { TeamId }` -> `MyPicksResponse`; 409 if locked or the week is not current; 400 if team not in game. Re-tapping the picked team is a 200 no-op. |
 | POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/submit` | Member | 409 if any active game unpicked, the week is locked, or the week is not current -> `MyPicksResponse`. Idempotent: a second submit leaves `SubmittedUtc` alone. |
 | POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/ack-changes` | Member | clears `HasUnseenGameChanges`; 204 (also 204 when the caller has no submission row yet) |
-| GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. Members are the ones the lock job settled (`WeekSubmissions.Status` in Locked/Incomplete, D-135/D-143), so a member who picked and then left before lock has no row. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: MemberPickDto[] { GameSetGameId, TeamId? } } }` |
+| GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. Members are the ones the lock job settled (`WeekSubmissions.Status` in Locked/Incomplete, D-135/D-142), so a member who picked and then left before lock has no row. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: MemberPickDto[] { GameSetGameId, TeamId? } } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/picks/status` | Commish | `MemberStatusRow[] { MembershipId, DisplayName, Status, PickedCount, TotalCount }` |
 
 **P4-01 clarifications** (D-084, D-086, D-087, D-088):

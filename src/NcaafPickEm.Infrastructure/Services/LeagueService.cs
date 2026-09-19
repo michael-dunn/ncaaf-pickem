@@ -588,7 +588,7 @@ public sealed class LeagueService
 
         // "Has a game set" means generated, not merely touched: `GetOrCreateWeekSetAsync` writes a
         // WeekGameSets row the first time anything reads the week, and Feature 07 navigates only
-        // weeks "that have had a game set generated" (P5-03, D-141).
+        // weeks "that have had a game set generated" (P5-03, D-140).
         HashSet<int> weeksWithGames =
         [
             .. await _database.WeekGameSetGames
