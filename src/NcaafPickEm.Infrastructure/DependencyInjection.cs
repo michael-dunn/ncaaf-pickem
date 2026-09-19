@@ -8,10 +8,12 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Kiota.Abstractions.Authentication;
 using Microsoft.Kiota.Http.HttpClientLibrary;
+using NcaafPickEm.Domain.GameSets.Events;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Infrastructure.Jobs;
+using NcaafPickEm.Infrastructure.Notifications;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Espn;
@@ -111,6 +113,15 @@ public static class DependencyInjection
         // VAPID pair validates, and adds the PushRetry one-shot job. Missing keys are not a
         // startup failure; see PushRegistrationExtensions.
         services.AddPush(configuration);
+
+        // Reminder jobs and event notifications (P7-03, Feature 11 section 11). The two Friday
+        // crons and the per-week Saturday one-shot; GameAddedToSet/GameRemovedFromSet handlers
+        // send immediately.
+        services.AddScheduledJob<FridayMemberReminderJob>();
+        services.AddScheduledJob<FridayCommissionerSummaryJob>();
+        services.AddOneShotJob<SaturdayReminderOneShot>();
+        services.AddDomainEventHandler<GameAddedToSet, GamesAddedNotificationHandler>();
+        services.AddDomainEventHandler<GameRemovedFromSet, GameRemovedNotificationHandler>();
 
         // Every outbound provider call is recorded in ProviderCalls (Features 09 and 12).
         services.TryAddSingleton<IProviderCallRecorder, ProviderCallRecorder>();
