@@ -242,7 +242,7 @@ public sealed class ScoringService
 
             // Stamped on every recompute, including one that changes no number: the column says
             // when this row was last computed, and the nightly sweep exists precisely to be able
-            // to say "yes, still right" about a week nobody has touched (D-127).
+            // to say "yes, still right" about a week nobody has touched (D-130).
             row.ComputedUtc = nowUtc;
         }
 
