@@ -187,7 +187,7 @@ public sealed class AdminEndpointsTests
     public async Task GivenARawNameAnotherTeamAlreadyOwns_WhenResolved_ThenItIs409AndNothingIsWritten()
     {
         // IX_TeamAliases_Source_Alias is unique across teams, so this must be reported, not left
-        // to surface as a unique-index violation (D-082).
+        // to surface as a unique-index violation (D-089).
         await using SqlTestDatabase testDatabase = await SqlTestDatabase.CreateAsync();
         await using var factory = new ApiFactory(testDatabase.ConnectionString);
 

@@ -389,7 +389,7 @@ public static class AdminEndpoints
     /// Adds one <c>TeamAliases(Source, Alias)</c> row, or returns the 409 explaining why it
     /// cannot. <c>IX_TeamAliases_Source_Alias</c> is unique across teams, so an alias another
     /// team already owns is a conflict to report, not an exception to leak as a 500: the raw name
-    /// and the chosen game disagree, and only a human can say which is wrong (D-082).
+    /// and the chosen game disagree, and only a human can say which is wrong (D-089).
     /// </summary>
     private static async Task<ProblemHttpResult?> AddAliasIfMissingAsync(
         AppDbContext database,
