@@ -1,7 +1,16 @@
 using NcaafPickEm.Api;
 using NcaafPickEm.Api.Endpoints;
 using NcaafPickEm.Infrastructure;
+using NcaafPickEm.Infrastructure.Push;
 using Serilog;
+
+// Hidden maintenance command (P7-01): print a fresh VAPID key pair and exit without touching
+// configuration, the database, or the network. deploy/generate-vapid.ps1 wraps this.
+if (args is [VapidKeyGenerator.CommandName, ..])
+{
+    VapidKeyGenerator.WriteNewKeyPair(Console.Out);
+    return;
+}
 
 // Bootstrap logger: captures failures that happen before the host is built.
 Log.Logger = SerilogConfiguration.CreateBootstrapLogger();
