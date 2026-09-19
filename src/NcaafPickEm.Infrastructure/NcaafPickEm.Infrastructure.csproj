@@ -17,6 +17,8 @@
          IDesignTimeDbContextFactory<AppDbContext> and `dotnet ef` can load it from the build
          output of either this project or the Api startup project. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" />
+    <!-- VAPID key generation and encrypted web-push delivery (Feature 11, P7-01). -->
+    <PackageReference Include="WebPush" />
   </ItemGroup>
 
   <ItemGroup>
