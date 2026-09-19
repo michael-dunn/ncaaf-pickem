@@ -62,21 +62,12 @@ public sealed class LeagueService
         IReadOnlyList<SeasonWeek> seasonWeeks = await _weekSource.GetWeeksAsync(request.SeasonYear, cancellationToken)
             .ConfigureAwait(false);
 
-        if (seasonWeeks.Count == 0)
-        {
-            throw new LeagueRuleViolation(
-                LeagueRuleViolationCode.InvalidWeekRange,
-                $"No season calendar is known for {request.SeasonYear}.");
-        }
-
-        LeagueWeekRange defaultRange = SeasonCalendar.DefaultLeagueRange(seasonWeeks);
-        int firstWeek = request.FirstWeek ?? defaultRange.FirstWeek;
-        int lastWeek = request.LastWeek ?? defaultRange.LastWeek;
-
-        LeagueRules.ValidateWeekRange(firstWeek, lastWeek, seasonWeeks);
+        (int firstWeek, int lastWeek) = ResolveCreateWeekRange(request, seasonWeeks);
 
         DateTime nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-        CurrentWeek currentWeek = SeasonCalendar.CurrentWeekAt(_timeProvider.GetUtcNow(), seasonWeeks);
+        int joinedWeek = seasonWeeks.Count == 0
+            ? firstWeek
+            : SeasonCalendar.CurrentWeekAt(_timeProvider.GetUtcNow(), seasonWeeks).Week;
 
         var league = new League
         {
@@ -98,7 +89,7 @@ public sealed class LeagueService
             UserId = creatorUserId,
             Role = MembershipRole.Commissioner,
             JoinedUtc = nowUtc,
-            JoinedWeek = currentWeek.Week,
+            JoinedWeek = joinedWeek,
         };
 
         _database.Leagues.Add(league);
@@ -106,6 +97,57 @@ public sealed class LeagueService
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return await BuildDetailAsync(league, membership, seasonWeeks, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// The week range a new league gets. With a calendar on file this is the strict rule: the
+    /// requested (or defaulted) weeks must both be regular-season weeks of that season. With
+    /// <em>no</em> calendar it falls back to <see cref="SeasonCalendar.DefaultLeagueRangeWithoutCalendar"/>
+    /// rather than refusing the request (D-165).
+    /// </summary>
+    /// <remarks>
+    /// A fresh deployment has no <c>SeasonWeeks</c> until <c>ReferenceDataBootstrap</c> or the
+    /// Tuesday refresh has run, and refusing every league until then makes the app's first
+    /// action impossible for the operator - the failure P8-06 was raised for. The create-league
+    /// page has always told the commissioner that weeks default to 1..14 in that state; this
+    /// makes the API agree. Once the calendar lands, the commissioner can correct the range in
+    /// league settings, which does validate against it.
+    /// </remarks>
+    private (int FirstWeek, int LastWeek) ResolveCreateWeekRange(
+        CreateLeagueRequest request,
+        IReadOnlyList<SeasonWeek> seasonWeeks)
+    {
+        if (seasonWeeks.Count > 0)
+        {
+            LeagueWeekRange defaultRange = SeasonCalendar.DefaultLeagueRange(seasonWeeks);
+            int first = request.FirstWeek ?? defaultRange.FirstWeek;
+            int last = request.LastWeek ?? defaultRange.LastWeek;
+
+            LeagueRules.ValidateWeekRange(first, last, seasonWeeks);
+            return (first, last);
+        }
+
+        LeagueWeekRange fallback = SeasonCalendar.DefaultLeagueRangeWithoutCalendar;
+        int firstWeek = request.FirstWeek ?? fallback.FirstWeek;
+        int lastWeek = request.LastWeek ?? fallback.LastWeek;
+
+        // Nothing to validate the numbers against, so only the ordering and a non-negative week
+        // can be checked here.
+        if (firstWeek < 0 || firstWeek > lastWeek)
+        {
+            throw new LeagueRuleViolation(
+                LeagueRuleViolationCode.InvalidWeekRange,
+                "First week must not be negative or after last week.");
+        }
+
+        _logger.LogWarning(
+            "No season calendar on file for {SeasonYear}; creating the league with weeks {FirstWeek}-{LastWeek}. "
+            + "Reference data may still be loading on a freshly deployed instance",
+            request.SeasonYear,
+            firstWeek,
+            lastWeek);
+
+        return (firstWeek, lastWeek);
     }
 
     /// <summary>Every league the caller is an active member of.</summary>
