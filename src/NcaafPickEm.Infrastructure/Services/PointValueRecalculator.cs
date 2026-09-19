@@ -46,15 +46,8 @@ public static class PointValueRecalculator
 
         Guid[] gameIds = [.. active.Select(row => row.GameId).Distinct()];
 
-        List<GameLine> lines = await database.GameLines
-            .AsNoTracking()
-            .Where(line => gameIds.Contains(line.GameId))
-            .ToListAsync(cancellationToken)
+        Dictionary<Guid, decimal> currentSpreads = await LoadLatestSpreadsAsync(database, gameIds, cancellationToken)
             .ConfigureAwait(false);
-
-        Dictionary<Guid, decimal> currentSpreads = lines
-            .GroupBy(line => line.GameId)
-            .ToDictionary(group => group.Key, group => group.OrderByDescending(line => line.FetchedUtc).First().Spread);
 
         foreach (WeekGameSetGame row in active)
         {
@@ -80,6 +73,42 @@ public static class PointValueRecalculator
 
             row.ResolvedPointValue = resolution.Value;
         }
+    }
+
+    /// <summary>
+    /// The newest <c>GameLines.Spread</c> for each of <paramref name="gameIds"/>, by
+    /// <c>FetchedUtc</c>. Games with no line are absent from the dictionary.
+    /// </summary>
+    /// <param name="database">The context.</param>
+    /// <param name="gameIds">The games to look up.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <remarks>
+    /// "The current spread" has to mean one thing everywhere: this feeds both the ordinary
+    /// recalculation above and P4-02's <c>SpreadAtLock</c> snapshot, so the value frozen at lock
+    /// is the same one the week was showing a second earlier.
+    /// </remarks>
+    public static async Task<Dictionary<Guid, decimal>> LoadLatestSpreadsAsync(
+        AppDbContext database,
+        IReadOnlyCollection<Guid> gameIds,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(database);
+        ArgumentNullException.ThrowIfNull(gameIds);
+
+        if (gameIds.Count == 0)
+        {
+            return [];
+        }
+
+        List<GameLine> lines = await database.GameLines
+            .AsNoTracking()
+            .Where(line => gameIds.Contains(line.GameId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return lines
+            .GroupBy(line => line.GameId)
+            .ToDictionary(group => group.Key, group => group.OrderByDescending(line => line.FetchedUtc).First().Spread);
     }
 
     /// <summary>Loads the league's point rules, flattened for <see cref="PointValueResolver"/>.</summary>
