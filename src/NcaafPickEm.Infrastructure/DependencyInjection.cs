@@ -16,6 +16,7 @@ using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Espn;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
+using NcaafPickEm.Infrastructure.Push;
 using NcaafPickEm.Infrastructure.Seeding;
 using NcaafPickEm.Infrastructure.Services;
 
@@ -105,6 +106,11 @@ public static class DependencyInjection
         // In-process domain events (P2-03). Collector + dispatcher only; each phase registers its
         // own handlers with services.AddDomainEventHandler<TEvent, THandler>() right here.
         services.AddDomainEvents();
+
+        // Web push (P7-01). Binds Push:*, picks WebPushSender or NullPushSender from whether the
+        // VAPID pair validates, and adds the PushRetry one-shot job. Missing keys are not a
+        // startup failure; see PushRegistrationExtensions.
+        services.AddPush(configuration);
 
         // Every outbound provider call is recorded in ProviderCalls (Features 09 and 12).
         services.TryAddSingleton<IProviderCallRecorder, ProviderCallRecorder>();

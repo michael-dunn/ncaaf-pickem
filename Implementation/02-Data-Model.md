@@ -204,6 +204,10 @@ Status derivation rules are in `04-Domain-Algorithms.md` section 4. `Locked` and
 
 **NotificationLog**: Id, UserId, LeagueId, Week, Type tinyint (FridayReminder, CommissionerSummary, SaturdayReminder, GamesAdded, GameRemoved), SubscriptionId null, Result (Sent, Failed, Expired, Skipped), Error nvarchar(500) null, CreatedUtc. Filtered unique index on (UserId, LeagueId, Week, Type) WHERE Type IN (FridayReminder, CommissionerSummary, SaturdayReminder) enforces once per week.
 
+One row per **notification**, not per device (D-071): that index permits exactly one reminder row per member, league and week, so a member with two devices still has one row. `Result` is the best outcome across their devices (Sent > Failed > Expired > Skipped), and `SubscriptionId` names the device that took delivery, or is null when none did. The row is written before anything is sent, so a duplicate-key violation *is* the once-per-week check.
+
+**PushRetries** (P7-01, D-070): Id, SubscriptionId FK, NotificationLogId FK, PayloadJson nvarchar(1000), TtlSeconds int, Attempt int, NextAttemptUtc, CreatedUtc. One row per outstanding retry; `PushRetryJob` (an `IOneShotJob`) drains it and deletes the row as soon as the send succeeds, the subscription turns out to be gone, or the third attempt fails. Backoff is +1, +5, +15 minutes from `CreatedUtc`. Unique index on (NotificationLogId, SubscriptionId) so one notification queues at most one retry per device; index on NextAttemptUtc for the due query. Migration `Phase7_01_PushRetries`.
+
 ## Operations (Features 09, 12)
 
 **ProviderCalls**: Id, Provider, Operation, StartedUtc, DurationMs, Success bit, StatusCode int null, Error nvarchar(500) null. Monthly CFBD count = COUNT(*) WHERE Provider = 'Cfbd' AND StartedUtc in month.
@@ -221,6 +225,7 @@ Status derivation rules are in `04-Domain-Algorithms.md` section 4. `Locked` and
 - `Picks (WeekGameSetGameId)` for dashboard and grid.
 - `WeekResults (WeekGameSetId)` and `Memberships (LeagueId, RemovedUtc)` for leaderboards.
 - `NotificationLog` filtered unique index as above, named `UX_NotificationLog_WeeklyReminderOncePerWeek`.
+- `PushRetries (NextAttemptUtc)` for the one-shot job's "what is due?" query, and a unique `(NotificationLogId, SubscriptionId)`.
 - `Games (EspnEventId)` unique, filtered `WHERE [EspnEventId] IS NOT NULL` — the column is null until the matcher runs, and SQL Server would otherwise allow only one unmatched game in the table.
 
 ## How this is implemented (P0-02)
