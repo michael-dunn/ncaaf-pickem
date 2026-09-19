@@ -1,0 +1,8 @@
+@* Shown on the dashboard when DashboardResponse.ScoresMayBeStale is true (P6-03). The CFBD
+   fallback provider has no period/clock/postponement info (WorkItems/12-Data-Provider-Evaluation.txt),
+   so this says what is missing rather than just "stale" per AGENT-NOTES "Live scores". *@
+
+<div class="stale-banner" role="status">
+    <strong>Live scores may be delayed.</strong>
+    <span>The backup data source doesn't report game clock or quarter, so scores here may lag behind what's actually happening on the field.</span>
+</div>
