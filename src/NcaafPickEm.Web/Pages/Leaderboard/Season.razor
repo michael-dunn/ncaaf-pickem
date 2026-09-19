@@ -1,0 +1,100 @@
+@page "/leagues/{LeagueId:guid}/leaderboard"
+@inject ILeaguesApi LeaguesApi
+@inject ILeaderboardApi LeaderboardApi
+@inject AppShellState Shell
+
+@*
+    Season leaderboard (P5-04): every current member ranked by total points descending, ties
+    sharing a rank. The viewer's row is highlighted; a trend arrow compares season rank after the
+    two most recent Complete weeks. Former members never appear here (07-Leaderboard.txt).
+*@
+
+<PageTitle>Leaderboard - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null || _leaderboard is null)
+{
+    <LoadingSkeleton Rows="5" />
+}
+else
+{
+    SeasonLeaderboard leaderboard = _leaderboard;
+
+    <h1>Season standings</h1>
+    <p class="muted">@ThroughWeekText(leaderboard.ThroughWeek)</p>
+
+    @if (leaderboard.Rows.Length == 0)
+    {
+        <EmptyState Title="No results yet" Body="Standings appear once the first week is scored." />
+    }
+    else
+    {
+        <div class="card season-leaderboard-scroll">
+            <table class="season-leaderboard">
+                <thead>
+                    <tr>
+                        <th scope="col">Rank</th>
+                        <th scope="col"></th>
+                        <th scope="col">Member</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Behind</th>
+                        <th scope="col">Wins</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (SeasonRow row in leaderboard.Rows)
+                    {
+                        <tr class="@(row.IsMe ? "season-leaderboard-row-me" : "")">
+                            <td>@row.Rank</td>
+                            <td><TrendArrow Trend="row.Trend" /></td>
+                            <td>
+                                @row.DisplayName
+                                @if (row.IsMe)
+                                {
+                                    <span class="season-leaderboard-you">You</span>
+                                }
+                            </td>
+                            <td>@row.TotalPoints</td>
+                            <td>@(row.PointsBehind == 0 ? "–" : row.PointsBehind.ToString())</td>
+                            <td>@row.WeeklyWins</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <a class="btn btn-secondary" href="@($"/leagues/{LeagueId}/weeks/{_league.CurrentWeek}/leaderboard")">
+        This week's leaderboard
+    </a>
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private LeagueDetail? _league;
+    private SeasonLeaderboard? _leaderboard;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Leaderboard");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, _league.CurrentWeek);
+            _leaderboard = await LeaderboardApi.GetSeasonLeaderboardAsync(LeagueId);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string ThroughWeekText(int? throughWeek) =>
+        throughWeek is { } week ? $"Through Week {week}" : "No results yet";
+}
