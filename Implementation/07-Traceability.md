@@ -94,14 +94,15 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 
 | AC group | Task | Proof |
 |---|---|---|
-| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests` |
-| Idempotent; not-final unscored | P5-01 | D `RescoreIsIdempotent`, `NotFinalUnscored` |
-| Weekly total; Complete flag | P5-01 | D |
-| Post-midnight delayed game counts | P5-01, P2-03 | D with fixture snapshot 6 |
+| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `...DidNotPick...` |
+| Idempotent; not-final unscored | P5-01 | D `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `...GivenAGameThatIsNotFinal...`; A `ScoringSnapshotWalkTests` (two extra rescores change nothing) |
+| Weekly total; Complete flag | P5-01 | D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` |
+| Post-midnight delayed game counts | P5-01, P2-03 | D `WeekScorerTests.GivenTheFixturesPostMidnightFinish...` (read out of snapshot 6); A `ScoringSnapshotWalkTests` (snapshot 6 adds the late game's points to week 7) |
+| Nightly recompute keeps results true | P5-01 | A `ScoringServiceTests.GivenALockedWeekNobodyScored...`, `...GivenASetWhoseResultsDisagreeWithIt...` |
 | No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` |
-| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D, UI data page |
-| Void removes from scoring, shows Voided | P5-02, P5-04 | A `VoidTests`, UI grid |
-| Override recalculates; audit logged and visible | P5-02, P5-05 | A `OverrideTests`, UI audit |
+| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D `WeekScorerTests.GivenAFinalTie...`, `...GivenAFinalGameMissingAScore...`; A `ScoringSnapshotWalkTests` (tie on the data-status needs-review list, week stays open) |
+| Void removes from scoring, shows Voided | P5-01, P5-02, P5-04 | D `WeekScorerTests.GivenAVoidedGame...` (x2); A `ScoringServiceTests.GivenAGameIsVoided...`, `...GivenTheTieIsVoided...`; A `VoidTests`, UI grid |
+| Override recalculates; audit logged and visible | P5-01, P5-02, P5-05 | D `WeekScorerTests.GivenATieAnOverrideHasSettled...`; A `ScoringSnapshotWalkTests` (real `ResultOverridden` closes the week); A `OverrideTests`, UI audit |
 | 5-minute checks; score only on Final | P2-04, P2-03 | D `SaturdayPollerScheduleTests`, D `GameMatcherTests.FinalOnlyOnFinal` |
 
 ## Feature 07 - Leaderboard

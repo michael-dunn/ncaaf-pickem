@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.Kiota.Abstractions.Authentication;
 using Microsoft.Kiota.Http.HttpClientLibrary;
 using NcaafPickEm.Domain.GameSets.Events;
+using NcaafPickEm.Domain.Scoring.Events;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Seasons.Events;
 using NcaafPickEm.Infrastructure.Data;
@@ -21,6 +22,7 @@ using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Espn;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 using NcaafPickEm.Infrastructure.Push;
+using NcaafPickEm.Infrastructure.Scoring;
 using NcaafPickEm.Infrastructure.Seeding;
 using NcaafPickEm.Infrastructure.Services;
 
@@ -143,6 +145,18 @@ public static class DependencyInjection
         services.AddOneShotJob<SaturdayReminderOneShot>();
         services.AddDomainEventHandler<GameAddedToSet, GamesAddedNotificationHandler>();
         services.AddDomainEventHandler<GameRemovedFromSet, GameRemovedNotificationHandler>();
+
+        // Week scoring (P5-01, Feature 06). The three triggers of 04-Domain-Algorithms.md section
+        // 7 - a game going final, a commissioner's correction, and the nightly safety sweep - all
+        // funnel into ScoringService's full recompute. IStandingsSnapshotWriter is the seam P5-03
+        // fills: its StandingsCalculator-backed writer registers on an earlier line and this
+        // TryAdd then no-ops, leaving the logging stand-in behind only while P5-03 is unmerged.
+        services.AddScoped<ScoringService>();
+        services.TryAddScoped<IStandingsSnapshotWriter, NoOpStandingsSnapshotWriter>();
+        services.AddDomainEventHandler<GameWentFinal, GameWentFinalScoringHandler>();
+        services.AddDomainEventHandler<ResultOverridden, ResultOverriddenScoringHandler>();
+        services.AddDomainEventHandler<GameVoided, GameVoidedScoringHandler>();
+        services.AddScheduledJob<NightlyRescoreJob>();
 
         // Every outbound provider call is recorded in ProviderCalls (Features 09 and 12).
         services.TryAddSingleton<IProviderCallRecorder, ProviderCallRecorder>();
