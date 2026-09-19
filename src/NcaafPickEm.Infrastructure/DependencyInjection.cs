@@ -74,6 +74,9 @@ public static class DependencyInjection
                 connectionString,
                 sql => sql.MigrationsAssembly(typeof(AppDbContext).Assembly.FullName)));
 
+        // P8-05: the migrator's "still working" flag, which /health/ready reads so a container
+        // mid-migration answers 503 instead of "ready".
+        services.TryAddSingleton<DatabaseStartupState>();
         services.AddHostedService<DatabaseMigratorHostedService>();
 
         string referenceDataProvider = configuration["Providers:ReferenceData"] ?? string.Empty;
