@@ -33,6 +33,12 @@ public sealed class FakeGameSetStore
     private readonly Dictionary<int, WeekRulesResponse> _weekOverrides = [];
     private readonly bool _locked;
 
+    // P4-03: the signed-in caller's own picks on the current week's set, and whether they have
+    // pressed Submit. Kept here (not a separate fake) so FakePicksApi sees the same games
+    // FakeGameSetsApi/FakePointRulesApi already mutate.
+    private readonly Dictionary<Guid, Guid> _myPicks = [];
+    private DateTimeOffset? _submittedUtc;
+
     /// <summary>Conferences referenced by the seeded teams.</summary>
     public ConferenceDto[] Conferences { get; }
 
@@ -45,18 +51,47 @@ public sealed class FakeGameSetStore
     /// <summary>The league's point rules, ordered by <see cref="PointRuleDto.Priority"/>.</summary>
     public List<PointRuleDto> PointRules { get; } = [];
 
-    /// <summary>Reads the <c>?locked=1</c> query flag once at construction.</summary>
-    /// <param name="navigation">Used only to read the query flag at startup.</param>
+    /// <summary>
+    /// Reads the <c>?locked=1</c> query flag once at construction, and the P4-03 <c>?picks=</c>
+    /// flag (<c>empty</c>: no picks at all; <c>submitted</c>: every game picked and Submit
+    /// pressed; anything else, including the flag's absence, leaves one game picked and nothing
+    /// submitted, i.e. "in progress"). <c>?failNextPick=1</c> makes the caller's very next
+    /// <c>SetPickAsync</c> throw as if the request never reached the server (for the offline
+    /// simulation screenshot: this fake never makes a real HTTP call, so there is no network to
+    /// actually take offline).
+    /// </summary>
+    /// <param name="navigation">Used only to read the query flags at startup.</param>
     public FakeGameSetStore(NavigationManager navigation)
     {
         _locked = navigation.Uri.Contains("locked=1", StringComparison.OrdinalIgnoreCase);
+        FailNextPick = navigation.Uri.Contains("failNextPick=1", StringComparison.OrdinalIgnoreCase);
 
         (Conferences, Teams) = SeedReferenceData();
         _games = SeedGames(Teams);
+
+        if (navigation.Uri.Contains("picks=submitted", StringComparison.OrdinalIgnoreCase))
+        {
+            foreach (FakeGame game in _games)
+            {
+                _myPicks[game.GameId] = game.Home.TeamId;
+            }
+
+            _submittedUtc = DateTimeOffset.UtcNow;
+        }
+        else if (!navigation.Uri.Contains("picks=empty", StringComparison.OrdinalIgnoreCase) && _games.Count > 0)
+        {
+            _myPicks[_games[0].GameId] = _games[0].Home.TeamId;
+        }
     }
 
     /// <summary>True when week 7's game set is locked (the <c>?locked=1</c> flag).</summary>
     public bool IsLocked => _locked;
+
+    /// <summary>
+    /// True until the next call to <see cref="SetMyPick"/> consumes it (set/cleared by
+    /// <see cref="FakePicksApi"/> to simulate one request that never reaches the server).
+    /// </summary>
+    public bool FailNextPick { get; set; }
 
     /// <summary>Games currently in the week's set, ordered by kickoff.</summary>
     public IReadOnlyList<FakeGame> Games => _games.OrderBy(g => g.KickoffUtc).ToArray();
@@ -114,6 +149,29 @@ public sealed class FakeGameSetStore
         GameSetGameDto[] games = [.. selected.Select(g => g.ToDto(ResolvePointValue(g)))];
         return new GameSetPreview(games, games.Length, ExceedsMax: games.Length > 50, UsedFallbackRankings: false);
     }
+
+    /// <summary>The caller's own picks: <c>Games.Id</c> -&gt; picked team.</summary>
+    public IReadOnlyDictionary<Guid, Guid> MyPicks => _myPicks;
+
+    /// <summary>When the caller last pressed Submit, or null if never.</summary>
+    public DateTimeOffset? SubmittedUtc => _submittedUtc;
+
+    /// <summary>Sets (or no-ops, re-picking the same team) the caller's pick for one game.</summary>
+    public void SetMyPick(Guid gameId, Guid teamId)
+    {
+        FakeGame game = _games.FirstOrDefault(g => g.GameId == gameId)
+            ?? throw new LeaguesApiException(404, "GameNotInSet");
+
+        if (teamId != game.Home.TeamId && teamId != game.Away.TeamId)
+        {
+            throw new LeaguesApiException(400, "TeamNotInGame");
+        }
+
+        _myPicks[gameId] = teamId;
+    }
+
+    /// <summary>Records that the caller pressed Submit right now.</summary>
+    public void MarkSubmitted(DateTimeOffset nowUtc) => _submittedUtc = nowUtc;
 
     /// <summary>Sets or clears a manual point override on a game currently in the set.</summary>
     public void SetOverride(Guid gameId, int? pointValue)

@@ -1,5 +1,6 @@
 using NcaafPickEm.Shared.Contracts.Invites;
 using NcaafPickEm.Shared.Contracts.Leagues;
+using NcaafPickEm.Shared.Contracts.Seasons;
 
 namespace NcaafPickEm.Web.Services;
 
@@ -28,6 +29,12 @@ public interface ILeaguesApi
 
     /// <summary><c>GET /api/leagues/{leagueId}/members</c>.</summary>
     Task<MemberRow[]> GetMembersAsync(Guid leagueId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// <c>GET /api/leagues/{leagueId}/weeks</c>: every week in the league's First..Last range, for
+    /// the Picks page's prev/next week navigation (P4-03).
+    /// </summary>
+    Task<LeagueWeek[]> GetLeagueWeeksAsync(Guid leagueId, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// <c>PUT /api/leagues/{leagueId}/members/me/display-name</c>. 409 if taken in the league.

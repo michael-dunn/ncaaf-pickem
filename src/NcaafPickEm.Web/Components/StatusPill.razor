@@ -1,6 +1,7 @@
 @* A member's SubmissionStatus as a small colored pill. Null (no game set yet) renders nothing
    visible; callers that need a message for that case show one themselves (05-Conventions.md
-   naming glossary: Submission). *@
+   naming glossary: Submission). Passing PickedCount/TotalCount (P4-03) renders "In Progress n of
+   m" instead of the bare label while InProgress; ignored for every other status. *@
 
 @if (Status is { } status)
 {
@@ -12,10 +13,20 @@
     [Parameter]
     public SubmissionStatus? Status { get; set; }
 
-    private static string Label(SubmissionStatus status) => status switch
+    /// <summary>Picks made so far; shown with <see cref="TotalCount"/> only while <see cref="SubmissionStatus.InProgress"/>.</summary>
+    [Parameter]
+    public int? PickedCount { get; set; }
+
+    /// <summary>Active games in the set; shown with <see cref="PickedCount"/> only while <see cref="SubmissionStatus.InProgress"/>.</summary>
+    [Parameter]
+    public int? TotalCount { get; set; }
+
+    private string Label(SubmissionStatus status) => status switch
     {
         SubmissionStatus.NotStarted => "Not Started",
-        SubmissionStatus.InProgress => "In Progress",
+        SubmissionStatus.InProgress => PickedCount is { } picked && TotalCount is { } total
+            ? $"In Progress {picked} of {total}"
+            : "In Progress",
         SubmissionStatus.Submitted => "Submitted",
         SubmissionStatus.Locked => "Locked",
         SubmissionStatus.Incomplete => "Incomplete",

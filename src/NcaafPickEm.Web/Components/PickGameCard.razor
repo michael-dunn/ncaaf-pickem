@@ -1,0 +1,81 @@
+@* One game on the Picks page (P4-03): two TeamPickButtons, kickoff, point badge, and the game's
+   save/ribbon state. PicksPage owns all the state (which card is saving, what error to show) and
+   passes it in - this component is a dumb renderer plus the tap callback, so PicksPage's
+   optimistic-update/revert logic stays in one place. *@
+
+<div class="pick-game-card @(IsNewSinceSubmit ? "pick-game-card-new" : "")">
+    @if (IsNewSinceSubmit)
+    {
+        <span class="pick-game-ribbon">New</span>
+    }
+
+    <div class="pick-game-top">
+        <KickoffTime Utc="Game.KickoffUtc" />
+        @if (ShowSavedTick)
+        {
+            <span class="pick-game-saved">Saved &#10003;</span>
+        }
+    </div>
+
+    <div class="pick-game-teams">
+        <TeamPickButton Team="Game.AwayTeam"
+                         Rank="Game.AwayRank"
+                         IsSelected="MyTeamId == Game.AwayTeam.TeamId"
+                         Disabled="Disabled"
+                         Outcome="MyTeamId == Game.AwayTeam.TeamId ? Outcome : PickButtonOutcome.None"
+                         OnPick="() => Pick(Game.AwayTeam.TeamId)" />
+        <span class="pick-game-at" aria-hidden="true">@@</span>
+        <TeamPickButton Team="Game.HomeTeam"
+                         Rank="Game.HomeRank"
+                         IsSelected="MyTeamId == Game.HomeTeam.TeamId"
+                         Disabled="Disabled"
+                         Outcome="MyTeamId == Game.HomeTeam.TeamId ? Outcome : PickButtonOutcome.None"
+                         OnPick="() => Pick(Game.HomeTeam.TeamId)" />
+    </div>
+
+    <div class="pick-game-bottom">
+        <span class="pick-game-point-badge @(Game.IsPointValueElevated ? "pick-game-point-badge-elevated" : "")">
+            @Game.PointValue pt@(Game.PointValue == 1 ? "" : "s")
+        </span>
+        @if (!string.IsNullOrWhiteSpace(ErrorMessage))
+        {
+            <span class="pick-game-error" role="alert">@ErrorMessage</span>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The game to render.</summary>
+    [Parameter, EditorRequired]
+    public GameSetGameDto Game { get; set; } = null!;
+
+    /// <summary>The team currently picked for this game, or null.</summary>
+    [Parameter]
+    public Guid? MyTeamId { get; set; }
+
+    /// <summary>True when this game joined the set after the caller last submitted.</summary>
+    [Parameter]
+    public bool IsNewSinceSubmit { get; set; }
+
+    /// <summary>Disables both team buttons (locked week, past week, or the whole page read-only).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Correct/incorrect coloring for whichever button is selected, once the game has a result.</summary>
+    [Parameter]
+    public PickButtonOutcome Outcome { get; set; } = PickButtonOutcome.None;
+
+    /// <summary>Shows a transient "Saved" tick after a successful pick.</summary>
+    [Parameter]
+    public bool ShowSavedTick { get; set; }
+
+    /// <summary>Inline error to show under the point badge (e.g. a failed pick, already reverted by the caller).</summary>
+    [Parameter]
+    public string? ErrorMessage { get; set; }
+
+    /// <summary>Raised with the tapped team's id.</summary>
+    [Parameter]
+    public EventCallback<Guid> OnPick { get; set; }
+
+    private Task Pick(Guid teamId) => Disabled ? Task.CompletedTask : OnPick.InvokeAsync(teamId);
+}

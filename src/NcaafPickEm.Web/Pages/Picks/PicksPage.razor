@@ -1,0 +1,302 @@
+@page "/leagues/{LeagueId:guid}/weeks/{Week:int}/picks"
+@inject ILeaguesApi LeaguesApi
+@inject IPicksApi PicksApi
+@inject AppShellState Shell
+
+@*
+    Picks page (P4-03): the week's games, one big pick per team, sticky submit footer. Optimistic
+    updates - the tapped team shows immediately, PUT runs in the background, and the returned
+    MyPicksResponse (the source of truth) replaces the whole page state on success; a failure
+    reverts just that card and shows the server's ProblemDetails title inline (D-084/D-086). Past
+    weeks and locked weeks render read-only, coloring each pick correct/incorrect once
+    GameSetGameDto.WinnerTeamId is known. One GET on load; no per-card requests.
+*@
+
+<PageTitle>Week @Week picks - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null || _picks is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else
+{
+    MyPicksResponse picks = _picks;
+
+    <div class="picks-header-row">
+        <h1>Week @Week</h1>
+        <div class="picks-week-nav">
+            @if (PrevWeek() is { } prevWeek)
+            {
+                <a class="picks-week-chip" href="@($"/leagues/{LeagueId}/weeks/{prevWeek}/picks")" aria-label="Previous week">&lsaquo;</a>
+            }
+            else
+            {
+                <span class="picks-week-chip picks-week-chip-disabled" aria-hidden="true">&lsaquo;</span>
+            }
+            @if (NextWeek() is { } nextWeek)
+            {
+                <a class="picks-week-chip" href="@($"/leagues/{LeagueId}/weeks/{nextWeek}/picks")" aria-label="Next week">&rsaquo;</a>
+            }
+            else
+            {
+                <span class="picks-week-chip picks-week-chip-disabled" aria-hidden="true">&rsaquo;</span>
+            }
+        </div>
+    </div>
+
+    <div class="card picks-status-card">
+        <StatusPill Status="picks.Status" PickedCount="picks.PickedCount" TotalCount="picks.TotalCount" />
+        <LockTime LockAtUtc="picks.LockAtUtc" EasternDisplay="@picks.LockAtEasternDisplay" NoLockText="No games yet" />
+    </div>
+
+    @if (picks.Games.Length == 0)
+    {
+        <EmptyState Title="No games yet" Body="The commissioner has not set up this week's games." />
+    }
+    else
+    {
+        <div class="card picks-games-card">
+            @foreach (MyPickGameDto myGame in picks.Games)
+            {
+                @if (!myGame.Game.IsVoided)
+                {
+                    Guid gameId = myGame.Game.GameId;
+                    <PickGameCard Game="myGame.Game"
+                                  MyTeamId="myGame.MyTeamId"
+                                  IsNewSinceSubmit="myGame.IsNewSinceSubmit"
+                                  Disabled="IsReadOnly"
+                                  Outcome="OutcomeFor(myGame)"
+                                  ShowSavedTick="_savedTick.TryGetValue(gameId, out bool saved) && saved"
+                                  ErrorMessage="@(_cardError.TryGetValue(gameId, out string? err) ? err : null)"
+                                  OnPick="teamId => PickAsync(myGame, teamId)" />
+                }
+            }
+        </div>
+
+        <SubmitFooter PickedCount="picks.PickedCount"
+                       TotalCount="picks.TotalCount"
+                       IsLocked="picks.IsLocked"
+                       IsSubmitted="picks.Status is SubmissionStatus.Submitted or SubmissionStatus.Locked"
+                       IsSubmitting="_submitting"
+                       OnSubmit="SubmitAsync" />
+    }
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    /// <summary>Week from the route.</summary>
+    [Parameter]
+    public int Week { get; set; }
+
+    private LeagueDetail? _league;
+    private MyPicksResponse? _picks;
+    private LeagueWeek[] _weeks = [];
+    private string? _error;
+    private bool _submitting;
+    private bool _ackPending;
+
+    private readonly Dictionary<Guid, int> _sequence = [];
+    private readonly Dictionary<Guid, string?> _cardError = [];
+    private readonly Dictionary<Guid, bool> _savedTick = [];
+
+    private bool IsReadOnly => _picks is { } p && (p.IsLocked || (_league is { } l && Week != l.CurrentWeek));
+
+    /// <summary>
+    /// The nearest earlier week with a game set (per <see cref="ILeaguesApi.GetLeagueWeeksAsync"/>),
+    /// or, when that call failed, simply the previous week if it is still in range.
+    /// </summary>
+    private int? PrevWeek() => AdjacentWeek(step: -1);
+
+    /// <summary>Same as <see cref="PrevWeek"/>, looking forward.</summary>
+    private int? NextWeek() => AdjacentWeek(step: 1);
+
+    private int? AdjacentWeek(int step)
+    {
+        if (_league is not { } league)
+        {
+            return null;
+        }
+
+        if (_weeks.Length > 0)
+        {
+            return _weeks
+                .Where(w => step < 0 ? w.Week < Week : w.Week > Week)
+                .Where(w => w.HasGameSet)
+                .OrderBy(w => Math.Abs(w.Week - Week))
+                .Select(w => (int?)w.Week)
+                .FirstOrDefault();
+        }
+
+        int candidate = Week + step;
+        return candidate >= league.FirstWeek && candidate <= league.LastWeek ? candidate : null;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle($"Week {Week} picks");
+        _error = null;
+        _sequence.Clear();
+        _cardError.Clear();
+        _savedTick.Clear();
+
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, Week);
+            _picks = await PicksApi.GetMyPicksAsync(LeagueId, Week);
+            _ackPending = _picks.HasUnseenGameChanges;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+
+        try
+        {
+            _weeks = await LeaguesApi.GetLeagueWeeksAsync(LeagueId);
+        }
+        catch (LeaguesApiException)
+        {
+            // Non-fatal: the week chips fall back to plain First..Last bounds.
+            _weeks = [];
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_ackPending || _picks is null)
+        {
+            return;
+        }
+
+        _ackPending = false;
+        try
+        {
+            await PicksApi.AckChangesAsync(LeagueId, Week);
+            _picks = _picks with { HasUnseenGameChanges = false };
+            StateHasChanged();
+        }
+        catch (LeaguesApiException)
+        {
+            // Best-effort: the "New" ribbon simply reappears on the next load.
+        }
+    }
+
+    private static PickButtonOutcome OutcomeFor(MyPickGameDto game)
+    {
+        if (game.Game.WinnerTeamId is not { } winnerTeamId || game.MyTeamId is not { } myTeamId)
+        {
+            return PickButtonOutcome.None;
+        }
+
+        return myTeamId == winnerTeamId ? PickButtonOutcome.Correct : PickButtonOutcome.Incorrect;
+    }
+
+    private async Task PickAsync(MyPickGameDto myGame, Guid teamId)
+    {
+        if (_picks is null || IsReadOnly || myGame.MyTeamId == teamId)
+        {
+            return;
+        }
+
+        Guid gameId = myGame.Game.GameId;
+        int mySequence = (_sequence.TryGetValue(gameId, out int current) ? current : 0) + 1;
+        _sequence[gameId] = mySequence;
+        _cardError.Remove(gameId);
+        _savedTick.Remove(gameId);
+
+        MyPicksResponse beforePick = _picks;
+        _picks = WithOptimisticPick(_picks, gameId, teamId);
+        StateHasChanged();
+
+        try
+        {
+            MyPicksResponse result = await PicksApi.SetPickAsync(LeagueId, Week, gameId, teamId);
+            if (!IsCurrent(gameId, mySequence))
+            {
+                return;
+            }
+
+            _picks = result;
+            _savedTick[gameId] = true;
+            StateHasChanged();
+            _ = ClearSavedTickAsync(gameId, mySequence);
+        }
+        catch (LeaguesApiException ex)
+        {
+            if (!IsCurrent(gameId, mySequence))
+            {
+                return;
+            }
+
+            _picks = beforePick;
+            _cardError[gameId] = FriendlyMessage(ex);
+            StateHasChanged();
+        }
+    }
+
+    private async Task ClearSavedTickAsync(Guid gameId, int mySequence)
+    {
+        await Task.Delay(1500);
+        if (IsCurrent(gameId, mySequence))
+        {
+            _savedTick[gameId] = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool IsCurrent(Guid gameId, int mySequence) =>
+        _sequence.TryGetValue(gameId, out int latest) && latest == mySequence;
+
+    private async Task SubmitAsync()
+    {
+        if (_picks is null || IsReadOnly || _submitting)
+        {
+            return;
+        }
+
+        _submitting = true;
+        _error = null;
+        try
+        {
+            _picks = await PicksApi.SubmitAsync(LeagueId, Week);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex is { StatusCode: 409, Message: "IncompletePicks", Count: { } count }
+                ? $"Pick {count} more game{(count == 1 ? "" : "s")} before submitting."
+                : FriendlyMessage(ex);
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private static string FriendlyMessage(LeaguesApiException ex) => ex.Message switch
+    {
+        "Offline" => "Couldn't save your pick. Check your connection and try again.",
+        "Locked" => "Picks are locked for this week.",
+        "WeekNotCurrent" => "This week is not open for picks.",
+        "GameNotActive" => "This game is no longer active.",
+        "TeamNotInGame" => "That team is not in this game.",
+        "IncompletePicks" when ex.Count is { } count =>
+            $"Pick {count} more game{(count == 1 ? "" : "s")} before submitting.",
+        _ => ex.Message,
+    };
+
+    private static MyPicksResponse WithOptimisticPick(MyPicksResponse picks, Guid gameId, Guid teamId)
+    {
+        MyPickGameDto[] games =
+        [
+            .. picks.Games.Select(g => g.Game.GameId == gameId ? g with { MyTeamId = teamId } : g),
+        ];
+        int pickedCount = games.Count(g => g.MyTeamId is not null && !g.Game.IsVoided);
+        return picks with { Games = games, PickedCount = pickedCount };
+    }
+}
