@@ -151,10 +151,11 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | AC group | Task | Proof |
 |---|---|---|
 | Opt in stores subscription; opt out deletes; iOS install guidance; per-member | P7-01, P7-02 | A `PushSubscriptionTests`, UI |
-| In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed | P7-03 | A `ReminderJobTests` x5 |
+| In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed on lock move | P7-03 | A `ReminderJobTests` (recipients by status, 7:59 submit, no set, locked week, twice-in-a-week skip, real-cron test), `SaturdayOneShotTests` (due at `LockAtUtc-1h`, not due before, submitted-by-then, locked week, lock move -> new occurrence) |
 | VAPID delivery; 404/410 cleanup; retries; log | P7-01 | A with fake push transport |
 | Text excludes others' picks; opens standalone | P7-02 | Review, manual |
-| Catalog items 1 to 5 | P7-03 | A per type |
+| Catalog #1/#3 (member reminders) and #2 (commissioner summary, only when someone unsubmitted, names listed) | P7-03 | A `ReminderJobTests` |
+| Catalog #4 (games added, coalesced, previously-Submitted members only) and #5 (game removed, members with a pick only) | P7-03 | A `EventNotificationTests` |
 
 ## Feature 12 - Data Provider Evaluation
 
