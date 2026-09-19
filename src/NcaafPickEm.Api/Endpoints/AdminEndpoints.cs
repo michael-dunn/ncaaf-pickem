@@ -122,7 +122,9 @@ public static class AdminEndpoints
                 item.AwayTeam,
                 null,
                 null,
-                item.Status.ToString())));
+                item.Status.ToString(),
+                item.WeekGameSetId,
+                item.GameSetGameId)));
 
         return TypedResults.Ok(new DataStatusResponse(
             refreshRows,
@@ -151,6 +153,8 @@ public static class AdminEndpoints
                     || setGame.Game.HomeScore == setGame.Game.AwayScore))
             .Select(setGame => new
             {
+                setGame.Id,
+                setGame.WeekGameSetId,
                 setGame.GameId,
                 setGame.WeekGameSet!.LeagueId,
                 LeagueName = setGame.WeekGameSet.League!.Name,
@@ -171,7 +175,9 @@ public static class AdminEndpoints
             row.AwayTeam,
             row.HomeScore,
             row.AwayScore,
-            row.HomeScore is null || row.AwayScore is null ? "Missing score" : "Tie"))];
+            row.HomeScore is null || row.AwayScore is null ? "Missing score" : "Tie",
+            row.WeekGameSetId,
+            row.Id))];
     }
 
     private static async Task<Results<Accepted<ManualRefreshResponse>, ProblemHttpResult>> RefreshAsync(
