@@ -1,0 +1,47 @@
+# Keep the build context small and deterministic. Anything the multi-stage build in ./Dockerfile
+# does not need is excluded here. Note the build DOES need every *.csproj (including the ones
+# under tests/) for its layer-cached restore step, so directories are pruned by their build
+# output rather than wholesale.
+
+# Build output and caches
+**/bin/
+**/obj/
+**/out/
+artifacts/
+publish/
+**/TestResults/
+**/*.binlog
+
+# Version control, CI definitions, and agent scratch
+.git/
+.gitattributes
+.github/
+.claude/
+.vs/
+.vscode/
+.idea/
+
+# Plan material: never read by the build
+Implementation/
+WorkItems/
+
+# Host-side deployment material. The compose files and shell scripts are copied onto the server
+# by hand; baking them into the image would only invalidate layers.
+deploy/
+
+# Local configuration and secrets - these must never reach a layer
+**/appsettings.Development.json
+**/appsettings.Local.json
+**/appsettings.Production.json
+**/.env
+**/.env.*
+**/*.pfx
+**/*.key
+**/secrets.json
+
+# Logs and OS noise
+**/logs/
+.DS_Store
+Thumbs.db
+desktop.ini
+node_modules/
