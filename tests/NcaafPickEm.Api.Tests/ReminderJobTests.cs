@@ -9,6 +9,7 @@ using NcaafPickEm.Domain.Notifications;
 using NcaafPickEm.Domain.Picks;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Users;
+using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Infrastructure.Notifications;
 using NcaafPickEm.Infrastructure.Push;
@@ -304,6 +305,44 @@ public sealed class ReminderJobTests : IAsyncLifetime
             .OfType<FridayCommissionerSummaryJob>().Single();
 
         await job.RunAsync(FridayNinePmEasternUtc, CancellationToken.None);
+    }
+
+    /// <summary>
+    /// P8-01 / D-191: off-season guard. <c>SeasonCalendar.CurrentWeekAt</c> clamps to the first or
+    /// last week outside a week window, so a league whose final week was never locked used to keep
+    /// drawing a Friday reminder every week of the off-season. Driving
+    /// <see cref="ReminderRecipients.CurrentUnlockedSetsAsync"/> directly is what lets one test
+    /// compare an in-season instant with an off-season one against the same seeded data.
+    /// </summary>
+    [Theory]
+    // Friday 2026-07-03, months before the fixture calendar's first week: BeforeSeason.
+    [InlineData("2026-07-03T00:00:00Z", false)]
+    // Friday 2027-03-05, months after the last: SeasonOver.
+    [InlineData("2027-03-05T00:00:00Z", false)]
+    // The suite's own in-season Friday, as a control.
+    [InlineData("2026-10-17T00:00:00Z", true)]
+    public async Task GivenAnInstantOutsideTheSeason_WhenResolvingCurrentSets_ThenTheLeagueIsSkipped(
+        string nowUtcText,
+        bool expectListed)
+    {
+        League league = await CreateLeagueAsync();
+        WeekGameSet set = await SeedWeekSetAsync(league.Id, 7, [700001]);
+        set.LockedUtc.Should().BeNull();
+
+        var nowUtc = DateTime.Parse(nowUtcText, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal
+            | DateTimeStyles.AssumeUniversal);
+
+        await using AsyncServiceScope scope = Factory.Services
+            .GetRequiredService<IServiceScopeFactory>()
+            .CreateAsyncScope();
+
+        IReadOnlyList<ReminderRecipients.CurrentSet> sets = await ReminderRecipients.CurrentUnlockedSetsAsync(
+            scope.ServiceProvider.GetRequiredService<AppDbContext>(),
+            scope.ServiceProvider.GetRequiredService<ISeasonWeekSource>(),
+            nowUtc,
+            CancellationToken.None);
+
+        sets.Any(candidate => candidate.LeagueId == league.Id).Should().Be(expectListed);
     }
 
     private async Task<League> CreateLeagueAsync()
