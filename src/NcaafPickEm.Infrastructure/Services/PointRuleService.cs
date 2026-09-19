@@ -18,12 +18,20 @@ namespace NcaafPickEm.Infrastructure.Services;
 public sealed class PointRuleService
 {
     private readonly AppDbContext _database;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<PointRuleService> _logger;
 
     /// <summary>Creates the service.</summary>
-    public PointRuleService(AppDbContext database, ILogger<PointRuleService> logger)
+    /// <param name="database">The context.</param>
+    /// <param name="timeProvider">
+    /// The clock, for <see cref="WeekGameSetLockGuard"/>: a week freezes at its lock instant, not
+    /// when the lock job gets to it (D-110).
+    /// </param>
+    /// <param name="logger">Log sink.</param>
+    public PointRuleService(AppDbContext database, TimeProvider timeProvider, ILogger<PointRuleService> logger)
     {
         _database = database;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -100,8 +108,8 @@ public sealed class PointRuleService
     }
 
     /// <summary>
-    /// Sets or clears a commissioner's manual point value for one game. 409 when the week is
-    /// already locked.
+    /// Sets or clears a commissioner's manual point value for one game. 409 once the week is
+    /// frozen (<see cref="WeekGameSetLockGuard.IsFrozen"/>).
     /// </summary>
     public async Task<GameSetGameDto> SetOverrideAsync(
         Guid leagueId,
@@ -118,9 +126,11 @@ public sealed class PointRuleService
             .ConfigureAwait(false)
             ?? throw new GameSetRuleViolation(GameSetRuleViolationCode.GameNotFound, "No game set for this week yet.");
 
-        if (set.IsLocked)
+        if (WeekGameSetLockGuard.IsFrozen(set, _timeProvider.GetUtcNow().UtcDateTime))
         {
-            throw new GameSetRuleViolation(GameSetRuleViolationCode.Locked, "This week is already locked.");
+            throw new GameSetRuleViolation(
+                GameSetRuleViolationCode.Locked,
+                "This week is locked: its games and point values froze at the first kickoff.");
         }
 
         WeekGameSetGame row = await _database.WeekGameSetGames
@@ -160,10 +170,17 @@ public sealed class PointRuleService
     }
 
     /// <summary>
-    /// Recomputes <c>ResolvedPointValue</c> for every active game in every unlocked week of the
-    /// league, against its current rules and default. Called after a rules/default change; never
-    /// touches a locked week.
+    /// Recomputes <c>ResolvedPointValue</c> for every active game in every still-editable week of
+    /// the league, against its current rules and default. Called after a rules/default change.
     /// </summary>
+    /// <remarks>
+    /// A frozen week is excluded by the query itself, through
+    /// <see cref="WeekGameSetLockGuard.IsNotFrozen"/> — so a rules change mid-Saturday cannot
+    /// rewrite the value a week was already being played for, whether or not the lock job has
+    /// caught up (D-110). The recalculator trusts the rows it is handed and knows nothing of lock.
+    /// </remarks>
+    /// <param name="leagueId">The league.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task ReResolveUnlockedWeeksAsync(Guid leagueId, CancellationToken cancellationToken)
     {
         League league = await _database.Leagues
@@ -172,7 +189,8 @@ public sealed class PointRuleService
             .ConfigureAwait(false);
 
         List<WeekGameSet> unlockedSets = await _database.WeekGameSets
-            .Where(set => set.LeagueId == leagueId && set.LockedUtc == null)
+            .Where(set => set.LeagueId == leagueId)
+            .Where(WeekGameSetLockGuard.IsNotFrozen(_timeProvider.GetUtcNow().UtcDateTime))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
