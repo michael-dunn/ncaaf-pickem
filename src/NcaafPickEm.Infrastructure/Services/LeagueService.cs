@@ -586,6 +586,20 @@ public sealed class LeagueService
             .ToDictionaryAsync(set => set.Week, cancellationToken)
             .ConfigureAwait(false);
 
+        // "Has a game set" means generated, not merely touched: `GetOrCreateWeekSetAsync` writes a
+        // WeekGameSets row the first time anything reads the week, and Feature 07 navigates only
+        // weeks "that have had a game set generated" (P5-03, D-140).
+        HashSet<int> weeksWithGames =
+        [
+            .. await _database.WeekGameSetGames
+                .AsNoTracking()
+                .Where(row => row.WeekGameSet!.LeagueId == league.Id && !row.IsRemoved)
+                .Select(row => row.WeekGameSet!.Week)
+                .Distinct()
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false)
+        ];
+
         var weeks = new LeagueWeekDto[league.LastWeek - league.FirstWeek + 1];
         for (int week = league.FirstWeek; week <= league.LastWeek; week++)
         {
@@ -593,7 +607,7 @@ public sealed class LeagueService
 
             weeks[week - league.FirstWeek] = new LeagueWeekDto(
                 week,
-                HasGameSet: set is not null,
+                HasGameSet: set is not null && weeksWithGames.Contains(week),
                 IsCurrent: week == currentWeek,
                 IsLocked: set?.IsLocked ?? false,
                 IsComplete: set?.IsComplete ?? false,

@@ -1,0 +1,29 @@
+.week-leaderboard-in-progress {
+    display: inline-block;
+    margin-bottom: var(--space-3);
+}
+
+.week-leaderboard-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0;
+}
+
+.week-leaderboard {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.week-leaderboard th,
+.week-leaderboard td {
+    padding: var(--space-2) var(--space-1);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.week-leaderboard-row-me {
+    background: var(--color-accent-soft);
+    font-weight: 650;
+}

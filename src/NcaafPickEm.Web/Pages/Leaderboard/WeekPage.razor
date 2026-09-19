@@ -1,0 +1,114 @@
+@page "/leagues/{LeagueId:guid}/weeks/{Week:int}/leaderboard"
+@inject ILeaguesApi LeaguesApi
+@inject ILeaderboardApi LeaderboardApi
+@inject NavigationManager Navigation
+@inject AppShellState Shell
+
+@*
+    Weekly leaderboard (P5-04): who won a specific week. "In Progress" while the week is not yet
+    Complete (standings provisional); a former member still shows for a week they participated
+    in (07-Leaderboard.txt "Former members").
+*@
+
+<PageTitle>Week @Week leaderboard - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null || _weeks is null || _leaderboard is null)
+{
+    <LoadingSkeleton Rows="5" />
+}
+else
+{
+    WeekLeaderboard leaderboard = _leaderboard;
+
+    <h1>Week @Week leaderboard</h1>
+
+    <WeekNav Week="Week" Weeks="_weeks" OnNavigate="NavigateToWeek" />
+
+    @if (!leaderboard.IsComplete)
+    {
+        <span class="status-pill status-pill-warning week-leaderboard-in-progress">In Progress</span>
+    }
+
+    @if (leaderboard.Rows.Length == 0)
+    {
+        <EmptyState Title="No results yet" Body="This week has not been scored yet." />
+    }
+    else
+    {
+        <div class="card week-leaderboard-scroll">
+            <table class="week-leaderboard">
+                <thead>
+                    <tr>
+                        <th scope="col">Rank</th>
+                        <th scope="col"></th>
+                        <th scope="col">Member</th>
+                        <th scope="col">Points</th>
+                        <th scope="col">Correct</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (WeekRow row in leaderboard.Rows)
+                    {
+                        <tr class="@(row.IsMe ? "week-leaderboard-row-me" : "")">
+                            <td>@row.Rank</td>
+                            <td>
+                                @if (row.IsWinner)
+                                {
+                                    <span aria-label="Weekly winner" title="Weekly winner">&#127942;</span>
+                                }
+                            </td>
+                            <td>
+                                @row.DisplayName@(row.IsFormer ? " " : "")
+                                @if (row.IsFormer)
+                                {
+                                    <span class="muted text-sm">(former)</span>
+                                }
+                            </td>
+                            <td>@row.Points</td>
+                            <td>@row.Correct/@row.Total</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <a class="btn btn-secondary" href="@($"/leagues/{LeagueId}/weeks/{Week}/grid")">View the grid</a>
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    /// <summary>Week from the route.</summary>
+    [Parameter]
+    public int Week { get; set; }
+
+    private LeagueDetail? _league;
+    private LeagueWeek[]? _weeks;
+    private WeekLeaderboard? _leaderboard;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle($"Week {Week} leaderboard");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, Week);
+            _weeks = await LeaguesApi.GetLeagueWeeksAsync(LeagueId);
+            _leaderboard = await LeaderboardApi.GetWeekLeaderboardAsync(LeagueId, Week);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void NavigateToWeek(int week) =>
+        Navigation.NavigateTo($"/leagues/{LeagueId}/weeks/{week}/leaderboard");
+}

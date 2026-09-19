@@ -1,0 +1,36 @@
+.season-leaderboard-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 0;
+}
+
+.season-leaderboard {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.season-leaderboard th,
+.season-leaderboard td {
+    padding: var(--space-2) var(--space-1);
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+}
+
+.season-leaderboard-you {
+    display: inline-block;
+    margin-left: var(--space-1);
+    padding: 0 var(--space-1);
+    border-radius: var(--radius-sm);
+    background: var(--color-brand);
+    color: var(--color-text-inverse);
+    font-size: 0.65rem;
+    font-weight: 700;
+    vertical-align: middle;
+}
+
+.season-leaderboard-row-me {
+    background: var(--color-accent-soft);
+    font-weight: 650;
+}

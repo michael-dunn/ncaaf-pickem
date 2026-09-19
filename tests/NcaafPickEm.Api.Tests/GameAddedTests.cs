@@ -148,9 +148,12 @@ public sealed class GameAddedTests : IAsyncLifetime
         using HttpClient member = _app.Factory.CreateMutatingClientAs(scenario.MemberUserId);
         await PickAllAsync(member, scenario);
         await SubmitAsync(member, scenario);
-        WeekSubmission before = await ReadSubmissionAsync(scenario, scenario.MemberMembershipId);
 
         await scenario.MarkLockedAsync(_app.Factory, _app.NowUtc.UtcDateTime);
+
+        // Read the row the lock left behind (Submitted -> Locked): what must not move afterwards is
+        // the locked verdict, not the pre-lock status.
+        WeekSubmission before = await ReadSubmissionAsync(scenario, scenario.MemberMembershipId);
 
         // No live path can raise GameAddedToSet against an already-locked week (every raise site
         // refuses before saving), so the handler's own defensive guard is exercised directly.

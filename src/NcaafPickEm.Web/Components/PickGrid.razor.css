@@ -1,0 +1,135 @@
+/* Horizontal scroll lives ONLY in this container (05-Conventions.md: grids are their own
+   overflow-x:auto containers, no page-level horizontal scroll). Nothing between here and the
+   sticky cells may set its own 'overflow' - that breaks position:sticky on iOS Safari. */
+.pick-grid-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+}
+
+.pick-grid {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: max-content;
+    min-width: 100%;
+    font-size: var(--text-sm);
+}
+
+.pick-grid th,
+.pick-grid td {
+    padding: var(--space-2);
+    border-bottom: 1px solid var(--color-border);
+    text-align: center;
+    white-space: nowrap;
+}
+
+/* Pinned first column: matchup + result. -webkit-sticky is required for iOS Safari. */
+.pick-grid-pinned {
+    position: -webkit-sticky;
+    position: sticky;
+    left: 0;
+    z-index: 2;
+    background: var(--color-surface);
+    text-align: left;
+    border-right: 1px solid var(--color-border);
+    min-width: 6.5rem;
+}
+
+.pick-grid-corner {
+    z-index: 3;
+    top: 0;
+}
+
+/* Sticky header row. */
+.pick-grid thead th {
+    position: -webkit-sticky;
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--color-surface-alt);
+    font-weight: 650;
+    min-height: var(--tap-min);
+}
+
+.pick-grid thead th.pick-grid-pinned {
+    z-index: 3;
+}
+
+.pick-grid-member {
+    min-width: 4.75rem;
+    max-width: 4.75rem;
+    cursor: pointer;
+}
+
+/* Member names are abbreviated to fit ~56px columns; tap the header to expand one. Columns are
+   wide enough for a 44px tap target (05-Conventions.md), so even a handful of members overflows
+   a 375px screen - that is the point, not an accident. */
+.pick-grid-member-name {
+    display: inline-block;
+    max-width: 4.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+}
+
+.pick-grid-member-name-expanded {
+    max-width: none;
+    white-space: normal;
+}
+
+.pick-grid-former {
+    display: block;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    font-weight: 400;
+}
+
+.pick-grid-matchup {
+    font-weight: 600;
+}
+
+.pick-grid-row-voided .pick-grid-matchup,
+.pick-grid-row-voided .pick-grid-result {
+    color: var(--color-text-muted);
+}
+
+.pick-grid-row-voided {
+    background: var(--color-surface-alt);
+}
+
+.pick-grid-row-voided .pick-grid-pinned {
+    background: var(--color-surface-alt);
+}
+
+.pick-grid-cell {
+    font-weight: 650;
+}
+
+.pick-grid-cell-correct {
+    background: #e3f4ea;
+    color: var(--color-success);
+}
+
+.pick-grid-cell-incorrect {
+    background: var(--color-accent-soft);
+    color: var(--color-danger);
+}
+
+.pick-grid-cell-pending {
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+}
+
+.pick-grid-cell-nopick {
+    background: var(--color-surface);
+    color: var(--color-text-muted);
+}
+
+.pick-grid-cell-voided {
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+    text-decoration: line-through;
+}
