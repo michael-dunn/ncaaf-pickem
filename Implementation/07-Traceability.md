@@ -81,14 +81,14 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 |---|---|---|
 | Lock = earliest Saturday kickoff | P3-01, P0-05 | D `LockAtIsEarliestKickoff` |
 | Week locks at that instant: statuses settled, values frozen, `WeekLocked` raised | P4-02 | D `WeekLockerTests`, A `LockWeekJobTests` (due/not due, catch-up, idempotent second run, late joiner, event raised once, scheduler registration) |
-| Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.BeforeLock`, UI |
+| Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.GivenAWeekWithNoGameSet_WhenAMemberAsksForTheDashboard_ThenItIsUnavailableWithNoLockTime`, `.GivenAGeneratedSetPastItsLockInstant_WhenTheJobHasNotRun_ThenTheDashboardIsStillUnavailable`, `.GivenTheOverviewExample_WhenDanceAsksForHerDashboard_ThenItMatchesTheWorkedExample` (post-lock available); UI |
 | Opposite picks definition; No Pick group; viewer excluded; viewer no-pick case | P6-01 | D `InfluenceCalculatorTests.GivenTheWorkedExample_*` (the Overview example, from `influence-example.json`), `.GivenTheViewerPicked_WhenBuildingTheDashboard_ThenTheyAreInNoneOfTheirOwnLists`, `.GivenAMemberWithNoPick_*`, `.GivenTheViewerDidNotPick_WhenBuildingTheDashboard_ThenItStaysInGamesWithBothTeamsLists` |
 | Only members active at lock are listed (former in, post-lock joiner out); voided games excluded | P6-01 | D `InfluenceCalculatorTests.GivenAFormerMemberWhoWasActiveAtLock_*`, `.GivenAMemberWhoJoinedAfterLock_*`, `.GivenAVoidedGame_*` |
 | Ordering and tie-breaks; Everyone-agrees collapsed | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenGamesWithDifferentOpposition_*`, `.GivenTwoGamesAlikeInEveryOrderingKey_*`, `.GivenAGameEverybodyAgreesOn_*`; UI |
 | Game status display; Won/Lost marking | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenAFinalScore_*`, `.GivenAResultOverride_*`, `.GivenAFinalTie_*`, `.GivenAGameInProgress_*`, `WinnerResolverTests`; UI |
 | Points so far and max remaining | P6-01 | D `InfluenceCalculatorTests.GivenAWeekPartlyPlayed_WhenBuildingTheHeader_ThenPointsSoFarAndMaxRemainingAreSummed` |
 | Card layout, names wrap, live refresh without reload | P6-03 | UI |
-| No view-as-other, no league-wide split | P6-02 | A: endpoint has no member param |
+| No view-as-other, no league-wide split | P6-02 | A `DashboardTests.GivenAnExtraQueryParameter_WhenAMemberAsksForTheDashboard_ThenItIs400`, `.GivenAMemberWhoJoinedAfterLock_WhenTheyAskForTheirOwnDashboard_ThenTheySeeNoPickEverywhere`, `.GivenAFormerMemberWhoPickedBeforeLeaving_WhenTheWeekLocks_ThenTheyStillAppearFlagged`, `.GivenAStaleLiveScoreSource_*`, `.GivenAFinalGameWithAWinner_*`, `.GivenTheAuthMatrix_WhenAskingForTheDashboard_ThenOnlyAMemberMaySeeIt` |
 
 ## Feature 06 - Scoring
 
