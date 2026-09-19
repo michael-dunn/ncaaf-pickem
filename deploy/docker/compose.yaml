@@ -1,0 +1,118 @@
+# NCAAF Pick Em - home server stack (P8-05).
+#
+# Copy this file and .env.example to the server, e.g. /srv/docker/ncaaf-pickem/, fill in .env,
+# and run `docker compose up -d` from that directory. Full walkthrough: README.md -> "Deploy".
+#
+# Ports are published on 127.0.0.1 ONLY. Docker writes its own DOCKER-USER iptables rules ahead
+# of UFW, so a plain `ports: "5000:8080"` would expose the app to the LAN (and to anything the
+# router forwards) no matter what `ufw status` claims. Binding the host side to 127.0.0.1 is the
+# one form Docker cannot punch through. Everything off-box arrives through Tailscale instead:
+#
+#   tailscale serve --bg --https=443 http://127.0.0.1:5000
+#
+# which terminates TLS on the host with the tailnet certificate and forwards plain HTTP to the
+# container. That is why the api service sets App__BehindProxy=true - without it the app would
+# build the Google redirect_uri as http://127.0.0.1:5000/... and rate-limit the whole family as
+# one client (D-160).
+
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: ncaaf-db
+    environment:
+      - ACCEPT_EULA=Y
+      - MSSQL_SA_PASSWORD=${SA_PASSWORD}
+      # Developer edition: full Enterprise feature set, free for non-production use. Express
+      # would also work at this size but caps the database at 10 GB and has no Agent.
+      - MSSQL_PID=Developer
+      - MSSQL_MEMORY_LIMIT_MB=2048
+      - TZ=${TZ:-America/Phoenix}
+    volumes:
+      # The mssql image runs as uid 10001, so the host directory must be chowned to it before the
+      # first `up` or SQL Server exits immediately with a permission error:
+      #   sudo mkdir -p /srv/docker/configs/ncaaf-pickem/mssql
+      #   sudo chown -R 10001:0 /srv/docker/configs/ncaaf-pickem/mssql
+      # deploy/docker/backup.sh writes into <this path>/backups, so nightly .bak files are
+      # visible from the host at /srv/docker/configs/ncaaf-pickem/mssql/backups.
+      - /srv/docker/configs/ncaaf-pickem/mssql:/var/opt/mssql
+    ports:
+      - "127.0.0.1:1433:1433"
+    healthcheck:
+      # -C trusts the self-signed server certificate; mssql-tools18 requires encryption by
+      # default and would otherwise refuse its own loopback connection. The doubled $$ escapes
+      # the variable so compose leaves it for the container's shell to expand.
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q \"SELECT 1\" || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  api:
+    image: ghcr.io/michael-dunn/ncaaf-pickem:latest
+    container_name: ncaaf-api
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_HTTP_PORTS=8080
+      # The app's key is ConnectionStrings__Default (DatabaseDefaults.ConnectionStringName),
+      # not the DefaultConnection most templates use. `db` is the compose service name.
+      - ConnectionStrings__Default=Server=db,1433;Database=NcaafPickEm;User Id=sa;Password=${SA_PASSWORD};Encrypt=False;TrustServerCertificate=True;
+      # D-159: the container migrates itself on startup. There is no separate deploy step here -
+      # `docker compose up -d` (or watchtower) is the whole deployment - and the image and the
+      # migrations it carries are always the same artifact. The startup wait below covers a host
+      # reboot, where both containers come back at once with no depends_on ordering.
+      - Database__MigrateOnStartup=true
+      - Database__StartupTimeoutSeconds=120
+      # D-160: Tailscale Serve terminates TLS on the host and forwards plain HTTP.
+      - App__BehindProxy=true
+      - App__PublicOrigin=${PUBLIC_ORIGIN}
+      - Google__ClientId=${GOOGLE_CLIENT_ID}
+      - Google__ClientSecret=${GOOGLE_CLIENT_SECRET}
+      - Cfbd__ApiKey=${CFBD_API_KEY}
+      - Providers__ReferenceData=Cfbd
+      - Providers__LiveScores=Espn
+      - Push__VapidPublicKey=${VAPID_PUBLIC}
+      - Push__VapidPrivateKey=${VAPID_PRIVATE}
+      - Push__Subject=${VAPID_SUBJECT}
+      - Jobs__Enabled=true
+      - Jobs__CatchUpMinutes=60
+      - RateLimiting__Enabled=true
+      # D-161: the data-protection key ring lives on a volume, so the auth cookie survives a
+      # redeploy. Without it every watchtower update signs the whole family out.
+      - DataProtection__KeysPath=/app/keys
+      - Serilog__LogDirectory=/app/logs
+      - TZ=${TZ:-America/Phoenix}
+    volumes:
+      # Both are written by the image's non-root `app` user, uid 1654:
+      #   sudo mkdir -p /srv/docker/configs/ncaaf-pickem/{keys,logs}
+      #   sudo chown -R 1654:1654 /srv/docker/configs/ncaaf-pickem/keys /srv/docker/configs/ncaaf-pickem/logs
+      - /srv/docker/configs/ncaaf-pickem/keys:/app/keys
+      - /srv/docker/configs/ncaaf-pickem/logs:/app/logs
+    ports:
+      - "127.0.0.1:5000:8080"
+    restart: unless-stopped
+
+  watchtower:
+    image: ghcr.io/containrrr/watchtower:latest
+    container_name: ncaaf-watchtower
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - TZ=${TZ:-America/Phoenix}
+      # Pin the Docker API version: watchtower negotiates badly against a newer daemon and falls
+      # over with "client version is too new" otherwise.
+      - DOCKER_API_VERSION=1.44
+      # Only needed while the GHCR package is private. Make the package public (Package settings
+      # -> Change visibility) and both of these can be dropped; see README "Deploy" -> "Updating".
+      # If you keep them, the PAT needs read:packages and nothing else.
+      - REPO_USER=${GHCR_USER}
+      - REPO_PASS=${GHCR_PAT}
+    # Scoped to the api container by name, so watchtower never restarts the database underneath a
+    # live week or updates itself mid-Saturday. --cleanup drops the superseded image layers.
+    command: ["--interval=1800", "--cleanup", "ncaaf-api"]
+    depends_on:
+      - api
+    restart: unless-stopped
