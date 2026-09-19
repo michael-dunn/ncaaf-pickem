@@ -21,6 +21,7 @@ using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Espn;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 using NcaafPickEm.Infrastructure.Push;
+using NcaafPickEm.Infrastructure.Scoring;
 using NcaafPickEm.Infrastructure.Seeding;
 using NcaafPickEm.Infrastructure.Services;
 
@@ -98,6 +99,11 @@ public static class DependencyInjection
         // Leagues and members (P1-01). Scoped: both take AppDbContext.
         services.AddScoped<LeagueService>();
         services.AddScoped<InviteService>();
+
+        // Leaderboards (P5-03). The snapshot writer must be registered before P5-01's
+        // TryAddScoped of the no-op one, so the real implementation wins.
+        services.AddScoped<IStandingsSnapshotWriter, StandingsSnapshotWriter>();
+        services.AddScoped<LeaderboardService>();
 
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
