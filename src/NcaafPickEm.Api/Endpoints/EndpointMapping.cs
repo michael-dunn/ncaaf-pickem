@@ -37,8 +37,8 @@ public static class EndpointMapping
         //   api.MapPickEndpoints();          (P4-01)
         //   api.MapLeaderboardEndpoints();   (P5-03)
         //   api.MapDashboardEndpoints();     (P6-02)
-        //   api.MapPushEndpoints();          (P7-01)
         api.MapMeEndpoints();
+        api.MapPushEndpoints();
 
         // Fixture-only dev tools (P2-05): sign in as a demo user without Google, and step the
         // live-score snapshot. Never mapped in Production; Testing needs them too so
