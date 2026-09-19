@@ -191,9 +191,6 @@ D-060  2026-09-18  P3-05  Both new fakes (`FakeGameSetsApi`, `FakePointRulesApi`
 
 D-061  2026-09-18  P3-05  `Components/GameRow` renders a game as two stacked rows (matchup + kickoff on top; point badge + trailing action on the bottom), not one single row with the matchup, meta, and trailing action side by side.
        Rationale: found while screenshotting "This week's games" at 375px — team names like "Michigan" and "Georgia" were clipped to "Michi"/"Georgi" once ranks, a kickoff time, a point badge, "Edit points", and a remove button all shared one 375px-wide flex row. Stacking fixes it without shrinking the tap targets (05-Conventions.md's 44px minimum) or hiding any control. `Trailing` stays a `RenderFragment` so Phases 4-6 can still drop in a pick button, a stepper, or nothing.
-<<<<<<< HEAD
->>>>>>> main
-=======
 
 D-063  2026-09-18  P3-03  Manual add/remove (`POST`/`DELETE .../gameset/games[/{gameId}]`) return a `WeekGameSetResponse`, the same body `generate` returns, rather than a bare `GameSetGameDto` or `204`.
        Rationale: `03-API-Contracts.md` names the request bodies for these two routes but leaves the response unspecified. A single-game DTO would still leave the caller re-fetching the whole set to update `LockAtUtc` (a first manual add on an empty week sets it) and the rest of the games list; returning the same shape `generate` and `GET .../gameset` use keeps the UI's "apply a mutation, replace the page state" pattern identical across all four routes.
