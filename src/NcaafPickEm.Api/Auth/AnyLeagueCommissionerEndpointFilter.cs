@@ -17,6 +17,20 @@ namespace NcaafPickEm.Api.Auth;
 /// </remarks>
 public sealed class AnyLeagueCommissionerEndpointFilter : IEndpointFilter
 {
+    private readonly bool _allowWhenNoLeaguesExist;
+
+    /// <summary>Creates the filter.</summary>
+    /// <param name="allowWhenNoLeaguesExist">
+    /// When true, a signed-in caller is also allowed while no league exists anywhere in the
+    /// database (D-166) — the bootstrap window on a fresh deployment, where nobody commissions
+    /// anything yet and the data status page and manual refresh are the only way to get the
+    /// season's reference data in by hand.
+    /// </param>
+    public AnyLeagueCommissionerEndpointFilter(bool allowWhenNoLeaguesExist = false)
+    {
+        _allowWhenNoLeaguesExist = allowWhenNoLeaguesExist;
+    }
+
     /// <inheritdoc />
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext context, EndpointFilterDelegate next)
     {
@@ -40,6 +54,13 @@ public sealed class AnyLeagueCommissionerEndpointFilter : IEndpointFilter
                     && membership.RemovedUtc == null
                     && membership.Role == MembershipRole.Commissioner,
                 http.RequestAborted);
+
+        if (!isCommissioner && _allowWhenNoLeaguesExist)
+        {
+            // Not "the caller has no league" — "the database has no league", which is only ever
+            // true before the first one is created.
+            isCommissioner = !await database.Leagues.AsNoTracking().AnyAsync(http.RequestAborted);
+        }
 
         if (!isCommissioner)
         {
