@@ -91,6 +91,36 @@ public sealed class GameSetGenerateTests
     }
 
     [Fact]
+    public async Task GivenNoChanges_WhenGeneratingTwice_ThenTheSecondRunChangesNoRow()
+    {
+        (League league, HttpClient client) = await CreateCommishLeagueAsync();
+        await PutDefaultRulesAsync(client, league.Id, [new(null, GameSetRuleType.Top25, null, null, null, null, false, 0)]);
+        await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
+
+        List<(Guid Id, Guid GameId, bool IsRemoved, int PointValue)> before = await ReadRowsAsync(league.Id);
+
+        using HttpResponseMessage second = await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
+        second.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        List<(Guid Id, Guid GameId, bool IsRemoved, int PointValue)> after = await ReadRowsAsync(league.Id);
+
+        after.Should().BeEquivalentTo(before, "a regeneration over unchanged inputs must not add, remove, or re-value a row");
+        after.Should().OnlyContain(row => !row.IsRemoved);
+    }
+
+    private async Task<List<(Guid Id, Guid GameId, bool IsRemoved, int PointValue)>> ReadRowsAsync(Guid leagueId) =>
+        await _fixture.Factory.QueryDbAsync(async db =>
+        {
+            List<WeekGameSetGame> rows = await db.WeekGameSetGames
+                .AsNoTracking()
+                .Where(r => r.WeekGameSet!.LeagueId == leagueId)
+                .OrderBy(r => r.Id)
+                .ToListAsync();
+
+            return rows.ConvertAll(r => (r.Id, r.GameId, r.IsRemoved, r.ResolvedPointValue));
+        });
+
+    [Fact]
     public async Task GivenAManuallyAddedGame_WhenRegenerating_ThenTheManualRowSurvives()
     {
         (League league, HttpClient client) = await CreateCommishLeagueAsync();
