@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Auth;
+using NcaafPickEm.Api.Validation;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Operations;
 using NcaafPickEm.Domain.Scoring;
@@ -31,6 +32,13 @@ public static class AdminEndpoints
     /// <summary>Configuration key naming the live score provider.</summary>
     private const string LiveScoreSourceKey = "Providers:LiveScores";
 
+    /// <summary>
+    /// Must match the options <c>LiveScoreApplyService</c> wrote <c>UnmatchedGames.RawPayload</c>
+    /// with: web defaults are camel-cased, and reading them back with the case-sensitive default
+    /// options would silently bind nothing and never learn the ESPN event id.
+    /// </summary>
+    private static readonly JsonSerializerOptions RawPayloadOptions = new(JsonSerializerDefaults.Web);
+
     /// <summary>Maps every <c>/api/admin/*</c> route.</summary>
     /// <param name="builder">The <c>/api</c> group.</param>
     public static RouteGroupBuilder MapAdminEndpoints(this RouteGroupBuilder builder)
@@ -43,7 +51,9 @@ public static class AdminEndpoints
 
         admin.MapGet("/data-status", GetDataStatusAsync).WithName("AdminDataStatus");
         admin.MapPost("/refresh/{dataType}", RefreshAsync).WithName("AdminManualRefresh");
-        admin.MapPost("/unmatched/{id:guid}/resolve", ResolveUnmatchedAsync).WithName("AdminResolveUnmatched");
+        admin.MapPost("/unmatched/{id:guid}/resolve", ResolveUnmatchedAsync)
+            .WithName("AdminResolveUnmatched")
+            .AddEndpointFilter<ValidationFilter<ResolveUnmatchedRequest>>();
 
         return builder;
     }
@@ -340,14 +350,21 @@ public static class AdminEndpoints
                 statusCode: StatusCodes.Status400BadRequest);
         }
 
-        await AddAliasIfMissingAsync(database, unmatched.Source, unmatched.RawHomeName, game.HomeTeamId, cancellationToken);
-        await AddAliasIfMissingAsync(database, unmatched.Source, unmatched.RawAwayName, game.AwayTeamId, cancellationToken);
+        ProblemHttpResult? conflict =
+            await AddAliasIfMissingAsync(database, unmatched.Source, unmatched.RawHomeName, game.HomeTeamId, cancellationToken)
+            ?? await AddAliasIfMissingAsync(database, unmatched.Source, unmatched.RawAwayName, game.AwayTeamId, cancellationToken);
+
+        if (conflict is not null)
+        {
+            return conflict;
+        }
 
         if (unmatched.Source == ProviderSource.Espn && game.EspnEventId is null)
         {
             try
             {
-                LiveScoreUpdate? payload = JsonSerializer.Deserialize<LiveScoreUpdate>(unmatched.RawPayload);
+                LiveScoreUpdate? payload =
+                    JsonSerializer.Deserialize<LiveScoreUpdate>(unmatched.RawPayload, RawPayloadOptions);
                 if (payload is not null
                     && long.TryParse(payload.SourceEventId, out long espnEventId))
                 {
@@ -368,7 +385,13 @@ public static class AdminEndpoints
         return TypedResults.NoContent();
     }
 
-    private static async Task AddAliasIfMissingAsync(
+    /// <summary>
+    /// Adds one <c>TeamAliases(Source, Alias)</c> row, or returns the 409 explaining why it
+    /// cannot. <c>IX_TeamAliases_Source_Alias</c> is unique across teams, so an alias another
+    /// team already owns is a conflict to report, not an exception to leak as a 500: the raw name
+    /// and the chosen game disagree, and only a human can say which is wrong (D-082).
+    /// </summary>
+    private static async Task<ProblemHttpResult?> AddAliasIfMissingAsync(
         AppDbContext database,
         ProviderSource source,
         string alias,
@@ -377,14 +400,25 @@ public static class AdminEndpoints
     {
         if (string.IsNullOrWhiteSpace(alias))
         {
-            return;
+            return null;
         }
 
-        bool exists = await database.TeamAliases
-            .AnyAsync(row => row.TeamId == teamId && row.Source == source && row.Alias == alias, cancellationToken);
-        if (exists)
+        // Local first: the home and away calls share one change tracker, so a row added by the
+        // earlier call is not in the database yet but would still violate the unique index.
+        TeamAlias? existing = database.TeamAliases.Local
+            .FirstOrDefault(row => row.Source == source && row.Alias == alias)
+            ?? await database.TeamAliases
+                .FirstOrDefaultAsync(row => row.Source == source && row.Alias == alias, cancellationToken);
+
+        if (existing is not null)
         {
-            return;
+            return existing.TeamId == teamId
+                ? null
+                : TypedResults.Problem(
+                    title: "Alias already assigned",
+                    detail: $"'{alias}' is already a {source} alias of another team; "
+                        + "remove that alias or pick the game whose team it belongs to.",
+                    statusCode: StatusCodes.Status409Conflict);
         }
 
         database.TeamAliases.Add(new TeamAlias
@@ -394,6 +428,8 @@ public static class AdminEndpoints
             Source = source,
             Alias = alias,
         });
+
+        return null;
     }
 
     private static UnmatchedGameDto ToDto(UnmatchedGame game) => new(
