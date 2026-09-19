@@ -42,3 +42,27 @@ public sealed class CsrfEndpointFilter : IEndpointFilter
         return await next(context);
     }
 }
+
+/// <summary>
+/// Applies <see cref="CsrfEndpointFilter"/> and records that it is applied.
+/// </summary>
+public static class CsrfEndpointExtensions
+{
+    /// <summary>
+    /// Adds <see cref="CsrfEndpointFilter"/> to <paramref name="builder"/> together with the
+    /// <see cref="CsrfProtectedMetadata"/> marker, so P8-01's route inventory test can prove every
+    /// mutation is covered from <c>Endpoint.Metadata</c> rather than re-deriving it from the
+    /// route prefix (an endpoint filter is invisible in metadata).
+    /// </summary>
+    /// <typeparam name="TBuilder">The endpoint or group builder.</typeparam>
+    /// <param name="builder">The endpoint or group to protect.</param>
+    public static TBuilder RequireCsrfHeader<TBuilder>(this TBuilder builder)
+        where TBuilder : IEndpointConventionBuilder
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.AddEndpointFilter<TBuilder, CsrfEndpointFilter>();
+        builder.WithMetadata(CsrfProtectedMetadata.Instance);
+        return builder;
+    }
+}

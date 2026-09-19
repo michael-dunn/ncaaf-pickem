@@ -18,6 +18,7 @@ public static class AdminAuthorizationExtensions
 
         builder.RequireAuthorization(PolicyNames.Authenticated);
         builder.AddEndpointFilter(new AnyLeagueCommissionerEndpointFilter());
+        builder.WithMetadata(new EndpointScopeMetadata(EndpointScope.AnyLeagueCommissioner));
         return builder;
     }
 }
