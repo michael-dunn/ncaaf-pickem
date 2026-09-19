@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Tests.Infrastructure;
+using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Picks;
@@ -145,6 +146,39 @@ public sealed class PicksVisibilityTests
         MemberStatusRow[]? rows = await response.Content.ReadFromJsonAsync<MemberStatusRow[]>();
         rows.Should().HaveCount(3);
         rows.Should().OnlyContain(row => row.Status == SubmissionStatus.NotStarted && row.TotalCount == 0);
+    }
+
+    [Fact]
+    public async Task GivenAFinishedGameInALockedWeek_WhenAMemberReadsTheirOwnPicks_ThenTheWinnerIsCarried()
+    {
+        PickWeekScenario scenario = await PickWeekScenario.CreateAsync(_fixture.PinnedFactory);
+        using HttpClient member = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.MemberUserId);
+
+        GameSetGameDto first = scenario.Games[0];
+        await PickAsync(member, scenario, first, first.HomeTeam.TeamId);
+
+        // A commissioner result override, not a score on the shared fixture Game row: the Games
+        // table is common to every league in the run's one database (AGENT-NOTES, "Game sets and
+        // points"), while this row belongs to this league alone.
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+        {
+            WeekGameSetGame row = await db.WeekGameSetGames.SingleAsync(
+                candidate => candidate.Id == first.GameSetGameId!.Value);
+            row.ResultOverrideWinnerTeamId = first.HomeTeam.TeamId;
+            await db.SaveChangesAsync();
+        });
+
+        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+
+        using HttpResponseMessage response = await member.GetAsync($"{scenario.PicksRoute}/me");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        MyPicksResponse? body = await response.Content.ReadFromJsonAsync<MyPicksResponse>();
+        body!.IsLocked.Should().BeTrue();
+
+        MyPickGameDto pickRow = body.Games.Single(candidate => candidate.Game.GameId == first.GameId);
+        pickRow.MyTeamId.Should().Be(first.HomeTeam.TeamId);
+        pickRow.Game.WinnerTeamId.Should().Be(first.HomeTeam.TeamId, "the picks page colours a past week from WinnerTeamId");
     }
 
     private static async Task PickAsync(
