@@ -1,0 +1,44 @@
+.number-stepper {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.stepper-btn {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.stepper-btn:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.stepper-value {
+    min-width: 2.5ch;
+    text-align: center;
+    font-weight: 700;
+}
+
+.stepper-clear {
+    min-height: var(--tap-min);
+    padding: 0 var(--space-2);
+    border: none;
+    background: transparent;
+    color: var(--color-danger);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.stepper-clear:disabled {
+    opacity: 0.4;
+    cursor: default;
+}

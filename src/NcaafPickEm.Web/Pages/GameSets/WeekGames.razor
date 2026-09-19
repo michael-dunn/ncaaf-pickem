@@ -1,0 +1,257 @@
+@page "/leagues/{LeagueId:guid}/config/week/{Week:int}"
+@inject ILeaguesApi LeaguesApi
+@inject IGameSetsApi GameSetsApi
+@inject IPointRulesApi PointRulesApi
+@inject AppShellState Shell
+
+@*
+    This week's games (P3-05). Commissioner-only: the generated list with a remove (x) per game,
+    "Add game" search over Saturday FBS candidates, and a tap-to-override point stepper per row.
+    Every control is disabled once the week is locked (WeekGameSetResponse.IsLocked).
+*@
+
+<PageTitle>Week @Week games - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null || _set is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else if (_league.MyRole != MembershipRole.Commissioner)
+{
+    <p class="muted">Commissioners only.</p>
+}
+else
+{
+    WeekGameSetResponse set = _set;
+
+    <h1>Week @Week games</h1>
+
+    <div class="card week-games-header">
+        <LockTime LockAtUtc="set.LockAtUtc" EasternDisplay="@set.LockAtEasternDisplay" NoLockText="No games yet" />
+        @if (set.IsLocked)
+        {
+            <span class="locked-pill">Locked</span>
+        }
+    </div>
+
+    <div class="card">
+        @if (set.Games.Length == 0)
+        {
+            <p class="muted">No games yet.</p>
+        }
+        else
+        {
+            @foreach (GameSetGameDto game in set.Games)
+            {
+                <GameRow Game="game">
+                    <Trailing>
+                        @if (_overridingGameId == game.GameId)
+                        {
+                            <NumberStepper Value="game.PointValue"
+                                           Disabled="set.IsLocked"
+                                           ShowClear="true"
+                                           ValueChanged="v => SetOverrideAsync(game.GameId, v)"
+                                           OnClear="() => ClearOverrideAsync(game.GameId)" />
+                        }
+                        else
+                        {
+                            <div class="row-actions">
+                                <button type="button" class="btn-link" disabled="@set.IsLocked" @onclick="() => _overridingGameId = game.GameId">
+                                    Edit points
+                                </button>
+                                <button type="button" class="game-remove" aria-label="Remove game" disabled="@set.IsLocked" @onclick="() => ConfirmRemove(game)">
+                                    &#10005;
+                                </button>
+                            </div>
+                        }
+                    </Trailing>
+                </GameRow>
+            }
+        }
+        <button type="button" class="btn btn-secondary rule-add-btn" disabled="@set.IsLocked" @onclick="OpenAddGameSheet">
+            Add game
+        </button>
+    </div>
+}
+
+<ConfirmSheet IsOpen="_removeTarget is not null"
+              Title="Remove game?"
+              Body="@RemoveBody()"
+              ConfirmLabel="Remove"
+              IsDestructive="true"
+              OnConfirm="RemoveConfirmedAsync"
+              OnCancel="() => _removeTarget = null" />
+
+<BottomSheet IsOpen="_showAddGame" Title="Add game" OnClose="() => _showAddGame = false">
+    <div class="sheet-field">
+        <label for="game-search">Search</label>
+        <input id="game-search" class="input" type="search" placeholder="Search teams..." @bind="_gameSearchText" @bind:event="oninput" @bind:after="OnGameSearchInput" />
+    </div>
+    @foreach (GameCandidate candidate in _candidates)
+    {
+        <div class="search-result-row">
+            <span>@candidate.AwayTeam.School @@ @candidate.HomeTeam.School</span>
+            <button type="button" class="btn btn-secondary" @onclick="() => AddGameAsync(candidate.GameId)">Add</button>
+        </div>
+    }
+</BottomSheet>
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    /// <summary>Week from the route.</summary>
+    [Parameter]
+    public int Week { get; set; }
+
+    private LeagueDetail? _league;
+    private WeekGameSetResponse? _set;
+    private string? _error;
+    private Guid? _overridingGameId;
+    private GameSetGameDto? _removeTarget;
+
+    private bool _showAddGame;
+    private string _gameSearchText = string.Empty;
+    private GameCandidate[] _candidates = [];
+    private CancellationTokenSource? _searchDebounce;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle($"Week {Week} games");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, Week);
+            if (_league.MyRole != MembershipRole.Commissioner)
+            {
+                return;
+            }
+
+            _set = await GameSetsApi.GetWeekGameSetAsync(LeagueId, Week);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void ConfirmRemove(GameSetGameDto game) => _removeTarget = game;
+
+    private string RemoveBody() => _removeTarget is { } g
+        ? $"Remove {g.AwayTeam.School} @ {g.HomeTeam.School} from week {Week}?"
+        : string.Empty;
+
+    private async Task RemoveConfirmedAsync()
+    {
+        if (_removeTarget is not { } game)
+        {
+            return;
+        }
+
+        _removeTarget = null;
+        try
+        {
+            _set = await GameSetsApi.RemoveGameAsync(LeagueId, Week, game.GameId);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void OpenAddGameSheet()
+    {
+        _gameSearchText = string.Empty;
+        _candidates = [];
+        _showAddGame = true;
+        _ = LoadCandidatesAsync(string.Empty);
+    }
+
+    private void OnGameSearchInput()
+    {
+        _searchDebounce?.Cancel();
+        var cts = new CancellationTokenSource();
+        _searchDebounce = cts;
+        _ = DebouncedLoadCandidatesAsync(_gameSearchText, cts.Token);
+    }
+
+    private async Task DebouncedLoadCandidatesAsync(string query, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(300, cancellationToken);
+            await LoadCandidatesAsync(query, cancellationToken);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
+    }
+
+    private async Task LoadCandidatesAsync(string query, CancellationToken cancellationToken = default)
+    {
+        if (_league is null)
+        {
+            return;
+        }
+
+        try
+        {
+            _candidates = await GameSetsApi.SearchCandidatesAsync(_league.SeasonYear, Week, query, cancellationToken);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task AddGameAsync(Guid gameId)
+    {
+        try
+        {
+            _set = await GameSetsApi.AddGameAsync(LeagueId, Week, gameId);
+            _showAddGame = false;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task SetOverrideAsync(Guid gameId, int value)
+    {
+        try
+        {
+            _set = await PointRulesApi.SetOverrideAsync(LeagueId, Week, gameId, value);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _overridingGameId = null;
+        }
+    }
+
+    private async Task ClearOverrideAsync(Guid gameId)
+    {
+        try
+        {
+            _set = await PointRulesApi.SetOverrideAsync(LeagueId, Week, gameId, null);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _overridingGameId = null;
+        }
+    }
+}

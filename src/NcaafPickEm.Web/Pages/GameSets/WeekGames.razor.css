@@ -1,0 +1,75 @@
+.week-games-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+}
+
+.locked-pill {
+    display: inline-flex;
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-alt);
+    color: var(--color-brand);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+
+.row-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.btn-link {
+    min-height: var(--tap-min);
+    padding: 0 var(--space-2);
+    border: none;
+    background: transparent;
+    color: var(--color-brand);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.btn-link:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.game-remove {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    border: none;
+    background: transparent;
+    color: var(--color-danger);
+    font-size: var(--text-lg);
+    cursor: pointer;
+}
+
+.game-remove:disabled {
+    opacity: 0.4;
+    cursor: default;
+}
+
+.rule-add-btn {
+    margin-top: var(--space-3);
+    width: 100%;
+}
+
+.sheet-field label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+}
+
+.input {
+    min-height: var(--tap-min);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--text-base);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    width: 100%;
+}
