@@ -26,6 +26,12 @@ public enum LeagueRuleViolationCode
 
     /// <summary>The requested per-league display name is already taken by another active member. 409.</summary>
     DisplayNameTaken,
+
+    /// <summary><c>DefaultPointValue</c> is outside <see cref="League.MinPointValue"/>..<see cref="League.MaxPointValue"/>. 400.</summary>
+    InvalidPointValue,
+
+    /// <summary>No active membership with the given id exists in this league. 404.</summary>
+    MembershipNotFound,
 }
 
 /// <summary>

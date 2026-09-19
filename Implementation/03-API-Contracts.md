@@ -19,7 +19,7 @@ Frontend and backend agents build against this file. DTO names are the record na
 | GET | `/auth/callback/google` | Anon | Handled by the Google middleware; upserts `Users`, signs in cookie, redirects to `returnUrl`. |
 | POST | `/auth/logout` | Auth | Signs out, clears cookie. Returns 204. |
 | GET | `/api/me` | Auth | `MeResponse { UserId, Email, DisplayName, Leagues: LeagueSummary[] }` |
-| PUT | `/api/me` | Auth | `UpdateMeRequest { DisplayName }` 1..30 chars after trimming; 400 otherwise. |
+| PUT | `/api/me` | Auth | `UpdateMeRequest { DisplayName }` 1..30 chars after trimming; 400 otherwise. 409 (P1-03) if the new name collides with another active member's effective name in a league where the caller has no per-league override (D-058). |
 
 Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
@@ -37,17 +37,17 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | GET | `/api/leagues` | Auth | `LeagueSummary[] { LeagueId, Name, SeasonYear, MyRole, CurrentWeek, MyCurrentWeekStatus }` |
 | GET | `/api/leagues/{leagueId}` | Member | `LeagueDetail { LeagueId, Name, SeasonYear, FirstWeek, LastWeek, DefaultPointValue, CurrentWeek, IsComplete, MyRole, MyCurrentWeekStatus, CurrentWeekLockAtUtc?, LockAtEasternDisplay? }` |
 | PUT | `/api/leagues/{leagueId}/settings` | Commish | `UpdateLeagueSettingsRequest { Name, FirstWeek, LastWeek, DefaultPointValue }` |
-| GET | `/api/leagues/{leagueId}/members` | Member | `MemberRow[] { MembershipId, DisplayName, Role, JoinedWeek, IsFormer, CurrentWeekStatus? }` (status only populated for Commish callers) |
-| PUT | `/api/leagues/{leagueId}/members/me/display-name` | Member | `SetLeagueDisplayNameRequest { DisplayName }` -> caller's own updated `MemberRow`; 409 if taken by another **active** member (case-insensitive; a removed member's old name is free, D-039) |
+| GET | `/api/leagues/{leagueId}/members` | Member | `MemberRow[] { MembershipId, DisplayName, Role, JoinedWeek, IsFormer, CurrentWeekStatus?, IsMe }` (status only populated for Commish callers; `IsMe` added P1-03, additive) |
+| PUT | `/api/leagues/{leagueId}/members/me/display-name` | Member | `SetLeagueDisplayNameRequest { DisplayName }` -> caller's own updated `MemberRow` (`IsMe = true`); 409 if taken by another **active** member (case-insensitive; a removed member's old name is free, D-039) |
 | POST | `/api/leagues/{leagueId}/invites` | Commish | -> `InviteResponse { Code, Url, ExpiresUtc }` |
 | GET | `/api/leagues/{leagueId}/invites` | Commish | `InviteResponse[]` (active only) |
 | DELETE | `/api/leagues/{leagueId}/invites/{inviteId}` | Commish | revoke |
 | GET | `/api/invites/{code}` | Auth | `InvitePreview { LeagueName, SeasonYear, MemberCount, State: Valid/Expired/Revoked/Full/AlreadyMember }`; 404 for an unknown code |
 | POST | `/api/invites/{code}/accept` | Auth | -> `LeagueDetail`; 409 with State on any non-Valid state. When several states apply, priority is Revoked > Expired > AlreadyMember > Full (D-038). A caller who was previously a member and was removed reactivates their existing membership row rather than getting a second one (D-037). An unknown code (`GET`/`POST /api/invites/{code}*`) is 404. |
-| DELETE | `/api/leagues/{leagueId}/members/{membershipId}` | Commish | soft remove; 409 if target is self or would leave zero commissioners |
-| POST | `/api/leagues/{leagueId}/members/{membershipId}/promote` | Commish | -> Commissioner |
-| POST | `/api/leagues/{leagueId}/members/{membershipId}/demote` | Commish | 409 if last commissioner |
-| POST | `/api/leagues/{leagueId}/commissioner/transfer` | Commish | `TransferRequest { ToMembershipId }`; promotes target, demotes caller |
+| DELETE | `/api/leagues/{leagueId}/members/{membershipId}` | Commish | soft remove; 404 if `membershipId` is unknown/not-in-league (P1-03, was 400); 409 if target is self or would leave zero commissioners |
+| POST | `/api/leagues/{leagueId}/members/{membershipId}/promote` | Commish | -> Commissioner; 404 if `membershipId` is unknown/not-in-league |
+| POST | `/api/leagues/{leagueId}/members/{membershipId}/demote` | Commish | 404 if `membershipId` is unknown/not-in-league; 409 if last commissioner |
+| POST | `/api/leagues/{leagueId}/commissioner/transfer` | Commish | `TransferRequest { ToMembershipId }`; promotes target, demotes caller; 404 if `ToMembershipId` is unknown/not-in-league |
 
 ## Season calendar (Feature 13)
 

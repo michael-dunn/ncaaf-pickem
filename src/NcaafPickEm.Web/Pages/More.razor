@@ -2,8 +2,8 @@
 @inject AppShellState Shell
 
 @*
-    PLACEHOLDER (P0-04). The "More" tab's destination: account, notification settings, sign out.
-    P0-03 adds the sign-out control, P7-02 adds notification settings.
+    "More" tab (P0-04 placeholder, filled in by P1-03): a small menu to Profile, plus a note that
+    data status / admin land in a later phase (P8).
 *@
 
 <PageTitle>More - NCAAF Pick Em</PageTitle>
@@ -12,8 +12,12 @@
 
 <div class="card">
     <h2>Account</h2>
-    <p class="muted">Display name and sign out land here.</p>
-    <p class="placeholder-note">Placeholder from P0-04. P0-03 adds sign out, P7-02 notification settings.</p>
+    <ul class="more-menu">
+        <li><a class="more-menu-item" href="/me">Profile &rsaquo;</a></li>
+    </ul>
+    <p class="placeholder-note">
+        Data status and admin tools arrive in a later phase.
+    </p>
 </div>
 
 <div class="card">

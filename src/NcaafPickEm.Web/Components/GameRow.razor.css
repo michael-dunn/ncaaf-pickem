@@ -1,0 +1,66 @@
+.game-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.game-row:last-child {
+    border-bottom: none;
+}
+
+.game-row-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.game-row-matchup {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 600;
+    overflow-wrap: break-word;
+}
+
+.game-row-rank {
+    color: var(--color-text-muted);
+    font-weight: 700;
+    font-size: var(--text-sm);
+    margin-right: 2px;
+}
+
+.game-row-at {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    margin: 0 var(--space-1);
+}
+
+.game-row-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.point-badge {
+    display: inline-flex;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.point-badge-elevated {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+}
+
+.game-row-trailing {
+    flex: 0 0 auto;
+    margin-left: auto;
+}

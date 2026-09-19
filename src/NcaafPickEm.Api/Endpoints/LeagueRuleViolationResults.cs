@@ -24,6 +24,8 @@ public static class LeagueRuleViolationResults
             LeagueRuleViolationCode.CannotActOnSelf => StatusCodes.Status409Conflict,
             LeagueRuleViolationCode.LastCommissioner => StatusCodes.Status409Conflict,
             LeagueRuleViolationCode.DisplayNameTaken => StatusCodes.Status409Conflict,
+            LeagueRuleViolationCode.InvalidPointValue => StatusCodes.Status400BadRequest,
+            LeagueRuleViolationCode.MembershipNotFound => StatusCodes.Status404NotFound,
             _ => StatusCodes.Status400BadRequest,
         };
 

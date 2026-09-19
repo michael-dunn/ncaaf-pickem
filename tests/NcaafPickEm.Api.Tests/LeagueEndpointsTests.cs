@@ -226,4 +226,68 @@ public sealed class LeagueEndpointsTests
         weeks.Single(w => w.Week == ApiTestFixture.PinnedCurrentWeek).IsCurrent.Should().BeTrue();
         weeks.Count(w => w.IsCurrent).Should().Be(1);
     }
+
+    // ---- P1-01 review follow-ups: InvalidPointValue (400) and MembershipNotFound (404) ------
+
+    [Fact]
+    public async Task GivenADefaultPointValueOutOfRange_WhenUpdatingSettings_ThenItIs400NotAServerError()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.PinnedFactory);
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PutAsJsonAsync(
+            $"/api/leagues/{scenario.LeagueId}/settings",
+            new UpdateLeagueSettingsRequest("Renamed", 1, 14, 0));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownMembershipId_WhenRemoving_ThenItIs404()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.PinnedFactory);
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response =
+            await client.DeleteAsync($"/api/leagues/{scenario.LeagueId}/members/{Guid.CreateVersion7()}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownMembershipId_WhenPromoting_ThenItIs404()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.PinnedFactory);
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsync(
+            $"/api/leagues/{scenario.LeagueId}/members/{Guid.CreateVersion7()}/promote", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownMembershipId_WhenDemoting_ThenItIs404()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.PinnedFactory);
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsync(
+            $"/api/leagues/{scenario.LeagueId}/members/{Guid.CreateVersion7()}/demote", content: null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownMembershipId_WhenTransferringCommissioner_ThenItIs404()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.PinnedFactory);
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/leagues/{scenario.LeagueId}/commissioner/transfer",
+            new TransferRequest(Guid.CreateVersion7()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
 }

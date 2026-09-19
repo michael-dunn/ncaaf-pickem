@@ -137,7 +137,8 @@ public static class LeagueEndpoints
     {
         Membership membership = httpContext.GetMembership();
         bool includeStatus = membership.Role == MembershipRole.Commissioner;
-        MemberRow[] rows = await leagueService.GetMembersAsync(membership.LeagueId, includeStatus, cancellationToken);
+        MemberRow[] rows = await leagueService.GetMembersAsync(
+            membership.LeagueId, includeStatus, membership.UserId, cancellationToken);
         return TypedResults.Ok(rows);
     }
 
