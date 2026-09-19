@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Components;
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Points;
 using NcaafPickEm.Shared.Contracts.Reference;
+using NcaafPickEm.Shared.Contracts.Scoring;
 using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Web.Services.Fakes;
@@ -50,6 +51,15 @@ public sealed class FakeGameSetStore
 
     /// <summary>The league's point rules, ordered by <see cref="PointRuleDto.Priority"/>.</summary>
     public List<PointRuleDto> PointRules { get; } = [];
+
+    // P5-05: audit log seeded with a couple of historical entries so the Audit page has content
+    // even before any correction is performed in this session; newest-first order is maintained
+    // by inserting new entries at index 0.
+    private readonly List<AuditEntry> _auditLog =
+    [
+        new(DateTimeOffset.UtcNow.AddDays(-1), "Michael", nameof(AuditAction.ManualRefresh), "Refreshed Scores manually."),
+        new(DateTimeOffset.UtcNow.AddDays(-3), "Alyson", nameof(AuditAction.RolePromoted), "Alyson promoted to Commissioner."),
+    ];
 
     /// <summary>
     /// Reads the <c>?locked=1</c> query flag once at construction, and the P4-03 <c>?picks=</c>
@@ -191,6 +201,77 @@ public sealed class FakeGameSetStore
         }
     }
 
+    /// <summary>Audit entries, newest first (P5-05, Feature 06).</summary>
+    public IReadOnlyList<AuditEntry> AuditLog => _auditLog;
+
+    /// <summary>
+    /// Sets a commissioner override winner on a game (only valid once the week is locked and the
+    /// game is not already voided, matching the real 409 <c>NotLocked</c>/<c>AlreadyVoided</c>
+    /// rules the client maps to friendly messages).
+    /// </summary>
+    public GameSetGameDto OverrideResult(int week, Guid gameId, Guid winnerTeamId, string reason, string actorName)
+    {
+        RequireLockedForCorrection(week);
+        FakeGame game = FindGameOrThrow(gameId);
+        if (game.IsVoided)
+        {
+            throw new LeaguesApiException(409, "AlreadyVoided");
+        }
+
+        if (winnerTeamId != game.Home.TeamId && winnerTeamId != game.Away.TeamId)
+        {
+            throw new LeaguesApiException(400, "TeamNotInGame");
+        }
+
+        game.WinnerTeamId = winnerTeamId;
+        string winnerName = winnerTeamId == game.Home.TeamId ? game.Home.School : game.Away.School;
+        _auditLog.Insert(0, new AuditEntry(
+            DateTimeOffset.UtcNow,
+            actorName,
+            nameof(AuditAction.ResultOverride),
+            $"Set {game.Away.School} @ {game.Home.School} result to {winnerName} ({reason})."));
+        return game.ToDto();
+    }
+
+    /// <summary>
+    /// Voids a game so it scores for nobody (only valid once the week is locked and the game is
+    /// not already voided).
+    /// </summary>
+    public GameSetGameDto VoidGame(int week, Guid gameId, string reason, string actorName)
+    {
+        RequireLockedForCorrection(week);
+        FakeGame game = FindGameOrThrow(gameId);
+        if (game.IsVoided)
+        {
+            throw new LeaguesApiException(409, "AlreadyVoided");
+        }
+
+        game.IsVoided = true;
+        game.WinnerTeamId = null;
+        _auditLog.Insert(0, new AuditEntry(
+            DateTimeOffset.UtcNow,
+            actorName,
+            nameof(AuditAction.GameVoided),
+            $"Voided {game.Away.School} @ {game.Home.School} ({reason})."));
+        return game.ToDto();
+    }
+
+    /// <summary>True once <paramref name="gameId"/> has been voided (P5-05).</summary>
+    public bool IsVoided(Guid gameId) => _games.FirstOrDefault(g => g.GameId == gameId)?.IsVoided ?? false;
+
+    private FakeGame FindGameOrThrow(Guid gameId) =>
+        _games.FirstOrDefault(g => g.GameId == gameId)
+            ?? throw new LeaguesApiException(404, "Game not found.");
+
+    private void RequireLockedForCorrection(int week)
+    {
+        bool isLocked = _locked && week == Week;
+        if (!isLocked)
+        {
+            throw new LeaguesApiException(409, "NotLocked");
+        }
+    }
+
     private int ResolvePointValue(FakeGame game)
     {
         if (game.ManualOverride is { } manual)
@@ -310,11 +391,21 @@ public sealed class FakeGameSetStore
         ];
 
         AllCandidates = all;
+        NeedsReviewDemoGameId = all.First(g => g.Home.Abbreviation == "ISU" && g.Away.Abbreviation == "KU").GameId;
 
         // The initial game set (as if already generated from the default Top-25 rule): only the
-        // ranked matchup, unless the page has already regenerated in this session.
-        return [.. all.Where(g => g.HomeRank is not null || g.AwayRank is not null)];
+        // ranked matchup, plus the Iowa State/Kansas game (P5-05: seeded as a locked "needs
+        // review" tie so FakeAdminApi's needs-review row and this store's void action agree on
+        // the same GameId), unless the page has already regenerated in this session.
+        return [.. all.Where(g => g.HomeRank is not null || g.AwayRank is not null || g.GameId == NeedsReviewDemoGameId)];
     }
+
+    /// <summary>
+    /// The Iowa State @ Kansas game's <c>GameId</c> (P5-05): shared with <see cref="FakeAdminApi"/>'s
+    /// seeded "needs review" tie row, so voiding it from the Data status page's Void action and
+    /// from the week view both operate on the same in-memory game.
+    /// </summary>
+    public Guid NeedsReviewDemoGameId { get; private set; }
 
     private static FakeGame NewGame(TeamDto home, int? homeRank, TeamDto away, int? awayRank, string kickoffUtc) =>
         new()
@@ -342,6 +433,12 @@ public sealed class FakeGameSetStore
         public int? ManualOverride { get; set; }
         public GameSetGameSource Source { get; set; }
 
+        /// <summary>Excluded from scoring after lock (P5-05, Feature 06).</summary>
+        public bool IsVoided { get; set; }
+
+        /// <summary>Commissioner-set override winner (P5-05, Feature 06).</summary>
+        public Guid? WinnerTeamId { get; set; }
+
         public GameSetGameDto ToDto(int? pointValueOverride = null) => new(
             GameSetGameId: GameId,
             GameId: GameId,
@@ -358,7 +455,7 @@ public sealed class FakeGameSetStore
             AwayScore: null,
             Period: null,
             Clock: null,
-            IsVoided: false,
-            WinnerTeamId: null);
+            IsVoided: IsVoided,
+            WinnerTeamId: WinnerTeamId);
     }
 }
