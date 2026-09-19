@@ -54,7 +54,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | Method | Route | Scope | Response |
 |---|---|---|---|
 | GET | `/api/seasons/{year}/weeks` | Auth | `SeasonWeek[] { Week, StartUtc, EndUtc, IsRegularSeason }`; 404 when the calendar has no such season (P0-05). Weeks are ordered ascending and `Week` may be 0. |
-| GET | `/api/leagues/{leagueId}/weeks` | Member | `LeagueWeek[] { Week, HasGameSet, IsCurrent, IsLocked, IsComplete, LockAtUtc? }` restricted to First..Last |
+| GET | `/api/leagues/{leagueId}/weeks` | Member | `LeagueWeek[] { Week, HasGameSet, IsCurrent, IsLocked, IsComplete, LockAtUtc? }` restricted to First..Last. `HasGameSet` is true only when the week holds at least one active game, i.e. a set has actually been generated (D-141) |
 
 ## Game set configuration (Feature 02)
 
@@ -142,7 +142,7 @@ Record definitions live in `Shared/Contracts/Leaderboard/` (`SeasonLeaderboard`,
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/leaderboard` | Member | `SeasonLeaderboard { ThroughWeek, Rows: SeasonRow[] { Rank, MembershipId, DisplayName, TotalPoints, PointsBehind, WeeklyWins, Trend: Up/Down/Same/None, IsMe } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/leaderboard` | Member | `WeekLeaderboard { Week, IsComplete, Rows: WeekRow[] { Rank, MembershipId, DisplayName, Points, Correct, Total, IsWinner, IsFormer, IsMe } }` |
-| GET | `/api/leagues/{leagueId}/weeks/{week}/grid` | Member | `WeekGrid { Games: GameSetGameDto[], Members: GridMember[] { MembershipId, DisplayName, IsFormer }, Cells: GridCell[] { GameSetGameId, MembershipId, TeamId?, Outcome: Pending/Correct/Incorrect/NoPick/Voided } }`; 403 before lock |
+| GET | `/api/leagues/{leagueId}/weeks/{week}/grid` | Member | `WeekGrid { Games: GameSetGameDto[] (voided included), Members: GridMember[] { MembershipId, DisplayName, IsFormer } (the WeekSubmissions rows, by name), Cells: GridCell[] { GameSetGameId, MembershipId, TeamId?, Outcome: Pending/Correct/Incorrect/NoPick/Voided } }`; 403 `PicksNotVisible` before lock, the same ProblemDetails title as `GET .../picks` |
 
 ## Data admin (Features 09, 12)
 
