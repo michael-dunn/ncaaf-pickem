@@ -166,14 +166,14 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 11 - Notifications
 
-| AC group | Task | Proof |
-|---|---|---|
-| Opt in stores subscription; opt out deletes; iOS install guidance; per-member | P7-01, P7-02 | A `PushSubscriptionTests`, UI |
-| In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed on lock move | P7-03 | A `ReminderJobTests` (recipients by status, 7:59 submit, no set, locked week, twice-in-a-week skip, real-cron test), `SaturdayOneShotTests` (due at `LockAtUtc-1h`, not due before, submitted-by-then, locked week, lock move -> new occurrence) |
-| VAPID delivery; 404/410 cleanup; retries; log | P7-01 | A with fake push transport |
-| Text excludes others' picks; opens standalone | P7-02 | Review, manual |
-| Catalog #1/#3 (member reminders) and #2 (commissioner summary, only when someone unsubmitted, names listed) | P7-03 | A `ReminderJobTests`; A `FullWeekSimulationTests` (all three fired by the real scheduler at 20:00/21:00/lock-1h ET, recipients and body text asserted) |
-| Catalog #4 (games added, coalesced, previously-Submitted members only) and #5 (game removed, members with a pick only) | P7-03 | A `EventNotificationTests` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Opt in stores subscription; opt out deletes; iOS install guidance; per-member | P7-01, P7-02 | A `PushSubscriptionTests`, UI | PASS: `PushSubscriptionTests`; screenshot `p7-02-notifications-off-375.png`, `p7-02-notifications-ios-install-375.png`, `p7-02-notifications-on-375.png` |
+| In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed on lock move | P7-03 | A `ReminderJobTests` (recipients by status, 7:59 submit, no set, locked week, twice-in-a-week skip, real-cron test), `SaturdayOneShotTests` (due at `LockAtUtc-1h`, not due before, submitted-by-then, locked week, lock move -> new occurrence) | PASS: `ReminderJobTests.GivenMembersAtEveryStatus_WhenTheFridayReminderRuns_ThenOnlyTheNonSubmittedAreNotified`, `.GivenAMemberWhoSubmittedOneMinuteBeforeTheJobRuns_WhenTheFridayReminderRuns_ThenTheyGetNothing`, `.GivenNoGameSetForTheCurrentWeek_WhenTheFridayReminderRuns_ThenNothingIsSent`, `.GivenTheCurrentWeekIsLocked_WhenTheFridayReminderRuns_ThenNothingIsSent`, `.GivenTheJobRunsTwiceForTheSameWeek_WhenSecondRun_ThenTheSecondSendIsSkipped`, `.GivenTheRealSchedulerTicksAtFridayEightPmEastern_WhenTicked_ThenTheRealJobRunsAndSends`; `SaturdayOneShotTests` |
+| VAPID delivery; 404/410 cleanup; retries; log | P7-01 | A with fake push transport | PASS: `PushDeliveryTests.GivenASubscribedMember_WhenSending_ThenTheRowIsSentAndThePayloadIsCamelCase`, `.GivenAPushServiceThatAnswers410_WhenSending_ThenTheSubscriptionIsDeletedAndLoggedExpired`; `WebPushSenderTests` |
+| Text excludes others' picks; opens standalone | P7-02 | Review, manual | PASS: `NotificationMessages` catalog text reviewed (no other member's pick appears in any template); `notificationclick` handler focuses/navigates the existing standalone window (`service-worker.js`, code review). Real receipt-and-tap-opens-standalone on an iPhone: MANUAL PENDING (operator) — `README.md` "Notifications on iPhone", `reviews/operator-checklist.md` item 6 |
+| Catalog #1/#3 (member reminders) and #2 (commissioner summary, only when someone unsubmitted, names listed) | P7-03 | A `ReminderJobTests`; A `FullWeekSimulationTests` (all three fired by the real scheduler at 20:00/21:00/lock-1h ET, recipients and body text asserted) | PASS: `ReminderJobTests.GivenSomeoneUnsubmitted_WhenTheCommissionerSummaryRuns_ThenTheCommissionerIsToldWhoByName`, `.GivenNoOneUnsubmitted_WhenTheCommissionerSummaryRuns_ThenNothingIsSent`; `FullWeekSimulationTests` |
+| Catalog #4 (games added, coalesced, previously-Submitted members only) and #5 (game removed, members with a pick only) | P7-03 | A `EventNotificationTests` | PASS: `EventNotificationTests.GivenSubmittedMembers_WhenGamesAreAddedByRegeneration_ThenEachGetsOneCoalescedMessage`, `.GivenAMemberWithAPickOnAGame_WhenTheGameIsManuallyRemoved_ThenTheyAreNotifiedByTeamName`, `.GivenARemovedMemberWithAPickOnAGame_WhenTheGameIsRemoved_ThenTheyAreNotNotified` |
 
 ## Feature 12 - Data Provider Evaluation
 
