@@ -101,18 +101,18 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 06 - Scoring
 
-| AC group | Task | Proof |
-|---|---|---|
-| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `...DidNotPick...` |
-| Idempotent; not-final unscored | P5-01 | D `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `...GivenAGameThatIsNotFinal...`; A `ScoringSnapshotWalkTests` (two extra rescores change nothing) |
-| Weekly total; Complete flag | P5-01 | A `FullWeekSimulationTests` (six members across six snapshots, a void and an override, week Complete), D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` |
-| Post-midnight delayed game counts | P5-01, P2-03 | D `WeekScorerTests.GivenTheFixturesPostMidnightFinish...` (read out of snapshot 6); A `ScoringSnapshotWalkTests` (snapshot 6 adds the late game's points to week 7) |
-| Nightly recompute keeps results true | P5-01 | A `ScoringServiceTests.GivenALockedWeekNobodyScored...`, `...GivenASetWhoseResultsDisagreeWithIt...` |
-| No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` |
-| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D `WeekScorerTests.GivenAFinalTie...`, `...GivenAFinalGameMissingAScore...`; A `ScoringSnapshotWalkTests` (tie on the data-status needs-review list, week stays open) |
-| Void removes from scoring, shows Voided | P5-01, P5-02, P5-04 | D `WeekScorerTests.GivenAVoidedGame...` (x2); A `ScoringServiceTests.GivenAGameIsVoided...`, `...GivenTheTieIsVoided...`; A `VoidTests`, UI grid |
-| Override recalculates; audit logged and visible | P5-01, P5-02, P5-05 | D `WeekScorerTests.GivenATieAnOverrideHasSettled...`; A `ScoringSnapshotWalkTests` (real `ResultOverridden` closes the week); A `OverrideTests`, UI audit |
-| 5-minute checks; score only on Final | P2-04, P2-03 | D `SaturdayPollerScheduleTests`, D `GameMatcherTests.FinalOnlyOnFinal` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `...DidNotPick...` | PASS: `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `.GivenAMemberDidNotPick_WhenScoring_ThenTheyEarnZeroForThatGame` |
+| Idempotent; not-final unscored | P5-01 | D `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `...GivenAGameThatIsNotFinal...`; A `ScoringSnapshotWalkTests` (two extra rescores change nothing) | PASS: `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `.GivenAGameThatIsNotFinal...`; `ScoringSnapshotWalkTests` |
+| Weekly total; Complete flag | P5-01 | A `FullWeekSimulationTests` (six members across six snapshots, a void and an override, week Complete), D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` | PASS: `FullWeekSimulationTests`, `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `.GivenEveryActiveGameFinalWithAWinner...`, `.GivenOneGameStillToPlay...` |
+| Post-midnight delayed game counts | P5-01, P2-03 | D `WeekScorerTests.GivenTheFixturesPostMidnightFinish...` (read out of snapshot 6); A `ScoringSnapshotWalkTests` (snapshot 6 adds the late game's points to week 7) | PASS: `WeekScorerTests.GivenTheFixturesPostMidnightFinish...`, `ScoringSnapshotWalkTests` |
+| Nightly recompute keeps results true | P5-01 | A `ScoringServiceTests.GivenALockedWeekNobodyScored...`, `...GivenASetWhoseResultsDisagreeWithIt...` | PASS: `ScoringServiceTests.GivenALockedWeekNobodyScored_WhenTheNightlyJobRuns_ThenItIsScored`, `.GivenASetWhoseResultsDisagreeWithIt_WhenTheNightlyJobRuns_ThenTheyAreBroughtBackIntoLine` |
+| No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` | PASS: `StandingsCalculatorTests.GivenEqualTotals_WhenRankingTheSeason_ThenTiesShareARankAndTheNextOneSkips` (real method name — `TiesShareRank` was never the actual name) |
+| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D `WeekScorerTests.GivenAFinalTie...`, `...GivenAFinalGameMissingAScore...`; A `ScoringSnapshotWalkTests` (tie on the data-status needs-review list, week stays open) | PASS: `WeekScorerTests.GivenAFinalTie...`, `.GivenAFinalGameMissingAScore...`; `ScoringSnapshotWalkTests` |
+| Void removes from scoring, shows Voided | P5-01, P5-02, P5-04 | D `WeekScorerTests.GivenAVoidedGame...` (x2); A `ScoringServiceTests.GivenAGameIsVoided...`, `...GivenTheTieIsVoided...`; A `VoidTests`, UI grid | PASS: `WeekScorerTests.GivenAVoidedGame...` (x2), `ScoringServiceTests.GivenAGameIsVoided_WhenRescoring_ThenItAwardsNothingAndLeavesActiveGameCount`, `.GivenTheTieIsVoided_WhenRescoring_ThenTheWeekCompletesAndOneSnapshotIsWritten`, `VoidTests`; screenshot `p5-04-grid-375.png` (voided greyed) |
+| Override recalculates; audit logged and visible | P5-01, P5-02, P5-05 | D `WeekScorerTests.GivenATieAnOverrideHasSettled...`; A `ScoringSnapshotWalkTests` (real `ResultOverridden` closes the week); A `OverrideTests`, UI audit | PASS: `WeekScorerTests.GivenATieAnOverrideHasSettled...`, `ScoringSnapshotWalkTests`, `OverrideTests`; screenshot `p5-05-audit-375.png` |
+| 5-minute checks; score only on Final | P2-04, P2-03 | D `SaturdayPollerScheduleTests`, D `GameMatcherTests.FinalOnlyOnFinal` | PASS: `SaturdayPollerScheduleTests` (5-minute cadence); `LiveScoreApplyTests.GivenTheSixSnapshotsInOrder_WhenApplied_ThenEveryGameGoesFinalExactlyOnce`, `.GivenAFinalGame_WhenAStalePayloadSaysInProgress_ThenTheFinalStands` (real class — `GameMatcherTests` has no `FinalOnlyOnFinal` method) |
 
 ## Feature 07 - Leaderboard
 
