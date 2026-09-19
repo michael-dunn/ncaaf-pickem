@@ -143,15 +143,15 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 09 - Game Data Feed
 
-| AC group | Task | Proof |
-|---|---|---|
-| Provider abstraction; local storage only | P2-02, P2-03 | Architecture review; A: features read DbContext only |
-| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` (incl. the 2026-11-01 DST week) |
-| Idempotent refreshes | P2-02 | A `RefreshTwice_NoDuplicates` |
-| Failure keeps old data, logs; stale banner | P2-02, P2-04, P6-02 | A `ReferenceIngestTests`; UI `DataStatusPage`'s `ScoresMayBeStale` banner |
-| Rate limits respected | P2-04 | D `SaturdayPollerScheduleTests` (window/cadence/fallback); A `AdminEndpointsTests` (CFBD counter warning at 800) |
-| Data status page | P2-04 | UI `Pages/Admin/DataStatusPage.razor`, `Implementation/screenshots/p2-04-data-status-375.png` |
-| Saturday poller applies fixture snapshots, scores every game | P2-04 | A `SaturdayPollerIntegrationTests` (Phase 2 exit criterion) |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Provider abstraction; local storage only | P2-02, P2-03 | Architecture review; A: features read DbContext only | PASS: `Implementation/01-Architecture.md` "Provider isolation"; `IReferenceDataProvider`/`ILiveScoreProvider` are the only two provider interfaces (grep confirms no other code references CFBD/ESPN HTTP clients directly) |
+| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` (incl. the 2026-11-01 DST week) | PASS: `RefreshJobScheduleTests.GivenLinesRefreshJob_WhenParsedAcrossTheDstChange_ThenBothSidesResolveCorrectly` (and the rest of the class's per-job cadence cases) |
+| Idempotent refreshes | P2-02 | A `RefreshTwice_NoDuplicates` | PASS: `ReferenceIngestTests.GivenTeamsIngestedTwice_ThenNoDuplicateConferencesTeamsOrAliases`, `.GivenCalendarIngestedTwice_ThenSeasonWeeksAreNormalizedAndNotDuplicated`, `.GivenRankingsIngestedTwice_ThenNoDuplicateRankingRows` (real method names — `RefreshTwice_NoDuplicates` was never the actual name) |
+| Failure keeps old data, logs; stale banner | P2-02, P2-04, P6-02 | A `ReferenceIngestTests`; UI `DataStatusPage`'s `ScoresMayBeStale` banner | PASS: `ReferenceIngestTests`; screenshot `p2-04-data-status-375.png` |
+| Rate limits respected | P2-04 | D `SaturdayPollerScheduleTests` (window/cadence/fallback); A `AdminEndpointsTests` (CFBD counter warning at 800) | PASS: `SaturdayPollerScheduleTests`; `AdminEndpointsTests` (799 -> no warning, 800 -> warning) |
+| Data status page | P2-04 | UI `Pages/Admin/DataStatusPage.razor`, `Implementation/screenshots/p2-04-data-status-375.png` | PASS: screenshot `p2-04-data-status-375.png` |
+| Saturday poller applies fixture snapshots, scores every game | P2-04 | A `SaturdayPollerIntegrationTests` (Phase 2 exit criterion) | PASS: `SaturdayPollerIntegrationTests` |
 
 ## Feature 10 - Hosting and Platform
 
