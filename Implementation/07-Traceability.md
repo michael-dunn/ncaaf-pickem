@@ -4,186 +4,195 @@ Every acceptance-criteria group in the 13 stories, the task that delivers it, an
 
 Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual check at 375px (screenshot), **Ops** = manual operational check.
 
+**Result column values**: `PASS: <TestClass>.<Method>` (grep-verified to exist in `tests/`, and part of the
+green `dotnet test` run — 306 Domain.Tests + 516 Api.Tests, 822/822, this pass); `PASS: screenshot <file>`
+for a UI row proven only by a captured 375px screenshot under `Implementation/screenshots/`;
+`MANUAL PENDING (operator): <where the steps are>` for anything that needs a physical device, a live
+OAuth round trip, or the deployed home server; `GAP -> follow-up` for anything neither proven nor
+verifiable in this environment, with the follow-up recorded in `STATUS.md`'s Escalations table. Where
+the Proof column's cited class/method name was stale (renamed or never existed under that name), the
+Result gives the real one and the Proof column is left as originally written for history.
+
 ## Feature 01 - Leagues and Members
 
-| AC group | Task | Proof |
-|---|---|---|
-| League creation (name, season, creator is commissioner + member, 50-char name) | P1-01 | A `LeagueEndpointsTests.Create*` |
-| One season per league, no rollover | P1-01 | A: SeasonYear required; no rollover endpoint exists |
-| 50-member cap and "league is full" | P1-01 | A `InviteAcceptTests.GivenFullLeague_*` |
-| Invite generation shareable by text | P1-01, P1-02 | A `InviteTests`; A `FullWeekSimulationTests` (one code, five members accept it); UI share sheet |
-| Valid invite joins and lands on home; revoked/expired message; no double join | P1-01, P1-02 | A `InviteAcceptTests` x4 |
-| Mid-season join: 0 points, no earlier weeks | P1-01, P5-03 | A `StandingsTests.GivenLateJoiner_*` |
-| Remove member keeps picks as former member | P1-01, P5-03 | A `MembershipTests.Remove*`, `WeekLeaderboardTests.FormerMember*` |
-| Cannot remove self; transfer demotes only the transferer; promote/demote; at least one commissioner | P1-01 | A `RoleTests` x5 |
-| League home shows name, week, my status, links | P1-02 | UI |
-| Multi-league picker | P1-02 | UI + A `MeTests.ListsLeagues` |
-| Mobile 375px | P1-02 | UI |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| League creation (name, season, creator is commissioner + member, 50-char name) | P1-01 | A `LeagueEndpointsTests.Create*` | PASS: `LeagueEndpointsTests.GivenALoggedInUser_WhenCreatingALeague_ThenDefaultsAreAppliedAndCreatorIsCommissioner`, `.GivenAnEmptyName_WhenCreatingALeague_ThenItIsRejected`, `.GivenAMissingName_WhenCreatingALeague_ThenItIsRejected` |
+| One season per league, no rollover | P1-01 | A: SeasonYear required; no rollover endpoint exists | PASS: `LeagueEndpointsTests.GivenAChampionshipWeekAsLastWeek_WhenCreatingALeague_ThenItIsRejected` (season year required); route inventory (`RouteInventoryTests`) confirms no rollover endpoint is mapped |
+| 50-member cap and "league is full" | P1-01 | A `InviteAcceptTests.GivenFullLeague_*` | PASS: `InviteAcceptTests.GivenALeagueAtTheMemberCap_WhenAcceptAttempted_ThenItIs409WithFullState` (real method name — the Proof column's `GivenFullLeague_*` was never the actual name) |
+| Invite generation shareable by text | P1-01, P1-02 | A `InviteTests`; A `FullWeekSimulationTests` (one code, five members accept it); UI share sheet | PASS: `AuthMatrixTests.GivenTheInvitesGroup_WhenCalledByEachRole_ThenTheMatrixHolds` (creation succeeds for a commissioner), `FullWeekSimulationTests` (one invite code, five members accept it); PASS: screenshot `p1-02-invites-375.png` (share sheet). No `InviteTests` class exists — it was never real |
+| Valid invite joins and lands on home; revoked/expired message; no double join | P1-01, P1-02 | A `InviteAcceptTests` x4 | PASS: `InviteAcceptTests.GivenAValidInvite_WhenAccepted_ThenTheCallerJoinsAtTheCurrentWeekAndUsesIncrement`, `.GivenAnExpiredInvite_WhenAcceptAttempted_ThenItIs409WithExpiredState`, `.GivenARevokedInvite_WhenAcceptAttempted_ThenItIs409WithRevokedState`, `.GivenACallerAlreadyAMember_WhenAcceptAttempted_ThenItIs409WithAlreadyMemberState` |
+| Mid-season join: 0 points, no earlier weeks | P1-01, P5-03 | A `StandingsTests.GivenLateJoiner_*` | PASS: `StandingsCalculatorTests.GivenAMidSeasonJoiner_WhenTotallingTheSeason_ThenOnlyTheirOwnWeeksCount` (real class — `StandingsTests` was never real) |
+| Remove member keeps picks as former member | P1-01, P5-03 | A `MembershipTests.Remove*`, `WeekLeaderboardTests.FormerMember*` | PASS: `RoleTests.GivenACommissioner_WhenRemovingAMember_ThenTheyAreSoftDeletedAndAuditLogged`, `.GivenARemovedMember_WhenListingMembers_ThenTheyAreFlaggedFormer`, `StandingsCalculatorTests.GivenAFormerMember_WhenBuildingBothLeaderboards_ThenTheyAreOnTheWeekButNotTheSeason`, `LeaderboardEndpointsTests.GivenACompletedWeek_WhenReadingItsLeaderboard_ThenFormerMembersAppearAndTheWinnersAreMarked` (real classes — `MembershipTests`/`WeekLeaderboardTests` were never real) |
+| Cannot remove self; transfer demotes only the transferer; promote/demote; at least one commissioner | P1-01 | A `RoleTests` x5 | PASS: `RoleTests.GivenTheOnlyCommissioner_WhenRemovingThemself_ThenItIs409AsTheLastCommissioner`, `.GivenTheOnlyCommissioner_WhenDemotingThemself_ThenItIs409`, `.GivenATransfer_WhenApplied_ThenTargetIsPromotedCallerIsDemotedAndOthersAreUntouched`, `.GivenACommissioner_WhenPromotingAMember_ThenTheyBecomeCommissioner`, `.GivenTwoCommissioners_WhenDemotingOne_ThenTheOtherRemainsCommissioner` |
+| League home shows name, week, my status, links | P1-02 | UI | PASS: screenshot `p1-02-league-home-commish-375.png`, `p1-02-league-home-member-375.png` |
+| Multi-league picker | P1-02 | UI + A `MeTests.ListsLeagues` | PASS: `MeEndpointTests.GivenAMemberOfALeague_WhenGettingMe_ThenLeaguesIsFilled` (real class — `MeTests` was never real); screenshot `p1-02-picker-with-leagues-375.png` |
+| Mobile 375px | P1-02 | UI | PASS: screenshots `p1-02-*-375.png` (all 9 states, `scrollWidth === 375` per the P1-02 STATUS note) |
 
 ## Feature 02 - Weekly Game Set Configuration
 
-| AC group | Task | Proof |
-|---|---|---|
-| Rules saved to default config | P3-03 | A `GameSetRulesEndpointsTests` |
-| Union of rules, distinct | P3-01 | D `GameSetGeneratorTests.GivenSeveralRules_WhenGenerating_ThenTheResultIsTheirUnionWithEachGameOnce` |
-| Top 25 uses current AP poll | P3-01 | D `*.GivenTwoPollsForTheWeek_WhenGenerating_ThenTheLatestFetchWinsAndNoFallbackIsFlagged`, `*.GivenNoPollForTheWeek_WhenGenerating_ThenThePriorWeekPollIsUsedAndFlagged` |
-| Conference-games-only | P3-01 | D `*.GivenAConferenceRule_WhenConferenceGamesOnlyIsOff_ThenEitherTeamQualifies`, `*...IsOn_ThenBothTeamsMustQualify` |
-| Team bye yields nothing | P3-01 | D `*.GivenATeamRule_WhenThatTeamHasAByeWeek_ThenNoGameIsAdded` |
-| Saturday in Eastern only | P3-01, P0-05 | D `SeasonCalendarTests` (Friday Pacific is Saturday Eastern), `GameSetGeneratorTests.GivenFridayKickoffs_WhenGenerating_ThenOnlyTheFridayPacificGameIsSaturdayEastern` |
-| FCS excluded | P3-01 | D `*.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `*.GivenAnFcsHomeTeam_...` |
-| AP only | P3-03 | A: RuleType enum has no other poll |
-| 50-game cap with preview warning | P3-01, P3-03, P3-05 | D `*.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `*.GivenMoreThanFiftyMatchingGames_...`, A 409, UI warning |
-| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` |
-| Week override leaves default intact | P3-03 | A |
-| Manual remove sticky across regen; manual add included | P3-01 | D `*.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `*.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `*.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` |
-| Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI |
-| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `FullWeekSimulationTests` (the real Tuesday 03:30 ET cron builds the week through `SchedulerTick`), A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
-| Member view ordered by kickoff in local time | P3-05 | UI |
-| Tap-only rule editing | P3-05 | UI |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Rules saved to default config | P3-03 | A `GameSetRulesEndpointsTests` | PASS: `GameSetRulesEndpointsTests.GivenValidRules_WhenPuttingDefaultRules_ThenTheyRoundTripWithEchoedNames`, `.GivenNoRulesSaved_WhenGettingDefaultRules_ThenTheArrayIsEmpty` |
+| Union of rules, distinct | P3-01 | D `GameSetGeneratorTests.GivenSeveralRules_WhenGenerating_ThenTheResultIsTheirUnionWithEachGameOnce` | PASS: `GameSetGeneratorTests.GivenSeveralRules_WhenGenerating_ThenTheResultIsTheirUnionWithEachGameOnce` |
+| Top 25 uses current AP poll | P3-01 | D `*.GivenTwoPollsForTheWeek_WhenGenerating_ThenTheLatestFetchWinsAndNoFallbackIsFlagged`, `*.GivenNoPollForTheWeek_WhenGenerating_ThenThePriorWeekPollIsUsedAndFlagged` | PASS: `GameSetGeneratorTests.GivenTwoPollsForTheWeek_WhenGenerating_ThenTheLatestFetchWinsAndNoFallbackIsFlagged`, `.GivenNoPollForTheWeek_WhenGenerating_ThenThePriorWeekPollIsUsedAndFlagged` |
+| Conference-games-only | P3-01 | D `*.GivenAConferenceRule_WhenConferenceGamesOnlyIsOff_ThenEitherTeamQualifies`, `*...IsOn_ThenBothTeamsMustQualify` | PASS: `GameSetGeneratorTests.GivenAConferenceRule_WhenConferenceGamesOnlyIsOff_ThenEitherTeamQualifies` (and its `...IsOn_...` pair) |
+| Team bye yields nothing | P3-01 | D `*.GivenATeamRule_WhenThatTeamHasAByeWeek_ThenNoGameIsAdded` | PASS: `GameSetGeneratorTests.GivenATeamRule_WhenThatTeamHasAByeWeek_ThenNoGameIsAdded` |
+| Saturday in Eastern only | P3-01, P0-05 | D `SeasonCalendarTests` (Friday Pacific is Saturday Eastern), `GameSetGeneratorTests.GivenFridayKickoffs_WhenGenerating_ThenOnlyTheFridayPacificGameIsSaturdayEastern` | PASS: `SeasonCalendarTests`, `GameSetGeneratorTests.GivenFridayKickoffs_WhenGenerating_ThenOnlyTheFridayPacificGameIsSaturdayEastern` |
+| FCS excluded | P3-01 | D `*.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `*.GivenAnFcsHomeTeam_...` | PASS: `GameSetGeneratorTests.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `.GivenAnFcsHomeTeam_...` |
+| AP only | P3-03 | A: RuleType enum has no other poll | PASS: `RuleType` enum has no other poll value (checked in `Shared/Enums`) |
+| 50-game cap with preview warning | P3-01, P3-03, P3-05 | D `*.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `*.GivenMoreThanFiftyMatchingGames_...`, A 409, UI warning | PASS: `GameSetGeneratorTests.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `.GivenMoreThanFiftyMatchingGames_...`; screenshot `p3-05-rules-preview-375.png` |
+| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` | PASS: `GameSetGeneratorTests.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` |
+| Week override leaves default intact | P3-03 | A | PASS: `GameSetRulesEndpointsTests.GivenAnOverrideThenCleared_WhenGettingWeekRules_ThenItEchoesTheDefaultAgain` |
+| Manual remove sticky across regen; manual add included | P3-01 | D `*.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `*.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `*.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` | PASS: `GameSetGeneratorTests.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` |
+| Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI | PASS: `GameSetGeneratorTests.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`; screenshot `p3-05-rules-preview-375.png` |
+| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `FullWeekSimulationTests` (the real Tuesday 03:30 ET cron builds the week through `SchedulerTick`), A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` | PASS: `FullWeekSimulationTests`, `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests.GivenTheCurrentWeek_WhenAnOverrideIsSaved_ThenTheSetIsRegeneratedInTheSameCall`, `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
+| Member view ordered by kickoff in local time | P3-05 | UI | PASS: screenshot `p3-05-member-week-375.png` |
+| Tap-only rule editing | P3-05 | UI | PASS: screenshot `p3-05-rules-375.png` (`BottomSheet`/`NumberStepper` tap controls, no free-text entry) |
 
 ## Feature 03 - Point Values
 
-| AC group | Task | Proof |
-|---|---|---|
-| Default 10; change 1..100 applies to unmatched games | P3-02, P3-03 | D, A |
-| No rule = default; one rule = its value; multiple = highest priority | P3-02 | D `PointValueResolverTests` x3 |
-| Close spread with no spread = no match | P3-02 | D |
-| Daily spread refresh, snapshot at lock | P2-04, P4-02 | A `LockWeekJobTests.GivenADueWeek_WhenTheJobRuns_ThenEachActiveGameHasItsSpreadAndPointValueFrozen`, D `WeekLockerTests` |
-| Commissioner-only weighting | P3-03 | A: no member endpoint exists |
-| Override wins; per-week only | P3-02, P3-03 | D, A |
-| Point value visible and elevated badge | P4-03 | UI |
-| Frozen after lock | P3-03, P4-02 | A `PostLockMutationTests` (409 for generate/add/remove/week-rules/override, after the job and in the pre-job window), A `LockWeekJobTests.GivenALockedWeek_WhenAPointRuleAndTheLineChange_ThenTheFrozenValuesDoNotMove` |
-| Mid-week change updates submitted members' view, picks valid | P3-03 | A `PointRulesChange_KeepsPicks` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Default 10; change 1..100 applies to unmatched games | P3-02, P3-03 | D, A | PASS: `PointRuleValidationTests` (1..100 range), `PointRulesEndpointsTests.GivenAChangedLeagueDefault_WhenUpdatingSettings_ThenUnlockedWeeksReResolveImmediately` |
+| No rule = default; one rule = its value; multiple = highest priority | P3-02 | D `PointValueResolverTests` x3 | PASS: `PointValueResolverTests` (21 tests incl. the default/single-rule/priority cases) |
+| Close spread with no spread = no match | P3-02 | D | PASS: `PointValueResolverTests` (`CloseSpread` rule cases) |
+| Daily spread refresh, snapshot at lock | P2-04, P4-02 | A `LockWeekJobTests.GivenADueWeek_WhenTheJobRuns_ThenEachActiveGameHasItsSpreadAndPointValueFrozen`, D `WeekLockerTests` | PASS: `LockWeekJobTests.GivenADueWeek_WhenTheJobRuns_ThenEachActiveGameHasItsSpreadAndPointValueFrozen`, `WeekLockerTests` |
+| Commissioner-only weighting | P3-03 | A: no member endpoint exists | PASS: route inventory (`RouteInventoryTests`) — point-rule mutation routes are all `RequireLeagueCommissioner()` |
+| Override wins; per-week only | P3-02, P3-03 | D, A | PASS: `PointValueResolverTests` (override precedence), `PointRulesEndpointsTests.GivenAnOverride_WhenPuttingAndClearing_ThenTheResolvedValueTracksIt` |
+| Point value visible and elevated badge | P4-03 | UI | PASS: screenshot `p4-03-in-progress-375.png` |
+| Frozen after lock | P3-03, P4-02 | A `PostLockMutationTests` (409 for generate/add/remove/week-rules/override, after the job and in the pre-job window), A `LockWeekJobTests.GivenALockedWeek_WhenAPointRuleAndTheLineChange_ThenTheFrozenValuesDoNotMove` | PASS: `PostLockMutationTests`, `LockWeekJobTests.GivenALockedWeek_WhenAPointRuleAndTheLineChange_ThenTheFrozenValuesDoNotMove`, `PointRulesEndpointsTests.GivenALockedWeek_WhenSettingAnOverride_ThenItIs409` |
+| Mid-week change updates submitted members' view, picks valid | P3-03 | A `PointRulesChange_KeepsPicks` | PASS: `PointRulesEndpointsTests.GivenAnExistingPick_WhenReResolvingPointValues_ThenThePickIsUnaffected` (real method name — `PointRulesChange_KeepsPicks` was never the actual name) |
 
 ## Feature 04 - Weekly Picks
 
-| AC group | Task | Proof |
-|---|---|---|
-| Picks page lists teams, rank, kickoff, points | P4-03 | UI |
-| Tap picks, other unmarked, re-tap is no-op | P4-01, P4-03 | A `SetPickTests`, UI |
-| Auto-save with indicator; failure reverts | P4-03 | UI (simulate offline) |
-| Submit only when all picked; remaining count shown | P4-01, P4-03 | A `SubmitTests`, UI |
-| Change after submit keeps Submitted | P4-01 | D `SubmissionStatusTests` |
-| Past weeks read-only | P4-01 | A 409 on old week |
-| Game added reverts to In Progress, highlighted, notified | P4-04, P7-03 | A `GameAddedTests`, UI, A `NotificationTests.GamesAdded` |
-| Game removed keeps its pick row, counts update, member flagged only if they had a pick on it | P4-04 | A `GameRemovedTests` |
-| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests` |
-| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, D `WeekScorerTests.NoPickScoresZero` |
-| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests`, A `PostLockMutationTests` |
-| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, A `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, D `WeekScorerTests.NoPickScoresZero` |
-| Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` |
-| Status values on home; commissioner roster | P4-01, P1-02 | A `FullWeekSimulationTests` (Submitted x4, InProgress 5 of 7, NotStarted on the real roster route), UI |
-| 44px targets, sticky submit, 2 s interactive | P4-03, P0-04 | UI, spike measurement |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Picks page lists teams, rank, kickoff, points | P4-03 | UI | PASS: screenshot `p4-03-in-progress-375.png` |
+| Tap picks, other unmarked, re-tap is no-op | P4-01, P4-03 | A `SetPickTests`, UI | PASS: `SetPickTests`; screenshot `p4-03-in-progress-375.png` |
+| Auto-save with indicator; failure reverts | P4-03 | UI (simulate offline) | PASS: screenshot `p4-03-offline-revert-375.png` (`?failNextPick=1` fake-API flag) |
+| Submit only when all picked; remaining count shown | P4-01, P4-03 | A `SubmitTests`, UI | PASS: `SubmitTests`; screenshot `p4-03-in-progress-375.png` ("N picks left") |
+| Change after submit keeps Submitted | P4-01 | D `SubmissionStatusTests` | PASS: `SubmissionStatusTests` |
+| Past weeks read-only | P4-01 | A 409 on old week | PASS: `SetPickTests`/`SubmitTests` `WeekNotCurrent` 409 cases; screenshot `p4-03-past-week-375.png` |
+| Game added reverts to In Progress, highlighted, notified | P4-04, P7-03 | A `GameAddedTests`, UI, A `NotificationTests.GamesAdded` | PASS: `GameAddedTests`; `EventNotificationTests.GivenSubmittedMembers_WhenGamesAreAddedByRegeneration_ThenEachGetsOneCoalescedMessage` (real class — `NotificationTests` was never real) |
+| Game removed keeps its pick row, counts update, member flagged only if they had a pick on it | P4-04 | A `GameRemovedTests` | PASS: `GameRemovedTests` |
+| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests` | PASS: `LockEnforcementTests` |
+| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, D `WeekScorerTests.NoPickScoresZero` | PASS: `WeekLockerTests`, `WeekScorerTests.GivenAMemberDidNotPick_WhenScoring_ThenTheyEarnZeroForThatGame` (real method name — `NoPickScoresZero` was never the actual name) |
+| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests`, A `PostLockMutationTests` | PASS: `LockEnforcementTests`, `PostLockMutationTests` |
+| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, A `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, D `WeekScorerTests.NoPickScoresZero` | PASS: `WeekLockerTests`, `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, `WeekScorerTests.GivenAMemberDidNotPick_WhenScoring_ThenTheyEarnZeroForThatGame` |
+| Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` | PASS: `PicksVisibilityTests` |
+| Status values on home; commissioner roster | P4-01, P1-02 | A `FullWeekSimulationTests` (Submitted x4, InProgress 5 of 7, NotStarted on the real roster route), UI | PASS: `FullWeekSimulationTests`; screenshot `p1-02-members-375.png` |
+| 44px targets, sticky submit, 2 s interactive | P4-03, P0-04 | UI, spike measurement | PASS: `Implementation/spikes/wasm-load-time.md` ("P4-03: Picks page repeat load", 310-477 ms cold / 337-352 ms warm, both under the 2 s budget); screenshot `p4-03-in-progress-375.png` (44px targets, sticky `SubmitFooter`) |
 
 ## Feature 05 - Pick Lock and Influence Dashboard
 
-| AC group | Task | Proof |
-|---|---|---|
-| Lock = earliest Saturday kickoff | P3-01, P0-05 | D `LockAtIsEarliestKickoff` |
-| Week locks at that instant: statuses settled, values frozen, `WeekLocked` raised | P4-02 | D `WeekLockerTests`, A `LockWeekJobTests` (due/not due, catch-up, idempotent second run, late joiner, event raised once, scheduler registration) |
-| Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.GivenAWeekWithNoGameSet_WhenAMemberAsksForTheDashboard_ThenItIsUnavailableWithNoLockTime`, `.GivenAGeneratedSetPastItsLockInstant_WhenTheJobHasNotRun_ThenTheDashboardIsStillUnavailable`, `.GivenTheOverviewExample_WhenDanceAsksForHerDashboard_ThenItMatchesTheWorkedExample` (post-lock available); UI |
-| Opposite picks definition; No Pick group; viewer excluded; viewer no-pick case | P6-01 | D `InfluenceCalculatorTests.GivenTheWorkedExample_*` (the Overview example, from `influence-example.json`), `.GivenTheViewerPicked_WhenBuildingTheDashboard_ThenTheyAreInNoneOfTheirOwnLists`, `.GivenAMemberWithNoPick_*`, `.GivenTheViewerDidNotPick_WhenBuildingTheDashboard_ThenItStaysInGamesWithBothTeamsLists` |
-| Only members active at lock are listed (former in, post-lock joiner out); voided games excluded | P6-01 | D `InfluenceCalculatorTests.GivenAFormerMemberWhoWasActiveAtLock_*`, `.GivenAMemberWhoJoinedAfterLock_*`, `.GivenAVoidedGame_*` |
-| Ordering and tie-breaks; Everyone-agrees collapsed | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenGamesWithDifferentOpposition_*`, `.GivenTwoGamesAlikeInEveryOrderingKey_*`, `.GivenAGameEverybodyAgreesOn_*`; UI |
-| Game status display; Won/Lost marking | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenAFinalScore_*`, `.GivenAResultOverride_*`, `.GivenAFinalTie_*`, `.GivenAGameInProgress_*`, `WinnerResolverTests`; UI |
-| Points so far and max remaining | P6-01 | D `InfluenceCalculatorTests.GivenAWeekPartlyPlayed_WhenBuildingTheHeader_ThenPointsSoFarAndMaxRemainingAreSummed` |
-| Card layout, names wrap, live refresh without reload | P6-03 | UI |
-| No view-as-other, no league-wide split | P6-02 | A `DashboardTests.GivenAnExtraQueryParameter_WhenAMemberAsksForTheDashboard_ThenItIs400`, `.GivenAMemberWhoJoinedAfterLock_WhenTheyAskForTheirOwnDashboard_ThenTheySeeNoPickEverywhere`, `.GivenAFormerMemberWhoPickedBeforeLeaving_WhenTheWeekLocks_ThenTheyStillAppearFlagged`, `.GivenAStaleLiveScoreSource_*`, `.GivenAFinalGameWithAWinner_*`, `.GivenTheAuthMatrix_WhenAskingForTheDashboard_ThenOnlyAMemberMaySeeIt` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Lock = earliest Saturday kickoff | P3-01, P0-05 | D `LockAtIsEarliestKickoff` | PASS: `GameSetGeneratorTests.GivenGamesThroughTheDay_WhenGenerating_ThenLockAtUtcIsTheEarliestKickoff` (real method name — `LockAtIsEarliestKickoff` was never the actual name) |
+| Week locks at that instant: statuses settled, values frozen, `WeekLocked` raised | P4-02 | D `WeekLockerTests`, A `LockWeekJobTests` (due/not due, catch-up, idempotent second run, late joiner, event raised once, scheduler registration) | PASS: `WeekLockerTests`, `LockWeekJobTests` (12 methods incl. the due/catch-up/idempotent/late-joiner/event cases) |
+| Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.GivenAWeekWithNoGameSet_WhenAMemberAsksForTheDashboard_ThenItIsUnavailableWithNoLockTime`, `.GivenAGeneratedSetPastItsLockInstant_WhenTheJobHasNotRun_ThenTheDashboardIsStillUnavailable`, `.GivenTheOverviewExample_WhenDanceAsksForHerDashboard_ThenItMatchesTheWorkedExample` (post-lock available); UI | PASS: `DashboardTests.GivenAWeekWithNoGameSet_WhenAMemberAsksForTheDashboard_ThenItIsUnavailableWithNoLockTime`, `.GivenAGeneratedSetPastItsLockInstant_WhenTheJobHasNotRun_ThenTheDashboardIsStillUnavailable`, `.GivenTheOverviewExample_WhenDanceAsksForHerDashboard_ThenItMatchesTheWorkedExample`; screenshot `p6-03-prelock-375.png` |
+| Opposite picks definition; No Pick group; viewer excluded; viewer no-pick case | P6-01 | D `InfluenceCalculatorTests.GivenTheWorkedExample_*` (the Overview example, from `influence-example.json`), `.GivenTheViewerPicked_WhenBuildingTheDashboard_ThenTheyAreInNoneOfTheirOwnLists`, `.GivenAMemberWithNoPick_*`, `.GivenTheViewerDidNotPick_WhenBuildingTheDashboard_ThenItStaysInGamesWithBothTeamsLists` | PASS: `InfluenceCalculatorTests.GivenTheWorkedExample_*`, `.GivenTheViewerPicked_WhenBuildingTheDashboard_ThenTheyAreInNoneOfTheirOwnLists`, `.GivenAMemberWithNoPick_*`, `.GivenTheViewerDidNotPick_WhenBuildingTheDashboard_ThenItStaysInGamesWithBothTeamsLists` |
+| Only members active at lock are listed (former in, post-lock joiner out); voided games excluded | P6-01 | D `InfluenceCalculatorTests.GivenAFormerMemberWhoWasActiveAtLock_*`, `.GivenAMemberWhoJoinedAfterLock_*`, `.GivenAVoidedGame_*` | PASS: `InfluenceCalculatorTests.GivenAFormerMemberWhoWasActiveAtLock_*`, `.GivenAMemberWhoJoinedAfterLock_*`, `.GivenAVoidedGame_*` |
+| Ordering and tie-breaks; Everyone-agrees collapsed | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenGamesWithDifferentOpposition_*`, `.GivenTwoGamesAlikeInEveryOrderingKey_*`, `.GivenAGameEverybodyAgreesOn_*`; UI | PASS: `InfluenceCalculatorTests.GivenGamesWithDifferentOpposition_*`, `.GivenTwoGamesAlikeInEveryOrderingKey_*`, `.GivenAGameEverybodyAgreesOn_*`; screenshot `p6-03-live-375.png` (collapsed "Everyone agrees" section) |
+| Game status display; Won/Lost marking | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenAFinalScore_*`, `.GivenAResultOverride_*`, `.GivenAFinalTie_*`, `.GivenAGameInProgress_*`, `WinnerResolverTests`; UI | PASS: `InfluenceCalculatorTests.GivenAFinalScore_*`, `.GivenAResultOverride_*`, `.GivenAFinalTie_*`, `.GivenAGameInProgress_*`, `WinnerResolverTests`; screenshot `p6-03-final-375.png` |
+| Points so far and max remaining | P6-01 | D `InfluenceCalculatorTests.GivenAWeekPartlyPlayed_WhenBuildingTheHeader_ThenPointsSoFarAndMaxRemainingAreSummed` | PASS: `InfluenceCalculatorTests.GivenAWeekPartlyPlayed_WhenBuildingTheHeader_ThenPointsSoFarAndMaxRemainingAreSummed` |
+| Card layout, names wrap, live refresh without reload | P6-03 | UI | PASS: screenshot `p6-03-live-375.png` (auto-refresh via `PeriodicTimer`, confirmed by headless-Edge drive per the P6-03 STATUS note) |
+| No view-as-other, no league-wide split | P6-02 | A `DashboardTests.GivenAnExtraQueryParameter_WhenAMemberAsksForTheDashboard_ThenItIs400`, `.GivenAMemberWhoJoinedAfterLock_WhenTheyAskForTheirOwnDashboard_ThenTheySeeNoPickEverywhere`, `.GivenAFormerMemberWhoPickedBeforeLeaving_WhenTheWeekLocks_ThenTheyStillAppearFlagged`, `.GivenAStaleLiveScoreSource_*`, `.GivenAFinalGameWithAWinner_*`, `.GivenTheAuthMatrix_WhenAskingForTheDashboard_ThenOnlyAMemberMaySeeIt` | PASS: `DashboardTests.GivenAnExtraQueryParameter_WhenAMemberAsksForTheDashboard_ThenItIs400`, `.GivenAMemberWhoJoinedAfterLock_WhenTheyAskForTheirOwnDashboard_ThenTheySeeNoPickEverywhere`, `.GivenAMemberRemovedAfterLock_WhenAnotherMemberAsks_ThenTheyStillAppearFlagged` (real method name — `GivenAFormerMemberWhoPickedBeforeLeaving_...` was never the actual name), `.GivenAStaleLiveScoreSource_WhenAMemberAsksForTheDashboard_ThenTheFlagPropagates`, `.GivenAFinalGameWithAWinner_WhenTheViewerPickedIt_ThenWonAndPointsSoFarUpdate`, `.GivenTheAuthMatrix_WhenAskingForTheDashboard_ThenOnlyAMemberMaySeeIt` |
 
 ## Feature 06 - Scoring
 
-| AC group | Task | Proof |
-|---|---|---|
-| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `...DidNotPick...` |
-| Idempotent; not-final unscored | P5-01 | D `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `...GivenAGameThatIsNotFinal...`; A `ScoringSnapshotWalkTests` (two extra rescores change nothing) |
-| Weekly total; Complete flag | P5-01 | A `FullWeekSimulationTests` (six members across six snapshots, a void and an override, week Complete), D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` |
-| Post-midnight delayed game counts | P5-01, P2-03 | D `WeekScorerTests.GivenTheFixturesPostMidnightFinish...` (read out of snapshot 6); A `ScoringSnapshotWalkTests` (snapshot 6 adds the late game's points to week 7) |
-| Nightly recompute keeps results true | P5-01 | A `ScoringServiceTests.GivenALockedWeekNobodyScored...`, `...GivenASetWhoseResultsDisagreeWithIt...` |
-| No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` |
-| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D `WeekScorerTests.GivenAFinalTie...`, `...GivenAFinalGameMissingAScore...`; A `ScoringSnapshotWalkTests` (tie on the data-status needs-review list, week stays open) |
-| Void removes from scoring, shows Voided | P5-01, P5-02, P5-04 | D `WeekScorerTests.GivenAVoidedGame...` (x2); A `ScoringServiceTests.GivenAGameIsVoided...`, `...GivenTheTieIsVoided...`; A `VoidTests`, UI grid |
-| Override recalculates; audit logged and visible | P5-01, P5-02, P5-05 | D `WeekScorerTests.GivenATieAnOverrideHasSettled...`; A `ScoringSnapshotWalkTests` (real `ResultOverridden` closes the week); A `OverrideTests`, UI audit |
-| 5-minute checks; score only on Final | P2-04, P2-03 | D `SaturdayPollerScheduleTests`, D `GameMatcherTests.FinalOnlyOnFinal` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `...DidNotPick...` | PASS: `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `.GivenAMemberDidNotPick_WhenScoring_ThenTheyEarnZeroForThatGame` |
+| Idempotent; not-final unscored | P5-01 | D `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `...GivenAGameThatIsNotFinal...`; A `ScoringSnapshotWalkTests` (two extra rescores change nothing) | PASS: `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `.GivenAGameThatIsNotFinal...`; `ScoringSnapshotWalkTests` |
+| Weekly total; Complete flag | P5-01 | A `FullWeekSimulationTests` (six members across six snapshots, a void and an override, week Complete), D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` | PASS: `FullWeekSimulationTests`, `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `.GivenEveryActiveGameFinalWithAWinner...`, `.GivenOneGameStillToPlay...` |
+| Post-midnight delayed game counts | P5-01, P2-03 | D `WeekScorerTests.GivenTheFixturesPostMidnightFinish...` (read out of snapshot 6); A `ScoringSnapshotWalkTests` (snapshot 6 adds the late game's points to week 7) | PASS: `WeekScorerTests.GivenTheFixturesPostMidnightFinish...`, `ScoringSnapshotWalkTests` |
+| Nightly recompute keeps results true | P5-01 | A `ScoringServiceTests.GivenALockedWeekNobodyScored...`, `...GivenASetWhoseResultsDisagreeWithIt...` | PASS: `ScoringServiceTests.GivenALockedWeekNobodyScored_WhenTheNightlyJobRuns_ThenItIsScored`, `.GivenASetWhoseResultsDisagreeWithIt_WhenTheNightlyJobRuns_ThenTheyAreBroughtBackIntoLine` |
+| No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` | PASS: `StandingsCalculatorTests.GivenEqualTotals_WhenRankingTheSeason_ThenTiesShareARankAndTheNextOneSkips` (real method name — `TiesShareRank` was never the actual name) |
+| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D `WeekScorerTests.GivenAFinalTie...`, `...GivenAFinalGameMissingAScore...`; A `ScoringSnapshotWalkTests` (tie on the data-status needs-review list, week stays open) | PASS: `WeekScorerTests.GivenAFinalTie...`, `.GivenAFinalGameMissingAScore...`; `ScoringSnapshotWalkTests` |
+| Void removes from scoring, shows Voided | P5-01, P5-02, P5-04 | D `WeekScorerTests.GivenAVoidedGame...` (x2); A `ScoringServiceTests.GivenAGameIsVoided...`, `...GivenTheTieIsVoided...`; A `VoidTests`, UI grid | PASS: `WeekScorerTests.GivenAVoidedGame...` (x2), `ScoringServiceTests.GivenAGameIsVoided_WhenRescoring_ThenItAwardsNothingAndLeavesActiveGameCount`, `.GivenTheTieIsVoided_WhenRescoring_ThenTheWeekCompletesAndOneSnapshotIsWritten`, `VoidTests`; screenshot `p5-04-grid-375.png` (voided greyed) |
+| Override recalculates; audit logged and visible | P5-01, P5-02, P5-05 | D `WeekScorerTests.GivenATieAnOverrideHasSettled...`; A `ScoringSnapshotWalkTests` (real `ResultOverridden` closes the week); A `OverrideTests`, UI audit | PASS: `WeekScorerTests.GivenATieAnOverrideHasSettled...`, `ScoringSnapshotWalkTests`, `OverrideTests`; screenshot `p5-05-audit-375.png` |
+| 5-minute checks; score only on Final | P2-04, P2-03 | D `SaturdayPollerScheduleTests`, D `GameMatcherTests.FinalOnlyOnFinal` | PASS: `SaturdayPollerScheduleTests` (5-minute cadence); `LiveScoreApplyTests.GivenTheSixSnapshotsInOrder_WhenApplied_ThenEveryGameGoesFinalExactlyOnce`, `.GivenAFinalGame_WhenAStalePayloadSaysInProgress_ThenTheFinalStands` (real class — `GameMatcherTests` has no `FinalOnlyOnFinal` method) |
 
 ## Feature 07 - Leaderboard
 
-| AC group | Task | Proof |
-|---|---|---|
-| Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...`, UI |
-| Trend indicator; none on first week | P5-03 | D `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...` / `GivenOnlyOneSnapshotWeek_...`, A `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_...`, A `FullWeekSimulationTests` (Up/Down/Same off two genuinely scored weeks) |
-| No champion banner | P5-04 | UI |
-| Week rows, correct count, trophy, ties share | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...`, UI |
-| In Progress label | P5-04 | UI (server flag: A `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_...`) |
-| Grid with colors, voided greyed, pinned column, horizontal scroll | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAGrid_...`, A `LeaderboardEndpointsTests.GivenALockedWeek_...`, UI |
-| Grid hidden before lock | P5-03 | A `LeaderboardEndpointsTests.GivenAnUnlockedWeek_WhenReadingTheGrid_ThenItIs403` |
-| Prev/next, jump to current, only generated weeks | P5-03, P5-04 | UI, A `LeaderboardEndpointsTests.GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable` |
-| Former members in past weeks only | P5-03 | D `StandingsCalculatorTests.GivenAFormerMember_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...` |
-| Mid-season joiners scored from their own weeks | P5-03 | D `StandingsCalculatorTests.GivenAMidSeasonJoiner_...`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...` |
-| Under 1 s for 50 members x 15 weeks | P5-03 | A `LeaderboardPerfTests` with seeded data |
-| Leaderboard authorization | P5-03 | A `LeaderboardAuthMatrixTests` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...`, UI | PASS: `StandingsCalculatorTests`, `LeaderboardEndpointsTests.GivenScoredWeeks_WhenReadingTheSeasonLeaderboard_ThenRanksTotalsBehindAndWinsAreRight`; screenshot `p5-04-season-375.png` |
+| Trend indicator; none on first week | P5-03 | D `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...` / `GivenOnlyOneSnapshotWeek_...`, A `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_...`, A `FullWeekSimulationTests` (Up/Down/Same off two genuinely scored weeks) | PASS: `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...`, `.GivenOnlyOneSnapshotWeek_...`, `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_WhenReadingTheSeasonLeaderboard_ThenTrendArrowsComeFromTheSnapshots`, `FullWeekSimulationTests` |
+| No champion banner | P5-04 | UI | PASS: screenshot `p5-04-season-375.png` (no champion banner present) |
+| Week rows, correct count, trophy, ties share | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...`, UI | PASS: `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, `LeaderboardEndpointsTests.GivenACompletedWeek_WhenReadingItsLeaderboard_ThenFormerMembersAppearAndTheWinnersAreMarked`; screenshot `p5-04-week-375.png` |
+| In Progress label | P5-04 | UI (server flag: A `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_...`) | PASS: `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_WhenReadingItsLeaderboard_ThenNobodyIsAWinnerYet`; screenshot `p5-04-week-375.png` |
+| Grid with colors, voided greyed, pinned column, horizontal scroll | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAGrid_...`, A `LeaderboardEndpointsTests.GivenALockedWeek_...`, UI | PASS: `StandingsCalculatorTests.GivenAGrid_...`, `LeaderboardEndpointsTests.GivenALockedWeek_WhenReadingTheGrid_ThenEveryCellCarriesItsOutcome`; screenshot `p5-04-grid-375.png`, `p5-04-grid-scrolled-375.png`. Horizontal-scroll pinned-column check on a real iPhone: MANUAL PENDING (operator) — steps in `Implementation/reviews/operator-checklist.md` item 7 (headless-Chromium mid-scroll screenshot is the agent-verifiable substitute) |
+| Grid hidden before lock | P5-03 | A `LeaderboardEndpointsTests.GivenAnUnlockedWeek_WhenReadingTheGrid_ThenItIs403` | PASS: `LeaderboardEndpointsTests.GivenAnUnlockedWeek_WhenReadingTheGrid_ThenItIs403`; screenshot `p5-04-grid-prelock-375.png` |
+| Prev/next, jump to current, only generated weeks | P5-03, P5-04 | UI, A `LeaderboardEndpointsTests.GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable` | PASS: `LeaderboardEndpointsTests.GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable`; screenshot `p5-04-week-375.png` (`WeekNav` component) |
+| Former members in past weeks only | P5-03 | D `StandingsCalculatorTests.GivenAFormerMember_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...` | PASS: `StandingsCalculatorTests.GivenAFormerMember_WhenBuildingBothLeaderboards_ThenTheyAreOnTheWeekButNotTheSeason`, `LeaderboardEndpointsTests.GivenACompletedWeek_WhenReadingItsLeaderboard_ThenFormerMembersAppearAndTheWinnersAreMarked` |
+| Mid-season joiners scored from their own weeks | P5-03 | D `StandingsCalculatorTests.GivenAMidSeasonJoiner_...`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...` | PASS: `StandingsCalculatorTests.GivenAMidSeasonJoiner_WhenTotallingTheSeason_ThenOnlyTheirOwnWeeksCount`, `LeaderboardEndpointsTests.GivenScoredWeeks_WhenReadingTheSeasonLeaderboard_ThenRanksTotalsBehindAndWinsAreRight` |
+| Under 1 s for 50 members x 15 weeks | P5-03 | A `LeaderboardPerfTests` with seeded data | PASS: `LeaderboardPerfTests` (50 members x 15 weeks x 20 games, season 2096, well under 1 s) |
+| Leaderboard authorization | P5-03 | A `LeaderboardAuthMatrixTests` | PASS: `LeaderboardAuthMatrixTests` |
 
 ## Feature 08 - Authentication
 
-| AC group | Task | Proof |
-|---|---|---|
-| First login creates account; returning matched by subject | P0-03 | A `AuthTests` with fake Google handler |
-| Works in iOS standalone | P0-04, P8-03 | Manual on iPhone - steps in `Implementation/screenshots/e2e/README.md` (Manual pending, operator) |
-| 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03 | A cookie attribute assertions |
-| Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A |
-| Member/commissioner authorization; non-member 404 | P0-03 + every endpoint task | A auth matrix test per group |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| First login creates account; returning matched by subject | P0-03 | A `AuthTests` with fake Google handler | PASS: `AuthTests.GivenNewGoogleAccount_WhenSigningIn_ThenTheUserIsCreatedFromTheGoogleProfile`, `.GivenAReturningAccount_WhenSigningInAgain_ThenItMatchesBySubjectAndDoesNotDuplicate` |
+| Works in iOS standalone | P0-04, P8-03 | Manual on iPhone - steps in `Implementation/screenshots/e2e/README.md` (Manual pending, operator) | MANUAL PENDING (operator): `Implementation/screenshots/e2e/README.md` (21-step walkthrough); also `Implementation/reviews/operator-checklist.md` item 8 |
+| 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03 | A cookie attribute assertions | PASS: `CookieSecurityTests.GivenARealSignIn_WhenTheCookieIsIssued_ThenTheHeaderCarriesEveryFlag`; `AuthTests.GivenASignedInSession_WhenLoggingOut_ThenTheCookieIsClearedAndMeIsUnauthorized` |
+| Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A | PASS: `DisplayNameTests.GivenAOneCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyOneCharacterOverride_WhenSettingIt_ThenItIsRejected`, `.GivenANameAlreadyUsedByAnotherActiveMember_WhenSettingIt_ThenItIs409`; `AuthTests.GivenAGoogleProfileNameOver30Characters_WhenSigningIn_ThenTheDisplayNameIsTrimmed` |
+| Member/commissioner authorization; non-member 404 | P0-03 + every endpoint task | A auth matrix test per group | PASS: one `*AuthMatrixTests`/`AuthMatrix.RunAsync` group per endpoint group (`GameSetAuthMatrixTests`, `PicksAuthMatrixTests`, `LeaderboardAuthMatrixTests`, `CorrectionsAuthMatrixTests`, `AuthMatrixTests`, plus `GeneratedAuthMatrixTests`'s inventory-driven sweep of every route) |
 
 ## Feature 09 - Game Data Feed
 
-| AC group | Task | Proof |
-|---|---|---|
-| Provider abstraction; local storage only | P2-02, P2-03 | Architecture review; A: features read DbContext only |
-| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` (incl. the 2026-11-01 DST week) |
-| Idempotent refreshes | P2-02 | A `RefreshTwice_NoDuplicates` |
-| Failure keeps old data, logs; stale banner | P2-02, P2-04, P6-02 | A `ReferenceIngestTests`; UI `DataStatusPage`'s `ScoresMayBeStale` banner |
-| Rate limits respected | P2-04 | D `SaturdayPollerScheduleTests` (window/cadence/fallback); A `AdminEndpointsTests` (CFBD counter warning at 800) |
-| Data status page | P2-04 | UI `Pages/Admin/DataStatusPage.razor`, `Implementation/screenshots/p2-04-data-status-375.png` |
-| Saturday poller applies fixture snapshots, scores every game | P2-04 | A `SaturdayPollerIntegrationTests` (Phase 2 exit criterion) |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Provider abstraction; local storage only | P2-02, P2-03 | Architecture review; A: features read DbContext only | PASS: `Implementation/01-Architecture.md` "Provider isolation"; `IReferenceDataProvider`/`ILiveScoreProvider` are the only two provider interfaces (grep confirms no other code references CFBD/ESPN HTTP clients directly) |
+| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` (incl. the 2026-11-01 DST week) | PASS: `RefreshJobScheduleTests.GivenLinesRefreshJob_WhenParsedAcrossTheDstChange_ThenBothSidesResolveCorrectly` (and the rest of the class's per-job cadence cases) |
+| Idempotent refreshes | P2-02 | A `RefreshTwice_NoDuplicates` | PASS: `ReferenceIngestTests.GivenTeamsIngestedTwice_ThenNoDuplicateConferencesTeamsOrAliases`, `.GivenCalendarIngestedTwice_ThenSeasonWeeksAreNormalizedAndNotDuplicated`, `.GivenRankingsIngestedTwice_ThenNoDuplicateRankingRows` (real method names — `RefreshTwice_NoDuplicates` was never the actual name) |
+| Failure keeps old data, logs; stale banner | P2-02, P2-04, P6-02 | A `ReferenceIngestTests`; UI `DataStatusPage`'s `ScoresMayBeStale` banner | PASS: `ReferenceIngestTests`; screenshot `p2-04-data-status-375.png` |
+| Rate limits respected | P2-04 | D `SaturdayPollerScheduleTests` (window/cadence/fallback); A `AdminEndpointsTests` (CFBD counter warning at 800) | PASS: `SaturdayPollerScheduleTests`; `AdminEndpointsTests` (799 -> no warning, 800 -> warning) |
+| Data status page | P2-04 | UI `Pages/Admin/DataStatusPage.razor`, `Implementation/screenshots/p2-04-data-status-375.png` | PASS: screenshot `p2-04-data-status-375.png` |
+| Saturday poller applies fixture snapshots, scores every game | P2-04 | A `SaturdayPollerIntegrationTests` (Phase 2 exit criterion) | PASS: `SaturdayPollerIntegrationTests` |
 
 ## Feature 10 - Hosting and Platform
 
-| AC group | Task | Proof |
-|---|---|---|
-| Manifest, standalone, icons | P0-04 | Manual install on iPhone |
-| 375px first; no horizontal scroll; 44px; 16px | all UI tasks | UI checklist in each card |
-| Single deployable; env config; no secrets | P0-01, P8-02 | Ops |
-| Jobs in-process | P0-06 | Architecture |
-| Single DB; nightly backups 30 days; UTC storage | P8-02, P0-02 | Ops, D |
-| No Saturday deploys | P8-02 | deploy script guard |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Manifest, standalone, icons | P0-04 | Manual install on iPhone | PASS: `manifest.webmanifest` (icons, `display: standalone`) shipped and served, confirmed by build; MANUAL PENDING (operator): physical iPhone install — `Implementation/spikes/wasm-load-time.md` "Operator to-do", also `reviews/operator-checklist.md` item 2 |
+| 375px first; no horizontal scroll; 44px; 16px | all UI tasks | UI checklist in each card | PASS: every screenshot under `Implementation/screenshots/*.png` was captured at `scrollWidth === clientWidth === 375` (asserted by the capturing script per task, per each task's STATUS.md note); `app.css` sets the 44px tap-target and 16px base tokens (P0-04) |
+| Single deployable; env config; no secrets | P0-01, P8-02 | Ops | PASS: `dotnet publish src/NcaafPickEm.Api -c Release` produces one folder serving both API and Blazor app (`README.md` "Publish"); config is entirely environment variables / `appsettings*.json` (`Implementation/01-Architecture.md` "Configuration"); `deploy/.env.example` + `.gitignore`'s `.env`/`.env.*`/`!.env.example` rules keep secrets out of the repo (confirmed clean by the security review's secrets audit, §7) |
+| Jobs in-process | P0-06 | Architecture | PASS: `JobScheduler`/`SaturdayPoller` are both `BackgroundService`s hosted inside `NcaafPickEm.Api` (`Implementation/01-Architecture.md` "Runtime shape"; `JobSchedulerTests`) |
+| Single DB; nightly backups 30 days; UTC storage | P8-02, P0-02 | Ops, D | PASS: one `AppDbContext`/`ConnectionStrings:Default`; `deploy/backup.ps1` (nightly 03:45, `deploy/register-backup-task.ps1`) + 30-day prune, `deploy/restore-verify.ps1` run once against real LocalDB per the P8-02 STATUS note (backup succeeded 3.9 MB, restore + `DBCC CHECKDB` succeeded); UTC storage confirmed by the security review's `DateTime.UtcNow` grep (zero hits outside `TimeProvider`, §4.3). First real nightly backup appearing on the deployed server: MANUAL PENDING (operator) — `reviews/operator-checklist.md` item 5 |
+| No Saturday deploys | P8-02 | deploy script guard | PASS: `deploy/deploy.ps1`'s Saturday 10:00 ET - Sunday 03:00 ET guard (`-WhatIf`-verified dry run per the P8-02 STATUS note), overridable only with `-Force` |
 
 ## Feature 11 - Notifications
 
-| AC group | Task | Proof |
-|---|---|---|
-| Opt in stores subscription; opt out deletes; iOS install guidance; per-member | P7-01, P7-02 | A `PushSubscriptionTests`, UI |
-| In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed on lock move | P7-03 | A `ReminderJobTests` (recipients by status, 7:59 submit, no set, locked week, twice-in-a-week skip, real-cron test), `SaturdayOneShotTests` (due at `LockAtUtc-1h`, not due before, submitted-by-then, locked week, lock move -> new occurrence) |
-| VAPID delivery; 404/410 cleanup; retries; log | P7-01 | A with fake push transport |
-| Text excludes others' picks; opens standalone | P7-02 | Review, manual |
-| Catalog #1/#3 (member reminders) and #2 (commissioner summary, only when someone unsubmitted, names listed) | P7-03 | A `ReminderJobTests`; A `FullWeekSimulationTests` (all three fired by the real scheduler at 20:00/21:00/lock-1h ET, recipients and body text asserted) |
-| Catalog #4 (games added, coalesced, previously-Submitted members only) and #5 (game removed, members with a pick only) | P7-03 | A `EventNotificationTests` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Opt in stores subscription; opt out deletes; iOS install guidance; per-member | P7-01, P7-02 | A `PushSubscriptionTests`, UI | PASS: `PushSubscriptionTests`; screenshot `p7-02-notifications-off-375.png`, `p7-02-notifications-ios-install-375.png`, `p7-02-notifications-on-375.png` |
+| In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed on lock move | P7-03 | A `ReminderJobTests` (recipients by status, 7:59 submit, no set, locked week, twice-in-a-week skip, real-cron test), `SaturdayOneShotTests` (due at `LockAtUtc-1h`, not due before, submitted-by-then, locked week, lock move -> new occurrence) | PASS: `ReminderJobTests.GivenMembersAtEveryStatus_WhenTheFridayReminderRuns_ThenOnlyTheNonSubmittedAreNotified`, `.GivenAMemberWhoSubmittedOneMinuteBeforeTheJobRuns_WhenTheFridayReminderRuns_ThenTheyGetNothing`, `.GivenNoGameSetForTheCurrentWeek_WhenTheFridayReminderRuns_ThenNothingIsSent`, `.GivenTheCurrentWeekIsLocked_WhenTheFridayReminderRuns_ThenNothingIsSent`, `.GivenTheJobRunsTwiceForTheSameWeek_WhenSecondRun_ThenTheSecondSendIsSkipped`, `.GivenTheRealSchedulerTicksAtFridayEightPmEastern_WhenTicked_ThenTheRealJobRunsAndSends`; `SaturdayOneShotTests` |
+| VAPID delivery; 404/410 cleanup; retries; log | P7-01 | A with fake push transport | PASS: `PushDeliveryTests.GivenASubscribedMember_WhenSending_ThenTheRowIsSentAndThePayloadIsCamelCase`, `.GivenAPushServiceThatAnswers410_WhenSending_ThenTheSubscriptionIsDeletedAndLoggedExpired`; `WebPushSenderTests` |
+| Text excludes others' picks; opens standalone | P7-02 | Review, manual | PASS: `NotificationMessages` catalog text reviewed (no other member's pick appears in any template); `notificationclick` handler focuses/navigates the existing standalone window (`service-worker.js`, code review). Real receipt-and-tap-opens-standalone on an iPhone: MANUAL PENDING (operator) — `README.md` "Notifications on iPhone", `reviews/operator-checklist.md` item 6 |
+| Catalog #1/#3 (member reminders) and #2 (commissioner summary, only when someone unsubmitted, names listed) | P7-03 | A `ReminderJobTests`; A `FullWeekSimulationTests` (all three fired by the real scheduler at 20:00/21:00/lock-1h ET, recipients and body text asserted) | PASS: `ReminderJobTests.GivenSomeoneUnsubmitted_WhenTheCommissionerSummaryRuns_ThenTheCommissionerIsToldWhoByName`, `.GivenNoOneUnsubmitted_WhenTheCommissionerSummaryRuns_ThenNothingIsSent`; `FullWeekSimulationTests` |
+| Catalog #4 (games added, coalesced, previously-Submitted members only) and #5 (game removed, members with a pick only) | P7-03 | A `EventNotificationTests` | PASS: `EventNotificationTests.GivenSubmittedMembers_WhenGamesAreAddedByRegeneration_ThenEachGetsOneCoalescedMessage`, `.GivenAMemberWithAPickOnAGame_WhenTheGameIsManuallyRemoved_ThenTheyAreNotifiedByTeamName`, `.GivenARemovedMemberWithAPickOnAGame_WhenTheGameIsRemoved_ThenTheyAreNotNotified` |
 
 ## Feature 12 - Data Provider Evaluation
 
-| AC group | Task | Proof |
-|---|---|---|
-| Separate reference and live interfaces | P2-02, P2-03 | Architecture |
-| CFBD via official client and config key | P2-02 | A with recorded fixture |
-| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests` (cadence follows `ILiveScoreHealth.ActiveSource`) |
-| Monthly counter, warning at 800 | P2-04 | A `AdminEndpointsTests` (799 -> no warning, 800 -> warning) |
-| Name matching, unmatched surfaced | P2-03 | D `GameMatcherTests`, UI |
-| Follow-ups: tier confirm, sample payload, alias table | P2-01 | Doc in `Implementation/spikes/` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Separate reference and live interfaces | P2-02, P2-03 | Architecture | PASS: `IReferenceDataProvider`/`ILiveScoreProvider` (`Implementation/01-Architecture.md` "Provider isolation") |
+| CFBD via official client and config key | P2-02 | A with recorded fixture | PASS: `CfbdMappingTests` (real P2-01 captures via `FixtureLoader.ReadRealText`); `CfbdLiveTests` (opt-in, real key, `Category=Live`) |
+| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests` (cadence follows `ILiveScoreHealth.ActiveSource`) | PASS: `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests`; `LiveScoreProviderSelectionTests` |
+| Monthly counter, warning at 800 | P2-04 | A `AdminEndpointsTests` (799 -> no warning, 800 -> warning) | PASS: `AdminEndpointsTests` (799/800 boundary cases) |
+| Name matching, unmatched surfaced | P2-03 | D `GameMatcherTests`, UI | PASS: `GameMatcherTests` (14 methods incl. alias/diacritic/abbreviation/unmatched cases); screenshot `p2-04-data-status-375.png` (unmatched list) |
+| Follow-ups: tier confirm, sample payload, alias table | P2-01 | Doc in `Implementation/spikes/` | PASS: `Implementation/spikes/providers.md` (CFBD Tier 1 confirmed from the live 401 response, §"CFBD live calls: made"; sample payloads captured under `tests/NcaafPickEm.Fixtures/Real/`; verified team-alias draft, 11 rows, `team-aliases-draft.json`) |
 
 ## Feature 13 - Season Calendar
 
-| AC group | Task | Proof |
-|---|---|---|
-| Current week window; Sunday rollover ends picking | P0-05, P4-01 | D `SeasonCalendarTests`, A |
-| Jump to current | P5-04 | UI |
-| Season range defaults, Week 0 opt-in, regular season only | P0-05, P1-01 | D, A |
-| Before first week / after last week states | P1-02 | UI, A |
-| UTC storage, Eastern logic, local display with zone hint | P0-05, all UI | D, UI |
-| Schedule change before lock removes + notifies; after lock flags for void review (`GameNeedsVoidReview`), P5-02 owns the actual void | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Current week window; Sunday rollover ends picking | P0-05, P4-01 | D `SeasonCalendarTests`, A | PASS: `SeasonCalendarTests.GivenTheFixtureSeason_WhenGettingItsWeeks_ThenEachWindowRunsSundayToSaturdayEastern`; `SeasonEndpointTests.GivenTheFixtureSeason_WhenGettingItsWeeks_ThenEachWindowRunsSundayToSaturdayEastern` |
+| Jump to current | P5-04 | UI | PASS: screenshot `p5-04-week-375.png` (`WeekNav`'s "jump to current" control) |
+| Season range defaults, Week 0 opt-in, regular season only | P0-05, P1-01 | D, A | PASS: `SeasonCalendarTests` (Week 0 through championship week); `SeasonEndpointTests.GivenTheFixtureSeason_WhenGettingItsWeeks_ThenWeekZeroThroughChampionshipWeekComeBack`; `LeagueEndpointsTests.GivenAChampionshipWeekAsLastWeek_WhenCreatingALeague_ThenItIsRejected` (regular season only) |
+| Before first week / after last week states | P1-02 | UI, A | PASS: screenshot `p1-02-picker-empty-375.png`; `LeagueEndpointsTests.GivenALeaguesFirstAndLastWeek_WhenGettingLeagueWeeks_ThenTheRangeAndCurrentAreCorrect` |
+| UTC storage, Eastern logic, local display with zone hint | P0-05, all UI | D, UI | PASS: `SeasonCalendarTests`; security review's `DateTime.UtcNow` grep (zero hits outside `TimeProvider`, confirms UTC-only storage/domain logic, §4.3); screenshots showing Eastern-labelled kickoff times (e.g. `p3-05-member-week-375.png`) |
+| Schedule change before lock removes + notifies; after lock flags for void review (`GameNeedsVoidReview`), P5-02 owns the actual void | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` | PASS: `ScheduleChangeTests.GivenAGameInAnUnlockedWeek_WhenItIsPostponed_ThenItIsRemovedAndLockAtIsRecomputed`, `.GivenAPostponedGame_WhenItReturnsToScheduled_ThenItIsRestored`, `.GivenALockedWeek_WhenItsGameIsPostponed_ThenNothingIsRemovedAndItAppearsInNeedsVoidReview`, `.GivenALockedWeeksPostponedGame_WhenTheCommissionerOverridesTheResult_ThenItLeavesTheReviewList` |
