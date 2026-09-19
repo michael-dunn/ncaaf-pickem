@@ -4,7 +4,21 @@
 self.importScripts('./service-worker-assets.js');
 self.addEventListener('install', event => event.waitUntil(onInstall(event)));
 self.addEventListener('activate', event => event.waitUntil(onActivate(event)));
-self.addEventListener('fetch', event => event.respondWith(onFetch(event)));
+// Server-owned paths must never be answered from the offline cache: the Google OAuth callback
+// (/auth/callback/google) is a top-level navigation, and serving index.html for it means the
+// server never receives the code, no session cookie is issued, and sign-in silently loops.
+// /api is fetched by the app itself and /health by the container healthcheck.
+const serverOwnedPathPrefixes = ['/auth/', '/api/', '/health'];
+function isServerOwned(request) {
+    const path = new URL(request.url).pathname;
+    return serverOwnedPathPrefixes.some(prefix => path.startsWith(prefix));
+}
+self.addEventListener('fetch', event => {
+    if (isServerOwned(event.request)) {
+        return; // let the browser talk to the server directly
+    }
+    event.respondWith(onFetch(event));
+});
 
 const cacheNamePrefix = 'offline-cache-';
 const cacheName = `${cacheNamePrefix}${self.assetsManifest.version}`;
@@ -17,6 +31,9 @@ const baseUrl = new URL(base, self.origin);
 const manifestUrlList = self.assetsManifest.assets.map(asset => new URL(asset.url, baseUrl).href);
 
 async function onInstall(event) {
+    // Activate a new version as soon as it is installed so a fix like the one above reaches an
+    // already-installed phone on the next reload instead of after every tab is closed.
+    self.skipWaiting();
     console.info('Service worker: Install');
 
     // Fetch and cache all matching items from the assets manifest
@@ -28,6 +45,7 @@ async function onInstall(event) {
 }
 
 async function onActivate(event) {
+    await self.clients.claim();
     console.info('Service worker: Activate');
 
     // Delete unused caches
