@@ -121,6 +121,8 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 `DashboardGameDto { Game: GameSetGameDto, MyTeamId?, MyOutcome: InfluenceOutcome (Pending/Won/Lost/NoPick), OppositeCount, OppositePicks: MemberRef[], NoPick: MemberRef[], HomePickers: MemberRef[], AwayPickers: MemberRef[], SwingPoints }`. `InfluenceOutcome` is in `Shared/Enums` (D-014), written by P6-01. `HomePickers`/`AwayPickers` are how the card shows "picks for both teams" when the viewer has no pick on the game; they are filled either way. Ordering rules in `04-Domain-Algorithms.md` section 6. Client polls every 60 s while any game is not Final.
 
+Record definitions live in `Shared/Contracts/Dashboard/` (`DashboardResponse`, `DashboardGameDto` with a nested `Game: GameSetGameDto`, `MemberRef { MembershipId, DisplayName, IsFormer }`); the pre-lock response also carries `LockAtEasternDisplay`.
+
 ## Scoring and corrections (Feature 06)
 
 | Method | Route | Scope | Request / Response |
