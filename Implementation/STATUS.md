@@ -51,6 +51,7 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 |---|---|---|---|
 | 0 | fd084d1 (P0-01..P0-05), 72c2c0e (P0-06) | 2026-09-18 | All six Phase 0 tasks merged; 157 tests green. Manual pending (operator): real Google login with a dev OAuth client; iPhone PWA install and load timing over Tailscale (steps in README and Implementation/spikes/wasm-load-time.md). |
 | 1 | 76661d5 | 2026-09-18 | P1-01 (Opus-reviewed), P1-02, P1-03 merged; create/invite/join/roles/display names proven by LeagueEndpointsTests, InviteAcceptTests, RoleTests, DisplayNameTests and the auth matrix; league pages verified against the real API by P1-03 with dev-login. 332 tests green. |
+| 2 | a05f134 | 2026-09-18 | P2-01..P2-05 merged (P2-02 Opus-reviewed with all-division fix; P2-03 Opus; P2-04 poller review pending post-merge). Exit criteria: offline fixtures + demo league (FixtureSeederTests, DevLoginTests); real CFBD ingest verified via CfbdLiveTests with the operator key (9 requests consumed); SaturdayPollerIntegrationTests applies snapshots 1-6 with GameWentFinal once per game; data status page screenshot p2-04-data-status-375.png. 482 tests green. |
 
 ## Hot-spot edits (Program.cs, DbContext, app.css, service-worker.js)
 
