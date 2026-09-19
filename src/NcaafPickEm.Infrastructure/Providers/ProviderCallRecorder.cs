@@ -78,10 +78,7 @@ public sealed class ProviderCallRecorder : IProviderCallRecorder
         }
     }
 
-    /// <summary>
-    /// Count of calls to <paramref name="provider"/> recorded so far in the current UTC calendar
-    /// month (P2-02), for the free-tier usage counter on the data status page.
-    /// </summary>
+    /// <inheritdoc />
     public async Task<int> CountThisMonthAsync(ProviderSource provider, CancellationToken cancellationToken = default)
     {
         DateTimeOffset now = _timeProvider.GetUtcNow();

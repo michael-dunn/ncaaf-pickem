@@ -162,6 +162,154 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GivenAnFbsVersusFcsGame_WhenScheduleIngested_ThenItIsStoredBecauseTheFcsTeamIsKnown()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var service = CreateService(database, new FixtureReferenceDataProvider());
+
+        await service.IngestTeamsAsync(Season);
+        await service.IngestScheduleAsync(Season, Week);
+
+        // 700013 is Penn State (FBS) vs Youngstown State (FCS) and 700014 is Indiana vs Indiana
+        // State. The reference ingest fetches every division, so both FCS schools exist and both
+        // games are stored; an FBS-only teams fetch would leave the ingest unable to resolve the
+        // away side and it would drop the games entirely (see DECISIONS.md).
+        Game penn = await database.Games.SingleAsync(g => g.CfbdGameId == 700013);
+        Team youngstown = await database.Teams.SingleAsync(t => t.Id == penn.AwayTeamId);
+        youngstown.School.Should().Be("Youngstown State");
+        youngstown.Classification.Should().Be(TeamClassification.Fcs);
+
+        (await database.Games.AnyAsync(g => g.CfbdGameId == 700014)).Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GivenTheFcsTeamsAreMissing_WhenScheduleIngested_ThenTheirGamesAreDropped()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider)
+        {
+            // What an FBS-only teams fetch would produce.
+            Teams = async (season, ct) =>
+            {
+                IReadOnlyList<ProviderTeam> all = await baseProvider.GetTeamsAsync(season, ct);
+                return [.. all.Where(t => t.Classification == TeamClassification.Fbs)];
+            },
+        };
+        var service = CreateService(database, decorated);
+
+        await service.IngestTeamsAsync(Season);
+        ScheduleIngestResult result = await service.IngestScheduleAsync(Season, Week);
+
+        result.Success.Should().BeTrue();
+        (await database.Games.AnyAsync(g => g.CfbdGameId == 700013)).Should().BeFalse();
+        (await database.Games.AnyAsync(g => g.CfbdGameId == 700014)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GivenAnEmptyPayloadForAWeekWithNoRows_WhenScheduleIngested_ThenItFailsRatherThanReportingSuccess()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var decorated = new DecoratingReferenceDataProvider(new FixtureReferenceDataProvider())
+        {
+            Games = (_, _, _) => Task.FromResult<IReadOnlyList<ProviderGame>>([]),
+        };
+        var service = CreateService(database, decorated);
+
+        await service.IngestTeamsAsync(Season);
+        ScheduleIngestResult result = await service.IngestScheduleAsync(Season, Week);
+
+        result.Success.Should().BeFalse();
+        result.Error.Should().Contain("no games at all");
+
+        (await database.Games.CountAsync()).Should().Be(0);
+
+        DataRefreshStatus status = await database.DataRefreshStatuses
+            .SingleAsync(s => s.DataType == RefreshDataType.Schedule);
+        status.LastSuccessUtc.Should().BeNull();
+        status.LastAttemptUtc.Should().NotBeNull();
+        status.LastError.Should().Contain("no games at all");
+    }
+
+    [Fact]
+    public async Task GivenAPayloadThatOmitsOptionalFields_WhenReIngested_ThenStoredValuesAreKept()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider);
+        var service = CreateService(database, decorated);
+
+        await service.IngestTeamsAsync(Season);
+        await service.IngestScheduleAsync(Season, Week);
+
+        Team before = await database.Teams.SingleAsync(t => t.CfbdId == 900123);
+        before.Mascot.Should().NotBeNull();
+        before.Abbreviation.Should().NotBeNull();
+        Game gameBefore = await database.Games.SingleAsync(g => g.CfbdGameId == 700014);
+        gameBefore.Venue.Should().NotBeNull();
+
+        // A thinner second payload: CFBD said nothing about mascot, abbreviation, logo or venue.
+        decorated.Teams = async (season, ct) =>
+        {
+            IReadOnlyList<ProviderTeam> all = await baseProvider.GetTeamsAsync(season, ct);
+            return [.. all.Select(t => t with { Mascot = null, Abbreviation = null, LogoUrl = null })];
+        };
+        decorated.Games = async (season, week, ct) =>
+        {
+            IReadOnlyList<ProviderGame> all = await baseProvider.GetGamesAsync(season, week, ct);
+            return [.. all.Select(g => g with { Venue = null })];
+        };
+
+        (await service.IngestTeamsAsync(Season)).Success.Should().BeTrue();
+        (await service.IngestScheduleAsync(Season, Week)).Success.Should().BeTrue();
+
+        database.ChangeTracker.Clear();
+
+        Team after = await database.Teams.SingleAsync(t => t.CfbdId == 900123);
+        after.Mascot.Should().Be(before.Mascot);
+        after.Abbreviation.Should().Be(before.Abbreviation);
+        (await database.Games.SingleAsync(g => g.CfbdGameId == 700014)).Venue.Should().Be(gameBefore.Venue);
+    }
+
+    [Fact]
+    public async Task GivenAnAliasAlreadyOwnedByAnotherTeam_WhenTeamsIngested_ThenItIsNotRepointed()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider);
+        var service = CreateService(database, decorated);
+
+        await service.IngestTeamsAsync(Season);
+
+        Guid indianaId = (await database.Teams.SingleAsync(t => t.CfbdId == 900123)).Id;
+        TeamAlias alias = await database.TeamAliases
+            .SingleAsync(a => a.Source == ProviderSource.Cfbd && a.Alias == "Indiana Hoosiers");
+        alias.TeamId.Should().Be(indianaId);
+
+        // CFBD now claims "Indiana Hoosiers" as an alternate name of Indiana State. The alias is
+        // unique per (Source, Alias) and may have been hand-verified by TeamAliasSeed, so the
+        // ingest must leave it pointing where it is.
+        decorated.Teams = async (season, ct) =>
+        {
+            IReadOnlyList<ProviderTeam> all = await baseProvider.GetTeamsAsync(season, ct);
+            return
+            [
+                .. all.Select(t => t.CfbdId == 900124
+                    ? t with { AlternateNames = [.. t.AlternateNames, "Indiana Hoosiers"] }
+                    : t),
+            ];
+        };
+
+        (await service.IngestTeamsAsync(Season)).Success.Should().BeTrue();
+
+        database.ChangeTracker.Clear();
+
+        TeamAlias after = await database.TeamAliases
+            .SingleAsync(a => a.Source == ProviderSource.Cfbd && a.Alias == "Indiana Hoosiers");
+        after.TeamId.Should().Be(indianaId);
+    }
+
+    [Fact]
     public async Task GivenScheduleIngestedTwice_ThenGameRowCountIsUnchanged()
     {
         await using AppDbContext database = _database.CreateContext();
@@ -318,6 +466,8 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
 
         public HashSet<long> DroppedCfbdGameIds { get; } = [];
 
+        public Func<int, CancellationToken, Task<IReadOnlyList<ProviderTeam>>>? Teams { get; set; }
+
         public Func<int, int, CancellationToken, Task<IReadOnlyList<ProviderGame>>>? Games { get; set; }
 
         public Func<int, int, CancellationToken, Task<IReadOnlyList<ProviderLine>>>? Lines { get; set; }
@@ -330,7 +480,9 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
 
         public Task<IReadOnlyList<ProviderTeam>> GetTeamsAsync(
             int season, CancellationToken cancellationToken = default) =>
-            _inner.GetTeamsAsync(season, cancellationToken);
+            Teams is not null
+                ? Teams(season, cancellationToken)
+                : _inner.GetTeamsAsync(season, cancellationToken);
 
         public async Task<IReadOnlyList<ProviderGame>> GetGamesAsync(
             int season, int week, CancellationToken cancellationToken = default)
