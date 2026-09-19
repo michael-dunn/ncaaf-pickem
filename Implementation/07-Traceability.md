@@ -116,20 +116,20 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 07 - Leaderboard
 
-| AC group | Task | Proof |
-|---|---|---|
-| Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...`, UI |
-| Trend indicator; none on first week | P5-03 | D `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...` / `GivenOnlyOneSnapshotWeek_...`, A `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_...`, A `FullWeekSimulationTests` (Up/Down/Same off two genuinely scored weeks) |
-| No champion banner | P5-04 | UI |
-| Week rows, correct count, trophy, ties share | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...`, UI |
-| In Progress label | P5-04 | UI (server flag: A `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_...`) |
-| Grid with colors, voided greyed, pinned column, horizontal scroll | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAGrid_...`, A `LeaderboardEndpointsTests.GivenALockedWeek_...`, UI |
-| Grid hidden before lock | P5-03 | A `LeaderboardEndpointsTests.GivenAnUnlockedWeek_WhenReadingTheGrid_ThenItIs403` |
-| Prev/next, jump to current, only generated weeks | P5-03, P5-04 | UI, A `LeaderboardEndpointsTests.GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable` |
-| Former members in past weeks only | P5-03 | D `StandingsCalculatorTests.GivenAFormerMember_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...` |
-| Mid-season joiners scored from their own weeks | P5-03 | D `StandingsCalculatorTests.GivenAMidSeasonJoiner_...`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...` |
-| Under 1 s for 50 members x 15 weeks | P5-03 | A `LeaderboardPerfTests` with seeded data |
-| Leaderboard authorization | P5-03 | A `LeaderboardAuthMatrixTests` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...`, UI | PASS: `StandingsCalculatorTests`, `LeaderboardEndpointsTests.GivenScoredWeeks_WhenReadingTheSeasonLeaderboard_ThenRanksTotalsBehindAndWinsAreRight`; screenshot `p5-04-season-375.png` |
+| Trend indicator; none on first week | P5-03 | D `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...` / `GivenOnlyOneSnapshotWeek_...`, A `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_...`, A `FullWeekSimulationTests` (Up/Down/Same off two genuinely scored weeks) | PASS: `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...`, `.GivenOnlyOneSnapshotWeek_...`, `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_WhenReadingTheSeasonLeaderboard_ThenTrendArrowsComeFromTheSnapshots`, `FullWeekSimulationTests` |
+| No champion banner | P5-04 | UI | PASS: screenshot `p5-04-season-375.png` (no champion banner present) |
+| Week rows, correct count, trophy, ties share | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...`, UI | PASS: `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, `LeaderboardEndpointsTests.GivenACompletedWeek_WhenReadingItsLeaderboard_ThenFormerMembersAppearAndTheWinnersAreMarked`; screenshot `p5-04-week-375.png` |
+| In Progress label | P5-04 | UI (server flag: A `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_...`) | PASS: `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_WhenReadingItsLeaderboard_ThenNobodyIsAWinnerYet`; screenshot `p5-04-week-375.png` |
+| Grid with colors, voided greyed, pinned column, horizontal scroll | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAGrid_...`, A `LeaderboardEndpointsTests.GivenALockedWeek_...`, UI | PASS: `StandingsCalculatorTests.GivenAGrid_...`, `LeaderboardEndpointsTests.GivenALockedWeek_WhenReadingTheGrid_ThenEveryCellCarriesItsOutcome`; screenshot `p5-04-grid-375.png`, `p5-04-grid-scrolled-375.png`. Horizontal-scroll pinned-column check on a real iPhone: MANUAL PENDING (operator) — steps in `Implementation/reviews/operator-checklist.md` item 7 (headless-Chromium mid-scroll screenshot is the agent-verifiable substitute) |
+| Grid hidden before lock | P5-03 | A `LeaderboardEndpointsTests.GivenAnUnlockedWeek_WhenReadingTheGrid_ThenItIs403` | PASS: `LeaderboardEndpointsTests.GivenAnUnlockedWeek_WhenReadingTheGrid_ThenItIs403`; screenshot `p5-04-grid-prelock-375.png` |
+| Prev/next, jump to current, only generated weeks | P5-03, P5-04 | UI, A `LeaderboardEndpointsTests.GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable` | PASS: `LeaderboardEndpointsTests.GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable`; screenshot `p5-04-week-375.png` (`WeekNav` component) |
+| Former members in past weeks only | P5-03 | D `StandingsCalculatorTests.GivenAFormerMember_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...` | PASS: `StandingsCalculatorTests.GivenAFormerMember_WhenBuildingBothLeaderboards_ThenTheyAreOnTheWeekButNotTheSeason`, `LeaderboardEndpointsTests.GivenACompletedWeek_WhenReadingItsLeaderboard_ThenFormerMembersAppearAndTheWinnersAreMarked` |
+| Mid-season joiners scored from their own weeks | P5-03 | D `StandingsCalculatorTests.GivenAMidSeasonJoiner_...`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...` | PASS: `StandingsCalculatorTests.GivenAMidSeasonJoiner_WhenTotallingTheSeason_ThenOnlyTheirOwnWeeksCount`, `LeaderboardEndpointsTests.GivenScoredWeeks_WhenReadingTheSeasonLeaderboard_ThenRanksTotalsBehindAndWinsAreRight` |
+| Under 1 s for 50 members x 15 weeks | P5-03 | A `LeaderboardPerfTests` with seeded data | PASS: `LeaderboardPerfTests` (50 members x 15 weeks x 20 games, season 2096, well under 1 s) |
+| Leaderboard authorization | P5-03 | A `LeaderboardAuthMatrixTests` | PASS: `LeaderboardAuthMatrixTests` |
 
 ## Feature 08 - Authentication
 
