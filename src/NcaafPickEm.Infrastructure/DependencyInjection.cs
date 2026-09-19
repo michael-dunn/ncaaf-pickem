@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using Microsoft.Kiota.Abstractions.Authentication;
 using Microsoft.Kiota.Http.HttpClientLibrary;
 using NcaafPickEm.Domain.Seasons;
@@ -121,6 +122,11 @@ public static class DependencyInjection
 
         RegisterReferenceDataProvider(services, configuration, referenceDataProvider, environment);
 
+        // Provider-neutral: it ingests whatever IReferenceDataProvider is registered above, so it
+        // must be resolvable under Fixture too (P2-04's refresh jobs and the admin refresh route
+        // run in Development against the fixture provider).
+        services.TryAddScoped<ReferenceDataIngestService>();
+
         string liveScoreProvider = configuration["Providers:LiveScores"] ?? string.Empty;
         RegisterLiveScoreProvider(services, liveScoreProvider, environment);
 
@@ -152,40 +158,41 @@ public static class DependencyInjection
             return;
         }
 
-        switch (providerName)
+        // Case-insensitive, to agree with the ISeasonWeekSource branch in AddInfrastructure that
+        // decides whether DbSeasonWeekSource is registered for this same setting.
+        if (string.Equals(providerName, "Fixture", StringComparison.OrdinalIgnoreCase))
         {
-            case "Fixture":
-                services.TryAddSingleton<IReferenceDataProvider, FixtureReferenceDataProvider>();
-                break;
-
-            case "Cfbd":
-                RegisterCfbdClient(services, configuration);
-                services.TryAddSingleton<IReferenceDataProvider, CfbdReferenceDataProvider>();
-                break;
-
-            default:
-                throw new InvalidOperationException(
-                    $"Providers:ReferenceData '{providerName}' is not a recognized provider. " +
-                    "Use 'Fixture' or 'Cfbd'.");
+            services.TryAddSingleton<IReferenceDataProvider, FixtureReferenceDataProvider>();
+        }
+        else if (string.Equals(providerName, "Cfbd", StringComparison.OrdinalIgnoreCase))
+        {
+            RegisterCfbdClient(services, configuration);
+            services.TryAddSingleton<IReferenceDataProvider, CfbdReferenceDataProvider>();
+        }
+        else
+        {
+            throw new InvalidOperationException(
+                $"Providers:ReferenceData '{providerName}' is not a recognized provider. " +
+                "Use 'Fixture' or 'Cfbd'.");
         }
     }
 
     private static void RegisterCfbdClient(IServiceCollection services, IConfiguration configuration)
     {
         services.AddOptions<CfbdOptions>().Bind(configuration.GetSection(CfbdOptions.SectionName));
-        services.TryAddSingleton<IAccessTokenProvider, CfbdAccessTokenProvider>();
         services.AddHttpClient("Cfbd", client => client.BaseAddress = new Uri("https://api.collegefootballdata.com"));
 
         services.TryAddSingleton(sp =>
         {
+            // CfbdAccessTokenProvider is built here rather than registered as IAccessTokenProvider:
+            // that interface is a generic Kiota abstraction, and a second Kiota client added later
+            // would otherwise resolve it and be handed CFBD's key.
             var authenticationProvider = new BaseBearerTokenAuthenticationProvider(
-                sp.GetRequiredService<IAccessTokenProvider>());
+                new CfbdAccessTokenProvider(sp.GetRequiredService<IOptionsMonitor<CfbdOptions>>()));
             HttpClient httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("Cfbd");
             var requestAdapter = new HttpClientRequestAdapter(authenticationProvider, httpClient: httpClient);
             return new ApiClient(requestAdapter);
         });
-
-        services.TryAddScoped<ReferenceDataIngestService>();
     }
 
     private static void RegisterLiveScoreProvider(

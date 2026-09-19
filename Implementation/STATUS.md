@@ -93,13 +93,10 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | 2026-09-18 | P1-01 | `src/NcaafPickEm.Infrastructure/DependencyInjection.cs` | Two lines: `services.AddScoped<LeagueService>(); services.AddScoped<InviteService>();`. Merged with P0-06/P2-05's additions to the same method (jobs, providers, fixture seeder) — no further conflict expected since each phase's block is a self-contained region with a comment header. |
 | 2026-09-18 | P1-01 | `src/NcaafPickEm.Api/DependencyInjection.cs` | Four `IValidator<T>` registrations for the four new request validators; removed the now-obsolete "Later phases add" remarks block. |
 | 2026-09-18 | P1-01 | `src/NcaafPickEm.Api/Endpoints/EndpointMapping.cs` | Added `api.MapInviteEndpoints();` and `api.MapLeagueEndpoints();`; removed the Development/Testing-only diagnostics block and `DiagnosticsEndpoints.cs`/`DiagnosticsPing.cs` (D-021). Merged with P0-06's `api.MapAdminEndpoints();` and P2-05's dev-login/fixture-admin block, which both landed on `main` first — resolved by keeping every side's mapping line, alphabetizing the feature lines, and keeping the P2-05 dev-tools block as the last thing mapped. |
-<<<<<<< HEAD
 | 2026-09-18 | P2-02 | `Directory.Packages.props` | Added a "Providers" ItemGroup: `CollegeFootballData` 5.27.1 plus its five transitive `Microsoft.Kiota.*` packages, pinned at 2.1.2 rather than the spike's 1.19.0 floor (NU1903 security advisory, D-053). |
 | 2026-09-18 | P2-02 | `src/NcaafPickEm.Infrastructure/DependencyInjection.cs` | Read `Providers:ReferenceData` once, up front, so the `ISeasonWeekSource` registration can add `DbSeasonWeekSource` (scoped) before the fixture `TryAddSingleton` when it is `Cfbd`; `RegisterReferenceDataProvider` gained an `IConfiguration` parameter and a `case "Cfbd"` branch that binds `CfbdOptions`, builds the Kiota `ApiClient` from a named `HttpClient`, and registers `ReferenceDataIngestService` scoped and `CfbdReferenceDataProvider` singleton. Merged with P2-03's domain-events/`IProviderCallRecorder`/`LiveScoreApplyService` additions to the same method at the P2-02/P2-03 reconciliation — kept both sides' registrations; dropped P2-02's own scoped `ProviderCallRecorder` in favor of P2-03's singleton `IProviderCallRecorder` (D-062). |
-=======
 | 2026-09-18 | P1-03 | `src/NcaafPickEm.Web/_Imports.razor` | Added `@using NcaafPickEm.Shared.Contracts.Auth`, needed by `Pages/Profile/ProfilePage.razor` for `MeResponse`/`UpdateMeRequest`. |
 | 2026-09-18 | P1-03 | `src/NcaafPickEm.Web/Services/DependencyInjection.cs` | Two lines: registers `IMeApi` as the real `MeApi` (or `Fakes.FakeMeApi` under `DEBUG && USE_FAKE_API`), alongside the existing `ILeaguesApi`/`ISeasonsApi` registrations. |
->>>>>>> main
 
 ## Escalations
 

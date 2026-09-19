@@ -15,6 +15,7 @@ Practical facts every implementation agent needs. Read after `00-README.md`, `05
 - `.gitattributes` stores LF, checks out CRLF. `.editorconfig` demands CRLF; run `dotnet format` before committing or `dotnet format --verify-no-changes` fails with ENDOFLINE.
 - Run plain `dotnet format` (never `dotnet format --no-restore`): without restore it compiles against unresolved references and silently strips `using` directives from unrelated files.
 - Migrations: append-only, named `Phase<N>_<Task>_<What>`. Never edit another task's migration.
+- After any `git merge main`, run `grep -rn -E "^(<<<<<<<|=======|>>>>>>>)" Implementation src tests README.md` and fix every hit BEFORE `git add -A`; two merges have shipped conflict markers into STATUS.md/DECISIONS.md already. Keep both sides in the append-only docs.
 - `src/NcaafPickEm.Infrastructure/Data/Migrations/.editorconfig` marks that folder as generated code. Without it `dotnet ef migrations add` fails the next build on IDE0161/IDE0005. Do not hand-write code there and do not reformat what EF emits.
 
 ## Build strictness (from P0-01)
