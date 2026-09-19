@@ -19,7 +19,7 @@ Frontend and backend agents build against this file. DTO names are the record na
 | GET | `/auth/callback/google` | Anon | Handled by the Google middleware; upserts `Users`, signs in cookie, redirects to `returnUrl`. |
 | POST | `/auth/logout` | Auth | Signs out, clears cookie. Returns 204. |
 | GET | `/api/me` | Auth | `MeResponse { UserId, Email, DisplayName, Leagues: LeagueSummary[] }` |
-| PUT | `/api/me` | Auth | `UpdateMeRequest { DisplayName }` 1..30 chars after trimming; 400 otherwise. 409 (P1-03) if the new name collides with another active member's effective name in a league where the caller has no per-league override (D-058). |
+| PUT | `/api/me` | Auth | `UpdateMeRequest { DisplayName }` 1..30 chars after trimming; 400 otherwise. 409 (P1-03) if the new name collides with another active member's effective name in a league where the caller has no per-league override (D-062). |
 
 Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
