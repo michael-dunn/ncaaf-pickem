@@ -20,11 +20,19 @@ namespace NcaafPickEm.Infrastructure.Notifications;
 /// <b>Who counts as "was Submitted".</b> P4-04 is expected to react to the same event by moving a
 /// Submitted member to InProgress and setting <c>HasUnseenGameChanges</c>; domain event handlers
 /// for one event run in registration order (<c>05-Conventions.md</c>/D-046), so this handler must
-/// not assume it runs before or after that one. It treats a membership as "was Submitted" when
-/// its current status is still <see cref="SubmissionStatus.Submitted"/> (P4-04 has not run, or is
-/// not registered yet) <em>or</em> it has a <c>SubmittedUtc</c> earlier than this event's
-/// <see cref="GameAddedToSet.OccurredUtc"/> (P4-04 already flipped it to InProgress). Either way
-/// the member was Submitted at the moment the games were added, which is the card's rule.
+/// not assume it runs before or after that one. It therefore never reads
+/// <c>WeekSubmissions.Status</c> at all: a membership counts as "was Submitted" when its
+/// <c>SubmittedUtc</c> is at or after the <c>AddedUtc</c> of the newest game that was <em>already</em>
+/// in the set, which is <c>SubmissionStatusCalculator</c>'s own definition of Submitted evaluated
+/// against the set as it stood a moment ago (D-155).
+/// </para>
+/// <para>
+/// That threshold, rather than the event's <see cref="GameAddedToSet.OccurredUtc"/>, is also what
+/// stops the message repeating: <c>SubmittedUtc</c> is never cleared, so "submitted at some point
+/// before now" stays true forever and a member who ignored the first add would have been notified
+/// again by every later one. Re-submitting after an add does refresh <c>SubmittedUtc</c>
+/// (<c>PickService.SubmitAsync</c> only leaves it alone when the status is already Submitted), so
+/// a member who does catch up is correctly notified again next time.
 /// </para>
 /// </remarks>
 public sealed class GamesAddedNotificationHandler : IDomainEventHandler<GameAddedToSet>
@@ -66,20 +74,32 @@ public sealed class GamesAddedNotificationHandler : IDomainEventHandler<GameAdde
             return;
         }
 
-        var recipients = await _database.Memberships
+        // "Submitted immediately before this add" = submitted after the newest game that was
+        // already in the set. Nothing here reads Status, so it does not matter whether P4-04's
+        // handler on the same event has already flipped Submitted to InProgress, and - unlike an
+        // OccurredUtc comparison - a member who never re-submitted after the first add is not
+        // notified all over again by the second one (P8-01, D-155).
+        DateTime? priorNewestAddedUtc = await _database.WeekGameSetGames
+            .AsNoTracking()
+            .Where(row => row.WeekGameSetId == domainEvent.WeekGameSetId
+                && !row.IsRemoved
+                && !domainEvent.GameSetGameIds.Contains(row.Id))
+            .MaxAsync(row => (DateTime?)row.AddedUtc, cancellationToken);
+
+        DateTime submittedAtOrAfter = priorNewestAddedUtc ?? DateTime.MinValue;
+
+        List<Guid> recipients = await _database.Memberships
             .AsNoTracking()
             .Where(m => m.LeagueId == domainEvent.LeagueId && m.RemovedUtc == null)
             .Select(m => new
             {
                 m.UserId,
-                Submission = _database.WeekSubmissions
+                SubmittedUtc = _database.WeekSubmissions
                     .Where(ws => ws.MembershipId == m.Id && ws.WeekGameSetId == domainEvent.WeekGameSetId)
-                    .Select(ws => new { ws.Status, ws.SubmittedUtc })
+                    .Select(ws => ws.SubmittedUtc)
                     .FirstOrDefault(),
             })
-            .Where(row => row.Submission != null
-                && (row.Submission.Status == SubmissionStatus.Submitted
-                    || (row.Submission.SubmittedUtc != null && row.Submission.SubmittedUtc < domainEvent.OccurredUtc)))
+            .Where(row => row.SubmittedUtc != null && row.SubmittedUtc >= submittedAtOrAfter)
             .Select(row => row.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);

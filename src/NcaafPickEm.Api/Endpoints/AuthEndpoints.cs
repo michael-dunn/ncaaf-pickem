@@ -21,7 +21,12 @@ public static class AuthEndpoints
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        RouteGroupBuilder auth = builder.MapGroup("/auth").WithTags("auth");
+        RouteGroupBuilder auth = builder.MapGroup("/auth")
+            .WithTags("auth")
+
+            // P8-01: a generous fixed window per client IP. /auth is the one route family a
+            // caller can reach with no cookie at all.
+            .RequireRateLimiting(RateLimitingSetup.AuthPolicy);
 
         auth.MapGet("/login/google", LoginWithGoogle)
             .WithName("AuthLoginGoogle")

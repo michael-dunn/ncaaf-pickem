@@ -23,6 +23,14 @@ public static class ReturnUrl
 
         string trimmed = candidate.Trim();
 
+        // A control character left in the middle of the value would go straight into the Location
+        // header; CR/LF there is response splitting, and Kestrel would 500 the login instead
+        // (P8-01).
+        if (trimmed.Any(char.IsControl))
+        {
+            return AuthDefaults.DefaultReturnUrl;
+        }
+
         bool isLocal = trimmed[0] is '/'
             && (trimmed.Length == 1 || (trimmed[1] is not '/' and not '\\'));
 

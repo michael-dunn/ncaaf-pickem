@@ -80,8 +80,10 @@ public sealed class EventNotificationTests : IAsyncLifetime
             .Select(s => s.Id)
             .SingleAsync());
 
-        // The submitted member submitted before the regeneration that is about to add games.
-        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, DateTime.UtcNow.AddMinutes(-10));
+        // The submitted member submitted after every game already in the set, and before the
+        // regeneration that is about to add more (D-155: that comparison, not OccurredUtc, is
+        // what "was Submitted at the moment of the add" means).
+        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, DateTime.UtcNow);
 
         Guid oklahomaId = await FixtureGameData.GetTeamIdAsync(Factory, 900111);
         Guid ohioStateId = await FixtureGameData.GetTeamIdAsync(Factory, 900105);
@@ -104,6 +106,44 @@ public sealed class EventNotificationTests : IAsyncLifetime
         push.Payload.Url.Should().Be($"/leagues/{league.Id}/weeks/7/picks");
 
         _sender.SentTo(inProgressEndpoint).Should().BeEmpty("only previously-Submitted members are notified");
+    }
+
+    /// <summary>
+    /// P8-01 / D-155: <c>SubmittedUtc</c> is never cleared, so the old "submitted at some point
+    /// before this event" rule stayed true forever and every later add re-notified a member who
+    /// had ignored the first one. The rule is now "submitted after the newest game already in the
+    /// set", so a member who never caught up is told once.
+    /// </summary>
+    [Fact]
+    public async Task GivenAMemberWhoIgnoredTheFirstAdd_WhenMoreGamesAreAdded_ThenTheyAreNotNotifiedAgain()
+    {
+        (League league, HttpClient client, Guid setId, string endpoint, _) = await SubmittedMemberScenarioAsync();
+
+        setId.Should().NotBeEmpty();
+
+        await AddGameAsync(client, league.Id, 700003);
+        _sender.SentTo(endpoint).Should().ContainSingle("the first add reaches a submitted member");
+
+        await AddGameAsync(client, league.Id, 700004);
+        _sender.SentTo(endpoint).Should().ContainSingle(
+            "the member never re-submitted, so they were not Submitted when the second add happened");
+    }
+
+    [Fact]
+    public async Task GivenAMemberWhoResubmittedAfterTheFirstAdd_WhenMoreGamesAreAdded_ThenTheyAreNotifiedAgain()
+    {
+        (League league, HttpClient client, Guid setId, string endpoint, User member) =
+            await SubmittedMemberScenarioAsync();
+
+        await AddGameAsync(client, league.Id, 700003);
+        _sender.SentTo(endpoint).Should().ContainSingle();
+
+        // Catching up: PickService.SubmitAsync refreshes SubmittedUtc whenever the status is not
+        // already Submitted, which is exactly this case.
+        await SetSubmittedUtcAsync(league, member, setId, DateTime.UtcNow);
+
+        await AddGameAsync(client, league.Id, 700004);
+        _sender.SentTo(endpoint).Should().HaveCount(2, "they were Submitted again when the second add happened");
     }
 
     [Fact]
@@ -223,7 +263,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
             .Select(s => s.Id)
             .SingleAsync());
 
-        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, DateTime.UtcNow.AddMinutes(-10));
+        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, DateTime.UtcNow);
 
         Guid weekGameSetGameId = await Factory.QueryDbAsync(db => db.WeekGameSetGames
             .Where(g => g.WeekGameSetId == setId)
@@ -251,6 +291,61 @@ public sealed class EventNotificationTests : IAsyncLifetime
         await handler.HandleAsync(domainEvent, CancellationToken.None);
 
         _sender.SentTo(endpoint).Should().BeEmpty("a locked week's own generation is a no-op, and a handler must honor that too");
+    }
+
+    /// <summary>A league whose week 7 set is generated and whose one member has just submitted.</summary>
+    private async Task<(League League, HttpClient Client, Guid SetId, string Endpoint, User Member)>
+        SubmittedMemberScenarioAsync()
+    {
+        (League league, HttpClient client) = await CreateCommishLeagueAsync();
+        (User member, string endpoint) = await CreateSubscribedMemberAsync(league);
+
+        await PutRulesAsync(client, league.Id, [Top25Rule()]);
+        using (HttpResponseMessage generate = await client.PostAsync(
+            $"/api/leagues/{league.Id}/weeks/7/gameset/generate", null))
+        {
+            generate.StatusCode.Should().Be(HttpStatusCode.OK);
+        }
+
+        Guid setId = await Factory.QueryDbAsync(db => db.WeekGameSets
+            .Where(s => s.LeagueId == league.Id && s.Week == 7)
+            .Select(s => s.Id)
+            .SingleAsync());
+
+        await SetSubmissionAsync(league, member, setId, SubmissionStatus.Submitted, DateTime.UtcNow);
+
+        return (league, client, setId, endpoint, member);
+    }
+
+    private async Task AddGameAsync(HttpClient client, Guid leagueId, long cfbdGameId)
+    {
+        Guid gameId = await FixtureGameData.GetGameIdAsync(Factory, cfbdGameId);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/leagues/{leagueId}/weeks/7/gameset/games",
+            new AddGameRequest(gameId));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    private async Task SetSubmittedUtcAsync(League league, User user, Guid weekGameSetId, DateTime submittedUtc)
+    {
+        await Factory.ExecuteDbAsync(async db =>
+        {
+            Guid membershipId = await db.Memberships
+                .Where(m => m.LeagueId == league.Id && m.UserId == user.Id)
+                .Select(m => m.Id)
+                .SingleAsync();
+
+            WeekSubmission submission = await db.WeekSubmissions.SingleAsync(
+                row => row.MembershipId == membershipId && row.WeekGameSetId == weekGameSetId);
+
+            submission.SubmittedUtc = submittedUtc;
+            submission.Status = SubmissionStatus.Submitted;
+            submission.LastChangedUtc = submittedUtc;
+
+            await db.SaveChangesAsync();
+        });
     }
 
     private static GameSetRuleDto Top25Rule() => new(null, GameSetRuleType.Top25, null, null, null, null, false, 0);

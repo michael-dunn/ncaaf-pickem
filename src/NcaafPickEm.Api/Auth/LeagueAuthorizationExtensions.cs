@@ -18,6 +18,7 @@ public static class LeagueAuthorizationExtensions
 
         builder.RequireAuthorization(PolicyNames.LeagueMember);
         builder.AddEndpointFilter(new LeagueMembershipEndpointFilter(requireCommissioner: false));
+        builder.WithMetadata(new EndpointScopeMetadata(EndpointScope.LeagueMember));
         return builder;
     }
 
@@ -32,6 +33,7 @@ public static class LeagueAuthorizationExtensions
 
         builder.RequireAuthorization(PolicyNames.LeagueCommissioner);
         builder.AddEndpointFilter(new LeagueMembershipEndpointFilter(requireCommissioner: true));
+        builder.WithMetadata(new EndpointScopeMetadata(EndpointScope.LeagueCommissioner));
         return builder;
     }
 

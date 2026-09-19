@@ -119,6 +119,11 @@ public class ApiFactory : WebApplicationFactory<Program>
         // SqlTestDatabase already migrated; the app must not race it at startup (D-015).
         builder.UseSetting(DatabaseDefaults.MigrateOnStartupKey, "false");
 
+        // Every test request arrives with no remote IP, so they would all share one rate-limit
+        // partition and a long suite would trip it (P8-01, D-153). RateLimitTests boots its own
+        // host with the limiter on and a tiny window.
+        builder.UseSetting(RateLimitingSetup.EnabledKey, "false");
+
         if (_useTestAuth)
         {
             // Runs after the app's own registration, so this Configure wins and TestAuth becomes
