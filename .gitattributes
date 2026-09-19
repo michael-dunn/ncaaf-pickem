@@ -25,6 +25,9 @@
 *.yml          text eol=lf
 Dockerfile     text eol=lf
 .dockerignore  text eol=lf
+# Compose's env-file parser keeps a trailing \r inside the value, which would silently corrupt
+# SA_PASSWORD and friends, so this one is LF everywhere too.
+.env.example   text eol=lf
 
 # Binary assets
 *.png  binary
