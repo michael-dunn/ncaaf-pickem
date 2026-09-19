@@ -36,7 +36,10 @@
     }
     else if (_weeks.Length == 0)
     {
-        <p class="muted text-sm">No season calendar for @_form.SeasonYear yet. Weeks will default to 1..14.</p>
+        <p class="muted text-sm">
+            No season calendar for @_form.SeasonYear yet - the server is fetching it; refresh this page in a
+            minute, or create the league now with the default weeks 1..14.
+        </p>
     }
     else
     {
