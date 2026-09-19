@@ -7,6 +7,7 @@ using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Shared.Contracts.Dashboard;
 using NcaafPickEm.Shared.Contracts.GameSets;
+using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Infrastructure.Services;
 
@@ -18,9 +19,16 @@ namespace NcaafPickEm.Infrastructure.Services;
 /// <remarks>
 /// <para>
 /// "Locked" here means <c>WeekGameSets.LockedUtc != null</c> - the lock job has actually run -
-/// not merely that <c>LockAtUtc</c> has passed (D-1xx, see <c>DECISIONS.md</c>). Point values are
+/// not merely that <c>LockAtUtc</c> has passed (D-116). Point values are
 /// frozen and every member's final status is settled only once the job has run, so the dashboard
 /// waits for it rather than reusing <c>PickService</c>'s "reached the instant" guard.
+/// </para>
+/// <para>
+/// "Active at lock" is a <c>WeekSubmissions</c> row whose status is
+/// <see cref="SubmissionStatus.Locked"/> or <see cref="SubmissionStatus.Incomplete"/> - the only
+/// two the lock job writes. A bare "has a row" test would be wrong in one direction: a member who
+/// picked and then left <em>before</em> the week locked keeps the row <c>PickService</c> created
+/// for them (D-111 deliberately does not delete it) even though the locker dropped them.
 /// </para>
 /// <para>
 /// A week in the league's range with no game set yet behaves exactly like an unlocked one:
@@ -85,21 +93,31 @@ public sealed class DashboardService
 
         InfluenceGame[] influenceGames = [.. games.Games.Select(ToInfluenceGame)];
 
-        // One query: every member active at lock is one with a WeekSubmissions row for this set -
-        // that single condition includes a member removed since lock and excludes one who joined
-        // after it (AGENT-NOTES.md, "Dashboard").
+        // One query: every member active at lock is one holding a WeekSubmissions row this set's
+        // lock job wrote - that is, one whose status is Locked or Incomplete, the only two values
+        // LockWeekJob writes (D-111). The status clause matters: PickService creates a row the
+        // moment a member first touches the week, and D-111 leaves that row in place when the
+        // locker drops the membership, so "any row at all" would also name a member who left
+        // before the week locked and let their picks count against everybody. Locked/Incomplete
+        // still includes a member removed *since* lock and still excludes one who joined after it.
         List<Membership> memberships = await _database.Memberships
             .AsNoTracking()
             .Include(membership => membership.User)
             .Where(membership => _database.WeekSubmissions
-                .Any(submission => submission.WeekGameSetId == set.Id && submission.MembershipId == membership.Id))
+                .Any(submission => submission.WeekGameSetId == set.Id
+                    && submission.MembershipId == membership.Id
+                    && (submission.Status == SubmissionStatus.Locked
+                        || submission.Status == SubmissionStatus.Incomplete)))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Name order, then membership id so two members sharing a display name cannot reshuffle
+        // between two polls of the same unchanged week (the D-099 reason, applied to the roster).
         InfluenceMember[] membersActiveAtLock = [.. memberships
             .Select(membership => new InfluenceMember(
                 membership.Id, MemberNameProjection.Effective(membership), membership.RemovedUtc is not null))
-            .OrderBy(member => member.DisplayName, StringComparer.OrdinalIgnoreCase)];
+            .OrderBy(member => member.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(member => member.MembershipId)];
 
         // One query: every pick on a row belonging to this set. IndexPicks in the calculator
         // ignores anything on a membership or game it was not handed, so a pick on a removed row

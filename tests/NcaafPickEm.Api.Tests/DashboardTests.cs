@@ -67,7 +67,25 @@ public sealed class DashboardTests
         body!.IsAvailable.Should().BeFalse();
         body.LockAtUtc.Should().NotBeNull();
         body.LockAtEasternDisplay.Should().NotBeNull();
+
+        // Nothing about anybody's picks leaks before the job has run: every list empty, both
+        // totals zero (D-116).
         body.Games.Should().BeEmpty();
+        body.EveryoneAgrees.Should().BeEmpty();
+        body.PointsSoFar.Should().Be(0);
+        body.MaxRemaining.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GivenAWeekOutsideTheLeaguesRange_WhenAMemberAsksForTheDashboard_ThenItIs404()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+        using HttpClient member = _fixture.Factory.CreateClientAs(scenario.MemberUserId);
+
+        using HttpResponseMessage response = await member.GetAsync(
+            $"/api/leagues/{scenario.LeagueId}/weeks/99/dashboard");
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
 
     [Fact]
@@ -106,6 +124,7 @@ public sealed class DashboardTests
         [
             scenario.MembershipIdByName["Alex"],
         ]);
+        marylandRutgers.NoPick.Should().BeEmpty();
 
         // The most-opposed game leads (04-Domain-Algorithms.md section 6's ordering).
         body.Games[0].Game.GameId.Should().Be(scenario.MichiganTexas.GameId);
@@ -135,6 +154,10 @@ public sealed class DashboardTests
         [
             scenario.MembershipIdByName["Dance"],
         ]);
+        michiganTexas.NoPick.Should().BeEmpty();
+        michiganTexas.OppositePicks.Should().NotContain(
+            m => m.MembershipId == scenario.MembershipIdByName["Alyson"],
+            "the viewer never appears in her own lists");
 
         DashboardGameDto marylandRutgers = body.Games.Single(g => g.Game.GameId == scenario.MarylandRutgers.GameId);
         marylandRutgers.MyTeamId.Should().Be(scenario.MarylandRutgers.HomeTeam.TeamId, "Alyson picked Maryland");
@@ -143,6 +166,7 @@ public sealed class DashboardTests
         [
             scenario.MembershipIdByName["Alex"],
         ]);
+        marylandRutgers.NoPick.Should().BeEmpty();
 
         // Both games carry one opposite pick and the same point value; kickoff order settles the
         // tie, and Maryland/Rutgers (16:00 UTC) kicks before Michigan/Texas (19:30 UTC) in the
@@ -240,12 +264,12 @@ public sealed class DashboardTests
         DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(_fixture.PinnedFactory);
         await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
-        Guid latecomerUserId = await _fixture.PinnedFactory.QueryDbAsync(async db =>
+        (Guid latecomerUserId, Guid latecomerMembershipId) = await _fixture.PinnedFactory.QueryDbAsync(async db =>
         {
             League league = await db.Leagues.SingleAsync(l => l.Id == scenario.LeagueId);
             User user = await TestUsers.CreateUserAsync(db, "Latecomer");
-            await TestUsers.CreateMembershipAsync(db, league, user);
-            return user.Id;
+            Membership membership = await TestUsers.CreateMembershipAsync(db, league, user);
+            return (user.Id, membership.Id);
         });
 
         using HttpClient latecomer = _fixture.PinnedFactory.CreateClientAs(latecomerUserId);
@@ -260,26 +284,45 @@ public sealed class DashboardTests
         body.PointsSoFar.Should().Be(0);
         body.MaxRemaining.Should().Be(0, "a member with no pick has nothing still in play");
 
-        // They cannot be named in anyone's lists either - they were never active at lock.
+        // A viewer with no pick has nobody to be opposite to, so the card shows both teams'
+        // pickers instead (the story's "Given M did not pick G ... lists picks for both teams").
         DashboardGameDto michiganTexas = body.Games.Single(g => g.Game.GameId == scenario.MichiganTexas.GameId);
-        michiganTexas.NoPick.Should().NotContain(m => m.MembershipId == latecomerUserId);
-        michiganTexas.OppositePicks.Should().NotContain(m => m.MembershipId == latecomerUserId);
+        michiganTexas.OppositeCount.Should().Be(0);
+        michiganTexas.OppositePicks.Should().BeEmpty();
+        michiganTexas.HomePickers.Select(m => m.MembershipId).Should().BeEquivalentTo(
+        [
+            scenario.MembershipIdByName["Michael"],
+            scenario.MembershipIdByName["Alyson"],
+            scenario.MembershipIdByName["Alex"],
+            scenario.MembershipIdByName["Daniel"],
+        ]);
+        michiganTexas.AwayPickers.Select(m => m.MembershipId).Should().BeEquivalentTo(
+        [
+            scenario.MembershipIdByName["Dance"],
+        ]);
+        michiganTexas.NoPick.Should().BeEmpty("every member active at lock picked this game");
+
+        // And a game nobody disagrees with them on is still in Games, not collapsed away.
+        body.EveryoneAgrees.Should().BeEmpty();
+
+        // They cannot be named in anyone's lists either - they were never active at lock.
+        michiganTexas.NoPick.Should().NotContain(m => m.MembershipId == latecomerMembershipId);
+        michiganTexas.OppositePicks.Should().NotContain(m => m.MembershipId == latecomerMembershipId);
+        michiganTexas.HomePickers.Should().NotContain(m => m.MembershipId == latecomerMembershipId);
+        michiganTexas.AwayPickers.Should().NotContain(m => m.MembershipId == latecomerMembershipId);
     }
 
     [Fact]
-    public async Task GivenAFormerMemberWhoPickedBeforeLeaving_WhenTheWeekLocks_ThenTheyStillAppearFlagged()
+    public async Task GivenAMemberRemovedAfterLock_WhenAnotherMemberAsks_ThenTheyStillAppearFlagged()
     {
         DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(_fixture.PinnedFactory);
-
-        Guid danceMembershipId = scenario.MembershipIdByName["Dance"];
-        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
-        {
-            Membership dance = await db.Memberships.SingleAsync(m => m.Id == danceMembershipId);
-            dance.RemovedUtc = ApiTestFixture.PinnedNowUtc.UtcDateTime;
-            await db.SaveChangesAsync();
-        });
-
         await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+
+        // Removed *after* the lock job ran, so her Locked/Incomplete row - and therefore her
+        // picks - still belong to the week (D-111, Feature 05's "former members who were active
+        // at lock are included").
+        Guid danceMembershipId = scenario.MembershipIdByName["Dance"];
+        await RemoveMemberAsync(danceMembershipId);
 
         using HttpClient michael = _fixture.PinnedFactory.CreateClientAs(scenario.UserIdByName["Michael"]);
         using HttpResponseMessage response = await michael.GetAsync(scenario.DashboardRoute);
@@ -288,7 +331,53 @@ public sealed class DashboardTests
         DashboardGameDto michiganTexas = body!.Games.Single(g => g.Game.GameId == scenario.MichiganTexas.GameId);
         MemberRef danceRef = michiganTexas.OppositePicks.Single(m => m.MembershipId == danceMembershipId);
         danceRef.IsFormer.Should().BeTrue();
+        michiganTexas.OppositeCount.Should().Be(1);
     }
+
+    [Fact]
+    public async Task GivenAMemberRemovedBeforeLock_WhenAnotherMemberAsks_ThenTheyAreNotNamedAndTheirPicksDoNotCount()
+    {
+        DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(_fixture.PinnedFactory);
+
+        // Removed before the job runs, so WeekLocker drops her: no Locked/Incomplete row is
+        // written, and the WeekSubmissions row her own picks created is deliberately left behind
+        // (D-111). She was not active at lock, so she is nobody's opposition.
+        Guid danceMembershipId = scenario.MembershipIdByName["Dance"];
+        await RemoveMemberAsync(danceMembershipId);
+
+        await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+
+        using HttpClient michael = _fixture.PinnedFactory.CreateClientAs(scenario.UserIdByName["Michael"]);
+        using HttpResponseMessage response = await michael.GetAsync(scenario.DashboardRoute);
+        DashboardResponse? body = await response.Content.ReadFromJsonAsync<DashboardResponse>();
+
+        // Michael picked Michigan and Maryland; Dance was the only vote against Michigan, so with
+        // her gone that game has no opposition at all and collapses into "everyone agrees".
+        body!.Games.Should().ContainSingle()
+            .Which.Game.GameId.Should().Be(scenario.MarylandRutgers.GameId);
+        body.EveryoneAgrees.Should().ContainSingle()
+            .Which.Game.GameId.Should().Be(scenario.MichiganTexas.GameId);
+
+        DashboardGameDto michiganTexas = body.EveryoneAgrees.Single();
+        michiganTexas.OppositeCount.Should().Be(0);
+        michiganTexas.AwayPickers.Should().BeEmpty("Dance's pick on Texas is not part of the locked week");
+
+        foreach (DashboardGameDto game in body.Games.Concat(body.EveryoneAgrees))
+        {
+            game.OppositePicks.Should().NotContain(m => m.MembershipId == danceMembershipId);
+            game.NoPick.Should().NotContain(m => m.MembershipId == danceMembershipId);
+            game.HomePickers.Should().NotContain(m => m.MembershipId == danceMembershipId);
+            game.AwayPickers.Should().NotContain(m => m.MembershipId == danceMembershipId);
+        }
+    }
+
+    private async Task RemoveMemberAsync(Guid membershipId) =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+        {
+            Membership membership = await db.Memberships.SingleAsync(m => m.Id == membershipId);
+            membership.RemovedUtc = ApiTestFixture.PinnedNowUtc.UtcDateTime;
+            await db.SaveChangesAsync();
+        });
 
     [Fact]
     public async Task GivenAnExtraQueryParameter_WhenAMemberAsksForTheDashboard_ThenItIs400()
