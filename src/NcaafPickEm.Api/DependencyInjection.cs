@@ -31,6 +31,9 @@ public static class DependencyInjection
         // Cookie scheme + Google handler + the three policies (Feature 08, Option A).
         services.AddAppAuthentication(configuration);
 
+        // Fixed-window limits on /auth/* and /api/invites/* (P8-01, D-190).
+        services.AddAppRateLimiting(configuration);
+
         // FluentValidation validators, run by ValidationFilter<TRequest> on the endpoints that
         // need them (05-Conventions.md). Registered by hand rather than assembly scanning so the
         // list here is the list of validators that actually exist.
