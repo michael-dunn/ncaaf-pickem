@@ -66,23 +66,23 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 04 - Weekly Picks
 
-| AC group | Task | Proof |
-|---|---|---|
-| Picks page lists teams, rank, kickoff, points | P4-03 | UI |
-| Tap picks, other unmarked, re-tap is no-op | P4-01, P4-03 | A `SetPickTests`, UI |
-| Auto-save with indicator; failure reverts | P4-03 | UI (simulate offline) |
-| Submit only when all picked; remaining count shown | P4-01, P4-03 | A `SubmitTests`, UI |
-| Change after submit keeps Submitted | P4-01 | D `SubmissionStatusTests` |
-| Past weeks read-only | P4-01 | A 409 on old week |
-| Game added reverts to In Progress, highlighted, notified | P4-04, P7-03 | A `GameAddedTests`, UI, A `NotificationTests.GamesAdded` |
-| Game removed keeps its pick row, counts update, member flagged only if they had a pick on it | P4-04 | A `GameRemovedTests` |
-| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests` |
-| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, D `WeekScorerTests.NoPickScoresZero` |
-| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests`, A `PostLockMutationTests` |
-| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, A `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, D `WeekScorerTests.NoPickScoresZero` |
-| Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` |
-| Status values on home; commissioner roster | P4-01, P1-02 | A `FullWeekSimulationTests` (Submitted x4, InProgress 5 of 7, NotStarted on the real roster route), UI |
-| 44px targets, sticky submit, 2 s interactive | P4-03, P0-04 | UI, spike measurement |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Picks page lists teams, rank, kickoff, points | P4-03 | UI | PASS: screenshot `p4-03-in-progress-375.png` |
+| Tap picks, other unmarked, re-tap is no-op | P4-01, P4-03 | A `SetPickTests`, UI | PASS: `SetPickTests`; screenshot `p4-03-in-progress-375.png` |
+| Auto-save with indicator; failure reverts | P4-03 | UI (simulate offline) | PASS: screenshot `p4-03-offline-revert-375.png` (`?failNextPick=1` fake-API flag) |
+| Submit only when all picked; remaining count shown | P4-01, P4-03 | A `SubmitTests`, UI | PASS: `SubmitTests`; screenshot `p4-03-in-progress-375.png` ("N picks left") |
+| Change after submit keeps Submitted | P4-01 | D `SubmissionStatusTests` | PASS: `SubmissionStatusTests` |
+| Past weeks read-only | P4-01 | A 409 on old week | PASS: `SetPickTests`/`SubmitTests` `WeekNotCurrent` 409 cases; screenshot `p4-03-past-week-375.png` |
+| Game added reverts to In Progress, highlighted, notified | P4-04, P7-03 | A `GameAddedTests`, UI, A `NotificationTests.GamesAdded` | PASS: `GameAddedTests`; `EventNotificationTests.GivenSubmittedMembers_WhenGamesAreAddedByRegeneration_ThenEachGetsOneCoalescedMessage` (real class — `NotificationTests` was never real) |
+| Game removed keeps its pick row, counts update, member flagged only if they had a pick on it | P4-04 | A `GameRemovedTests` | PASS: `GameRemovedTests` |
+| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests` | PASS: `LockEnforcementTests` |
+| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, D `WeekScorerTests.NoPickScoresZero` | PASS: `WeekLockerTests`, `WeekScorerTests.GivenAMemberDidNotPick_WhenScoring_ThenTheyEarnZeroForThatGame` (real method name — `NoPickScoresZero` was never the actual name) |
+| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests`, A `PostLockMutationTests` | PASS: `LockEnforcementTests`, `PostLockMutationTests` |
+| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, A `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, D `WeekScorerTests.NoPickScoresZero` | PASS: `WeekLockerTests`, `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, `WeekScorerTests.GivenAMemberDidNotPick_WhenScoring_ThenTheyEarnZeroForThatGame` |
+| Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` | PASS: `PicksVisibilityTests` |
+| Status values on home; commissioner roster | P4-01, P1-02 | A `FullWeekSimulationTests` (Submitted x4, InProgress 5 of 7, NotStarted on the real roster route), UI | PASS: `FullWeekSimulationTests`; screenshot `p1-02-members-375.png` |
+| 44px targets, sticky submit, 2 s interactive | P4-03, P0-04 | UI, spike measurement | PASS: `Implementation/spikes/wasm-load-time.md` ("P4-03: Picks page repeat load", 310-477 ms cold / 337-352 ms warm, both under the 2 s budget); screenshot `p4-03-in-progress-375.png` (44px targets, sticky `SubmitFooter`) |
 
 ## Feature 05 - Pick Lock and Influence Dashboard
 
