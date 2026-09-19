@@ -96,11 +96,11 @@ Idempotent: a second run finds `LockedUtc` set and skips.
 
 Owner: `Dashboard/InfluenceCalculator`. Tests: `InfluenceCalculatorTests` including the Overview worked example verbatim (Michael, Alyson, Dance, Alex, Daniel), driven from `influence-example.json`.
 
-The calculator is pure and takes flattened records, not entities (P6-01, D-090): `InfluenceRequest { ViewerMembershipId, Games: InfluenceGame[], MembersActiveAtLock: InfluenceMember[], Picks: InfluencePick[] }` in, `InfluenceResult { Games, EveryoneAgrees, PointsSoFar, MaxRemaining }` out, where each entry is an `InfluenceGameResult { GameSetGameId, MyTeamId?, MyOutcome, OppositeCount, OppositePicks, NoPick, HomePickers, AwayPickers, SwingPoints, WinnerTeamId? }`. `InfluenceOutcome` (Pending / Won / Lost / NoPick) lives in `Shared/Enums` so the DTO can use it too (D-014).
+The calculator is pure and takes flattened records, not entities (P6-01, D-095): `InfluenceRequest { ViewerMembershipId, Games: InfluenceGame[], MembersActiveAtLock: InfluenceMember[], Picks: InfluencePick[] }` in, `InfluenceResult { Games, EveryoneAgrees, PointsSoFar, MaxRemaining }` out, where each entry is an `InfluenceGameResult { GameSetGameId, MyTeamId?, MyOutcome, OppositeCount, OppositePicks, NoPick, HomePickers, AwayPickers, SwingPoints, WinnerTeamId? }`. `InfluenceOutcome` (Pending / Won / Lost / NoPick) lives in `Shared/Enums` so the DTO can use it too (D-014).
 
 `MembersActiveAtLock` is the caller's answer, not the calculator's: the service lists the memberships with a `WeekSubmissions` row for the set, which is what includes a member who has since been removed (`IsFormer = true`) and excludes one who joined after lock. The calculator never looks past that list - a pick from an unlisted membership is ignored outright - so a post-lock joiner cannot appear even if their pick rows are handed in.
 
-**Voided games are left out entirely** (D-091): out of `Games`, out of `EveryoneAgrees`, and out of both header totals. Section 6 works over the *active* games in the locked set, and a void is how a game stops being active after lock, exactly as in section 7's scoring.
+**Voided games are left out entirely** (D-096): out of `Games`, out of `EveryoneAgrees`, and out of both header totals. Section 6 works over the *active* games in the locked set, and a void is how a game stops being active after lock, exactly as in section 7's scoring.
 
 For each game G:
 - `MyTeamId` = M's pick or null.
@@ -113,11 +113,11 @@ For each game G:
 
 M never appears in any of their own lists, and everybody else is listed in the order `MembersActiveAtLock` gave.
 
-Ordering of `Games`: `OppositeCount desc`, then `PointValue desc`, then `KickoffUtc asc`, then `GameSetGameId asc` so two runs over the same inputs produce the same list (D-094). Games with `OppositeCount == 0` go to `EveryoneAgrees` (same secondary ordering) unless `MyOutcome == NoPick`, which stays in `Games`: a game M skipped has a zero count for want of a pick, not for want of disagreement, and still has both teams' pickers to show.
+Ordering of `Games`: `OppositeCount desc`, then `PointValue desc`, then `KickoffUtc asc`, then `GameSetGameId asc` so two runs over the same inputs produce the same list (D-099). Games with `OppositeCount == 0` go to `EveryoneAgrees` (same secondary ordering) unless `MyOutcome == NoPick`, which stays in `Games`: a game M skipped has a zero count for want of a pick, not for want of disagreement, and still has both teams' pickers to show.
 
-Header (D-092): `PointsSoFar` = sum of PointValue over games where `MyOutcome == Won`, which matches what section 7 will actually award M. `MaxRemaining` = sum of PointValue over games where M has a pick, the game is not Final, and it has no winner yet - the last clause only bites on a correction applied before a game went Final, and stops one game counting as both earned and still to come.
+Header (D-097): `PointsSoFar` = sum of PointValue over games where `MyOutcome == Won`, which matches what section 7 will actually award M. `MaxRemaining` = sum of PointValue over games where M has a pick, the game is not Final, and it has no winner yet - the last clause only bites on a correction applied before a game went Final, and stops one game counting as both earned and still to come.
 
-Winner determination is `Scoring/WinnerResolver` (D-093), shared with sections 7 and 8 and with `GameSetGameDtoMapper` / `LiveScoreApplyService`: `ResultOverrideWinnerTeamId` if set, else the higher score when `Status == Final`. Tie or missing scores when Final = no winner (flag for review, treat as Pending in the dashboard).
+Winner determination is `Scoring/WinnerResolver` (D-098), shared with sections 7 and 8 and with `GameSetGameDtoMapper` / `LiveScoreApplyService`: `ResultOverrideWinnerTeamId` if set, else the higher score when `Status == Final`. Tie or missing scores when Final = no winner (flag for review, treat as Pending in the dashboard).
 
 ## 7. Scoring (Feature 06)
 
@@ -127,7 +127,7 @@ Trigger: `GameWentFinal`, `ResultOverridden`, `GameVoided`, and a nightly full r
 
 `ScoreWeek(set, picks, memberships)` recomputes `WeekResults` for every membership that was active at lock (has a `WeekSubmissions` row) from scratch, then upserts. Because it is a full recompute from source rows, it is idempotent.
 
-Per member: for each active game with a determinable winner - `Scoring/WinnerResolver.Resolve` / `HasDeterminableWinner`, the shared rule P6-01 built and section 6 also uses (D-093); never re-derive it here - `Points += PointValue` and `CorrectCount++` if pick == winner. Voided games contribute nothing and are excluded from `ActiveGameCount`. `IsWeekComplete` = every active game is Final with a winner (or voided). When a week first becomes Complete, write `SeasonStandingsSnapshots` for `ThroughWeek = week` (section 8) and emit nothing else.
+Per member: for each active game with a determinable winner - `Scoring/WinnerResolver.Resolve` / `HasDeterminableWinner`, the shared rule P6-01 built and section 6 also uses (D-098); never re-derive it here - `Points += PointValue` and `CorrectCount++` if pick == winner. Voided games contribute nothing and are excluded from `ActiveGameCount`. `IsWeekComplete` = every active game is Final with a winner (or voided). When a week first becomes Complete, write `SeasonStandingsSnapshots` for `ThroughWeek = week` (section 8) and emit nothing else.
 
 Ties/no winner: game stays unscored (0 to everyone) and appears in the data status page under "needs review" until overridden or voided.
 
