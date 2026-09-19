@@ -52,17 +52,17 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 03 - Point Values
 
-| AC group | Task | Proof |
-|---|---|---|
-| Default 10; change 1..100 applies to unmatched games | P3-02, P3-03 | D, A |
-| No rule = default; one rule = its value; multiple = highest priority | P3-02 | D `PointValueResolverTests` x3 |
-| Close spread with no spread = no match | P3-02 | D |
-| Daily spread refresh, snapshot at lock | P2-04, P4-02 | A `LockWeekJobTests.GivenADueWeek_WhenTheJobRuns_ThenEachActiveGameHasItsSpreadAndPointValueFrozen`, D `WeekLockerTests` |
-| Commissioner-only weighting | P3-03 | A: no member endpoint exists |
-| Override wins; per-week only | P3-02, P3-03 | D, A |
-| Point value visible and elevated badge | P4-03 | UI |
-| Frozen after lock | P3-03, P4-02 | A `PostLockMutationTests` (409 for generate/add/remove/week-rules/override, after the job and in the pre-job window), A `LockWeekJobTests.GivenALockedWeek_WhenAPointRuleAndTheLineChange_ThenTheFrozenValuesDoNotMove` |
-| Mid-week change updates submitted members' view, picks valid | P3-03 | A `PointRulesChange_KeepsPicks` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Default 10; change 1..100 applies to unmatched games | P3-02, P3-03 | D, A | PASS: `PointRuleValidationTests` (1..100 range), `PointRulesEndpointsTests.GivenAChangedLeagueDefault_WhenUpdatingSettings_ThenUnlockedWeeksReResolveImmediately` |
+| No rule = default; one rule = its value; multiple = highest priority | P3-02 | D `PointValueResolverTests` x3 | PASS: `PointValueResolverTests` (21 tests incl. the default/single-rule/priority cases) |
+| Close spread with no spread = no match | P3-02 | D | PASS: `PointValueResolverTests` (`CloseSpread` rule cases) |
+| Daily spread refresh, snapshot at lock | P2-04, P4-02 | A `LockWeekJobTests.GivenADueWeek_WhenTheJobRuns_ThenEachActiveGameHasItsSpreadAndPointValueFrozen`, D `WeekLockerTests` | PASS: `LockWeekJobTests.GivenADueWeek_WhenTheJobRuns_ThenEachActiveGameHasItsSpreadAndPointValueFrozen`, `WeekLockerTests` |
+| Commissioner-only weighting | P3-03 | A: no member endpoint exists | PASS: route inventory (`RouteInventoryTests`) — point-rule mutation routes are all `RequireLeagueCommissioner()` |
+| Override wins; per-week only | P3-02, P3-03 | D, A | PASS: `PointValueResolverTests` (override precedence), `PointRulesEndpointsTests.GivenAnOverride_WhenPuttingAndClearing_ThenTheResolvedValueTracksIt` |
+| Point value visible and elevated badge | P4-03 | UI | PASS: screenshot `p4-03-in-progress-375.png` |
+| Frozen after lock | P3-03, P4-02 | A `PostLockMutationTests` (409 for generate/add/remove/week-rules/override, after the job and in the pre-job window), A `LockWeekJobTests.GivenALockedWeek_WhenAPointRuleAndTheLineChange_ThenTheFrozenValuesDoNotMove` | PASS: `PostLockMutationTests`, `LockWeekJobTests.GivenALockedWeek_WhenAPointRuleAndTheLineChange_ThenTheFrozenValuesDoNotMove`, `PointRulesEndpointsTests.GivenALockedWeek_WhenSettingAnOverride_ThenItIs409` |
+| Mid-week change updates submitted members' view, picks valid | P3-03 | A `PointRulesChange_KeepsPicks` | PASS: `PointRulesEndpointsTests.GivenAnExistingPick_WhenReResolvingPointValues_ThenThePickIsUnaffected` (real method name — `PointRulesChange_KeepsPicks` was never the actual name) |
 
 ## Feature 04 - Weekly Picks
 
