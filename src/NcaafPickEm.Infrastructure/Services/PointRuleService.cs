@@ -25,7 +25,7 @@ public sealed class PointRuleService
     /// <param name="database">The context.</param>
     /// <param name="timeProvider">
     /// The clock, for <see cref="WeekGameSetLockGuard"/>: a week freezes at its lock instant, not
-    /// when the lock job gets to it (D-089).
+    /// when the lock job gets to it (D-110).
     /// </param>
     /// <param name="logger">Log sink.</param>
     public PointRuleService(AppDbContext database, TimeProvider timeProvider, ILogger<PointRuleService> logger)
@@ -177,7 +177,7 @@ public sealed class PointRuleService
     /// A frozen week is excluded by the query itself, through
     /// <see cref="WeekGameSetLockGuard.IsNotFrozen"/> — so a rules change mid-Saturday cannot
     /// rewrite the value a week was already being played for, whether or not the lock job has
-    /// caught up (D-089). The recalculator trusts the rows it is handed and knows nothing of lock.
+    /// caught up (D-110). The recalculator trusts the rows it is handed and knows nothing of lock.
     /// </remarks>
     /// <param name="leagueId">The league.</param>
     /// <param name="cancellationToken">Cancellation token.</param>

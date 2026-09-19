@@ -30,7 +30,7 @@ public sealed class GameSetService
     /// <summary>
     /// What every refusal of a frozen week says. One message covers both halves of
     /// <see cref="WeekGameSetLockGuard.IsFrozen"/> — the lock job has run, or the first kickoff
-    /// has simply passed and the job has not caught up yet (D-089) — because from a
+    /// has simply passed and the job has not caught up yet (D-110) — because from a
     /// commissioner's point of view they are the same event.
     /// </summary>
     private const string LockedMessage =

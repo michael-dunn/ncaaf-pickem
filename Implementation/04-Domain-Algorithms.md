@@ -31,7 +31,7 @@ The generator is pure and takes flattened records, not entities: `GameSetGenerat
 5. Exclude any GameId whose existing row has `IsRemoved = 1` (sticky removal).
 6. `ExceedsMax = Count > 50`. Generation is refused (409) when true; preview reports it. The full list is still returned so the preview can show what the rules produced.
 7. Regeneration diff: `Added = new - old active`, `Removed = old active rule-sourced rows the rules no longer select` (manual rows are never in `Removed`), `RemovedIneligible = old active rows of either source whose game left the step 1 pool`. Emit `GameAddedToSet` and `GameRemovedFromSet` events per diff item. Removed rows are marked `IsRemoved = 1` rather than deleted so picks remain, with `RemovedReason = "Rule regeneration"` for `Removed` and `"Schedule change"` for `RemovedIneligible`.
-8. From the week's lock instant generation is a no-op. "Locked" here means `GameSets/WeekGameSetLockGuard.IsFrozen(set, nowUtc)` = `LockedUtc != null` **or** `nowUtc >= LockAtUtc` (D-089), so a lock job that is running late does not leave a window in which the set can still be regenerated after picks have stopped. The service passes that answer in as `IsLocked`; the domain function returns `GenerationResult.Locked` - `IsLocked = true`, empty games and empty diff - and the caller turns that into the 409. The Tuesday regeneration job just skips the week. Manual add, manual remove and the week rule override use the same guard.
+8. From the week's lock instant generation is a no-op. "Locked" here means `GameSets/WeekGameSetLockGuard.IsFrozen(set, nowUtc)` = `LockedUtc != null` **or** `nowUtc >= LockAtUtc` (D-110), so a lock job that is running late does not leave a window in which the set can still be regenerated after picks have stopped. The service passes that answer in as `IsLocked`; the domain function returns `GenerationResult.Locked` - `IsLocked = true`, empty games and empty diff - and the caller turns that into the 409. The Tuesday regeneration job just skips the week. Manual add, manual remove and the week rule override use the same guard.
 9. `LockAtUtc` = min `KickoffUtc` over active games, or null. Games are returned ordered by `KickoffUtc` then `GameId`, so two runs over the same inputs produce the same list.
 
 Preview runs steps 1 to 7 with candidate rules and without persisting, and ignores lock: only saving is refused after lock.
@@ -58,7 +58,7 @@ The resolver takes slim input records, not entities (P3-02): `PointGameInfo(Home
 A rule missing the field its type needs (a close-spread rule with no threshold, a team rule with no team) never matches; `PointRuleValidation` is what reports that, and it is the only gate on the 1..100 range. `Resolve` returns whatever value it is handed.
 
 Rules:
-- `ResolvedPointValue` is recomputed for every active game in every week that is not yet frozen whenever league default, point rules, or an override change, and on every generation. "Frozen" is `GameSets/WeekGameSetLockGuard.IsFrozen` again (D-089): the sweep query uses the matching `IsNotFrozen` expression, and the per-game override route 409s from `LockAtUtc` onwards. A league-level `PUT .../point-rules` or default change still succeeds - it just leaves the frozen weeks alone.
+- `ResolvedPointValue` is recomputed for every active game in every week that is not yet frozen whenever league default, point rules, or an override change, and on every generation. "Frozen" is `GameSets/WeekGameSetLockGuard.IsFrozen` again (D-110): the sweep query uses the matching `IsNotFrozen` expression, and the per-game override route 409s from `LockAtUtc` onwards. A league-level `PUT .../point-rules` or default change still succeeds - it just leaves the frozen weeks alone.
 - `IsPointValueElevated = PointValueResolver.IsElevated(ResolvedPointValue, league.DefaultPointValue)` = `ResolvedPointValue > league.DefaultPointValue`. Equal to the default is not elevated.
 - At lock, `SpreadAtLock` = the newest `GameLines.Spread` and `ResolvedPointValue` is resolved one final time *against that same spread*, then frozen. Nothing after lock may change either. Values 1..100 only.
 
@@ -74,9 +74,9 @@ Given the member's picks over active games in the set, before lock:
 - Changing a pick while `Submitted` keeps `Submitted` (`SubmittedUtc` stays).
 - A game removed from the set: its pick row is kept but ignored; if the member was `Submitted` they stay `Submitted`.
 
-At lock (job): for each active membership at lock time, `Submitted` -> `Locked`; anything else -> `Incomplete`. "Active at lock" is `RemovedUtc == null` and `JoinedUtc <= LockAtUtc` (D-090), so members who joined after lock get no row for that week and members removed before it get none either.
+At lock (job): for each active membership at lock time, `Submitted` -> `Locked`; anything else -> `Incomplete`. "Active at lock" is `RemovedUtc == null` and `JoinedUtc <= LockAtUtc` (D-111), so members who joined after lock get no row for that week and members removed before it get none either.
 
-Rules enforced server-side, every call: reject pick/submit when `nowUtc >= LockAtUtc` or `LockedUtc != null` (409) - `GameSets/WeekGameSetLockGuard.IsFrozen`, the same predicate configuration uses since D-089. Reject pick where `TeamId` is not home/away of the game (400). Reject picks on removed or voided games (409). Tapping the already-picked team is a no-op success.
+Rules enforced server-side, every call: reject pick/submit when `nowUtc >= LockAtUtc` or `LockedUtc != null` (409) - `GameSets/WeekGameSetLockGuard.IsFrozen`, the same predicate configuration uses since D-110. Reject pick where `TeamId` is not home/away of the game (400). Reject picks on removed or voided games (409). Tapping the already-picked team is a no-op success.
 
 Visibility: `/picks` (all members) and `/grid` return 403 until `LockedUtc != null`.
 
@@ -88,13 +88,13 @@ Owner: `Infrastructure/Jobs/LockWeekJob` calling `Domain/Picks/WeekLocker`. Test
 
 For each due week:
 1. Snapshot: for each **active** (neither removed nor voided) game set `SpreadAtLock` = the newest `GameLines.Spread` and `ResolvedPointValue` = `PointValueResolver.Resolve` against that same spread.
-2. Set statuses per section 4: one `WeekSubmissions` row per membership that is active (`RemovedUtc == null`) and had `JoinedUtc <= LockAtUtc` (D-090), `Submitted` -> `Locked` and anything else -> `Incomplete`. The Submitted test is `SubmissionStatusCalculator`'s, so a game added after a member pressed Submit still leaves them Incomplete. Members who joined after the lock instant get no row; rows belonging to memberships that drop out are left as they are, not deleted.
+2. Set statuses per section 4: one `WeekSubmissions` row per membership that is active (`RemovedUtc == null`) and had `JoinedUtc <= LockAtUtc` (D-111), `Submitted` -> `Locked` and anything else -> `Incomplete`. The Submitted test is `SubmissionStatusCalculator`'s, so a game added after a member pressed Submit still leaves them Incomplete. Members who joined after the lock instant get no row; rows belonging to memberships that drop out are left as they are, not deleted.
 3. Set `LockedUtc = now` (not LockAtUtc, so late runs are visible in logs).
-4. Emit `WeekLocked(LeagueId, Week, WeekGameSetId, LockedUtc)` (`Domain/GameSets/Events/`, D-091) through the collector + dispatcher after `SaveChangesAsync`.
+4. Emit `WeekLocked(LeagueId, Week, WeekGameSetId, LockedUtc)` (`Domain/GameSets/Events/`, D-112) through the collector + dispatcher after `SaveChangesAsync`.
 
 Idempotent: `RunAsync` reloads the set and returns immediately if `LockedUtc` is already set, and the week stops answering `GetDueAsync` as soon as it is, so the `JobRuns` claim and the reload guard the same thing twice.
 
-The job is *not* what stops picks or configuration: section 4's picks guard and D-089's `WeekGameSetLockGuard` both refuse from `LockAtUtc` onwards, whether or not it has run.
+The job is *not* what stops picks or configuration: section 4's picks guard and D-110's `WeekGameSetLockGuard` both refuse from `LockAtUtc` onwards, whether or not it has run.
 
 ## 6. Influence dashboard (Feature 05)
 

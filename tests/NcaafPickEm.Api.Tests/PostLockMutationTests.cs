@@ -14,7 +14,7 @@ namespace NcaafPickEm.Api.Tests;
 /// <summary>
 /// Everything a locked week refuses (Features 02, 03 and 04): picks and every piece of
 /// configuration, both after <see cref="LockWeekJob"/> has run and in the window between
-/// <c>LockAtUtc</c> and the job getting to it (D-089).
+/// <c>LockAtUtc</c> and the job getting to it (D-110).
 /// </summary>
 /// <remarks>
 /// <see cref="LockEnforcementTests"/> already covers picks in the pre-job window; this class is
@@ -53,7 +53,7 @@ public sealed class PostLockMutationTests : IAsyncLifetime
     }
 
     /// <remarks>
-    /// The window D-089 closes: <c>LockAtUtc</c> has arrived, the job has not run yet, and
+    /// The window D-110 closes: <c>LockAtUtc</c> has arrived, the job has not run yet, and
     /// configuration must already be refused — otherwise a commissioner could change what a game
     /// is worth after the members stopped being able to pick it.
     /// </remarks>

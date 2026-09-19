@@ -697,7 +697,7 @@ public sealed class PickService
     /// <summary>
     /// Picks stop the moment the first game kicks off, whether or not the lock job has run yet
     /// (04-Domain-Algorithms.md section 4: reject when <c>nowUtc &gt;= LockAtUtc</c> or
-    /// <c>LockedUtc != null</c>). Since D-089 the game-set and point-value services refuse on
+    /// <c>LockedUtc != null</c>). Since D-110 the game-set and point-value services refuse on
     /// exactly the same condition, so both go through <see cref="WeekGameSetLockGuard"/>.
     /// </summary>
     private static bool IsLockedNow(WeekGameSet set, DateTime nowUtc) =>

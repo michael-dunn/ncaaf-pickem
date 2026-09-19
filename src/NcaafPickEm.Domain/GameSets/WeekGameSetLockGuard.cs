@@ -11,7 +11,7 @@ namespace NcaafPickEm.Domain.GameSets;
 /// Callers: <c>GameSetService</c> (generate, manual add and remove, week rules),
 /// <c>PointRuleService</c> (per-game override, and the re-resolve sweep through
 /// <see cref="IsNotFrozen"/>), and <c>PickService</c> (set pick, submit). Keeping them on one
-/// predicate is what stops "locked" meaning two different things in two services (D-089).
+/// predicate is what stops "locked" meaning two different things in two services (D-110).
 /// </remarks>
 public static class WeekGameSetLockGuard
 {
