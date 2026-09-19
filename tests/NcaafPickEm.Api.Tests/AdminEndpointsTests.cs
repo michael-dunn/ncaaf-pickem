@@ -137,6 +137,159 @@ public sealed class AdminEndpointsTests
     }
 
     [Fact]
+    public async Task GivenAnEspnPayloadCarryingAnEventId_WhenResolved_ThenTheGameLearnsIt()
+    {
+        // The payload is written by LiveScoreApplyService with web (camel-cased) JSON defaults;
+        // reading it back with the case-sensitive defaults silently learns nothing.
+        await using SqlTestDatabase testDatabase = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(testDatabase.ConnectionString);
+
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(factory);
+
+        (Guid unmatchedId, Guid gameId) = await factory.QueryDbAsync(async database =>
+        {
+            Game game = await database.Games
+                .Where(g => g.SeasonYear == FixtureSeasonWeekSource.FixtureSeasonYear && g.Week == 7)
+                .FirstAsync();
+            game.EspnEventId = null;
+
+            var unmatched = new UnmatchedGame
+            {
+                Id = Guid.CreateVersion7(),
+                Source = ProviderSource.Espn,
+                RawHomeName = $"Payload Home {Guid.CreateVersion7().ToString()[..8]}",
+                RawAwayName = $"Payload Away {Guid.CreateVersion7().ToString()[..8]}",
+                GameDate = DateOnly.FromDateTime(game.KickoffUtc),
+                RawPayload = """{"sourceEventId":"401628500","homeName":"H","awayName":"A"}""",
+                FirstSeenUtc = DateTime.UtcNow,
+            };
+            database.UnmatchedGames.Add(unmatched);
+            await database.SaveChangesAsync();
+
+            return (unmatched.Id, game.Id);
+        });
+
+        using HttpClient client = factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/admin/unmatched/{unmatchedId}/resolve", new ResolveUnmatchedRequest(gameId));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        long? learned = await factory.QueryDbAsync(database => database.Games
+            .AsNoTracking()
+            .Where(g => g.Id == gameId)
+            .Select(g => g.EspnEventId)
+            .SingleAsync());
+        learned.Should().Be(401628500);
+    }
+
+    [Fact]
+    public async Task GivenARawNameAnotherTeamAlreadyOwns_WhenResolved_ThenItIs409AndNothingIsWritten()
+    {
+        // IX_TeamAliases_Source_Alias is unique across teams, so this must be reported, not left
+        // to surface as a unique-index violation (D-089).
+        await using SqlTestDatabase testDatabase = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(testDatabase.ConnectionString);
+
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(factory);
+        string claimedAlias = $"Claimed {Guid.CreateVersion7().ToString()[..8]}";
+
+        (Guid unmatchedId, Guid gameId) = await factory.QueryDbAsync(async database =>
+        {
+            Game game = await database.Games
+                .Where(g => g.SeasonYear == FixtureSeasonWeekSource.FixtureSeasonYear && g.Week == 7)
+                .FirstAsync();
+
+            Guid otherTeamId = await database.Teams
+                .Where(team => team.Id != game.HomeTeamId && team.Id != game.AwayTeamId)
+                .Select(team => team.Id)
+                .FirstAsync();
+
+            database.TeamAliases.Add(new TeamAlias
+            {
+                Id = Guid.CreateVersion7(),
+                TeamId = otherTeamId,
+                Source = ProviderSource.Espn,
+                Alias = claimedAlias,
+            });
+
+            var unmatched = new UnmatchedGame
+            {
+                Id = Guid.CreateVersion7(),
+                Source = ProviderSource.Espn,
+                RawHomeName = claimedAlias,
+                RawAwayName = $"Free {Guid.CreateVersion7().ToString()[..8]}",
+                GameDate = DateOnly.FromDateTime(game.KickoffUtc),
+                RawPayload = "{}",
+                FirstSeenUtc = DateTime.UtcNow,
+            };
+            database.UnmatchedGames.Add(unmatched);
+            await database.SaveChangesAsync();
+
+            return (unmatched.Id, game.Id);
+        });
+
+        using HttpClient client = factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/admin/unmatched/{unmatchedId}/resolve", new ResolveUnmatchedRequest(gameId));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+
+        DateTime? resolvedUtc = await factory.QueryDbAsync(database => database.UnmatchedGames
+            .AsNoTracking()
+            .Where(row => row.Id == unmatchedId)
+            .Select(row => row.ResolvedUtc)
+            .SingleAsync());
+        resolvedUtc.Should().BeNull("a refused resolve must leave the row for a human to fix");
+    }
+
+    [Fact]
+    public async Task GivenAnEmptyGameId_WhenResolved_ThenItIs400FromValidation()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+        using HttpClient client = _fixture.Factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/admin/unmatched/{Guid.NewGuid()}/resolve", new ResolveUnmatchedRequest(Guid.Empty));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownGameId_WhenResolved_ThenItIs400()
+    {
+        // Its own database: the unresolved row this seeds would break AdminDataStatusTests's
+        // "nothing is unmatched yet" assertion on the shared fixture database.
+        await using SqlTestDatabase testDatabase = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(testDatabase.ConnectionString);
+
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(factory);
+
+        Guid unmatchedId = await factory.QueryDbAsync(async database =>
+        {
+            var unmatched = new UnmatchedGame
+            {
+                Id = Guid.CreateVersion7(),
+                Source = ProviderSource.Espn,
+                RawHomeName = $"Nowhere Home {Guid.CreateVersion7().ToString()[..8]}",
+                RawAwayName = $"Nowhere Away {Guid.CreateVersion7().ToString()[..8]}",
+                GameDate = new DateOnly(2026, 10, 17),
+                RawPayload = "{}",
+                FirstSeenUtc = DateTime.UtcNow,
+            };
+            database.UnmatchedGames.Add(unmatched);
+            await database.SaveChangesAsync();
+            return unmatched.Id;
+        });
+
+        using HttpClient client = factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/admin/unmatched/{unmatchedId}/resolve", new ResolveUnmatchedRequest(Guid.CreateVersion7()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task GivenAnUnknownUnmatchedId_WhenResolved_ThenItIs404()
     {
         LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
