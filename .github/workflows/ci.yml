@@ -1,0 +1,72 @@
+name: CI
+
+# Build, format check, and the full test suite. The API tests are real integration tests against
+# a real SQL Server (SqlTestDatabase creates and drops a database per run), so this job brings up
+# an mssql service container rather than faking persistence.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  # Throwaway, visible on purpose: it exists for the lifetime of one job on a runner nobody else
+  # can reach. Never reuse it anywhere real. Must satisfy SQL Server's complexity rule.
+  SA_PASSWORD: Ci_Throwaway_Pa55word!
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    # Generous: the Blazor WASM Release build plus ~300 SQL-backed integration tests.
+    timeout-minutes: 40
+
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: Ci_Throwaway_Pa55word!
+          MSSQL_PID: Developer
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P 'Ci_Throwaway_Pa55word!' -C -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 30s
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          # One source of truth for the SDK version (10.0.400, rollForward latestFeature).
+          global-json-file: global.json
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        # Directory.Build.props already sets TreatWarningsAsErrors, so a warning fails here.
+        run: dotnet build -c Release --no-restore
+
+      - name: Verify formatting
+        run: dotnet format --verify-no-changes --no-restore
+
+      - name: Domain tests
+        run: dotnet test tests/NcaafPickEm.Domain.Tests -c Release --no-build
+
+      - name: API tests
+        # SqlTestDatabase reads a SERVER-level connection string from TEST_SQL_CONNECTION and
+        # appends its own Initial Catalog (NcaafPickEm_Test_<guid>), creating and dropping the
+        # database through master - so no database name belongs in this value.
+        env:
+          TEST_SQL_CONNECTION: Server=localhost,1433;User Id=sa;Password=${{ env.SA_PASSWORD }};Encrypt=False;TrustServerCertificate=True
+        run: dotnet test tests/NcaafPickEm.Api.Tests -c Release --no-build
