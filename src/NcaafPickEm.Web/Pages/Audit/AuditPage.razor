@@ -1,0 +1,103 @@
+@page "/leagues/{LeagueId:guid}/audit"
+@inject ILeaguesApi LeaguesApi
+@inject ICorrectionsApi CorrectionsApi
+@inject AppShellState Shell
+
+@*
+    Audit log (P5-05, Feature 06): every commissioner correction and other logged action, newest
+    first, visible to every member (not just commissioners). Actor, humanised action, and a
+    one-line summary built server-side. Linked from the Data status page's needs-review rows and
+    League home's "Activity" link.
+*@
+
+<PageTitle>Activity - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null)
+{
+    <LoadingSkeleton Rows="5" />
+}
+else
+{
+    <h1>Activity</h1>
+
+    @if (_entries is { Length: 0 })
+    {
+        <EmptyState Title="No activity yet" Body="Commissioner corrections and other logged actions will show up here." />
+    }
+    else if (_entries is { } entries)
+    {
+        <ul class="audit-list">
+            @foreach (AuditEntry entry in entries)
+            {
+                <li class="card audit-row">
+                    <div class="audit-row-top">
+                        <span class="audit-action">@Humanize(entry.Action)</span>
+                        <span class="audit-when" title="@entry.CreatedUtc.ToLocalTime().ToString("f")">
+                            @Relative(entry.CreatedUtc)
+                        </span>
+                    </div>
+                    <p class="audit-summary">@entry.Summary</p>
+                    <p class="muted text-sm">@entry.ActorName</p>
+                </li>
+            }
+        </ul>
+    }
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private LeagueDetail? _league;
+    private AuditEntry[]? _entries;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Activity");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, _league.CurrentWeek);
+            _entries = await CorrectionsApi.GetAuditAsync(LeagueId);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    // Humanises the AuditAction enum name (e.g. "ResultOverride" -> "Result set"), matching the
+    // orchestrator guidance's labels rather than showing the raw enum member.
+    private static string Humanize(string action) => action switch
+    {
+        nameof(AuditAction.ResultOverride) => "Result set",
+        nameof(AuditAction.GameVoided) => "Game voided",
+        nameof(AuditAction.GameManuallyAdded) => "Game added",
+        nameof(AuditAction.GameManuallyRemoved) => "Game removed",
+        nameof(AuditAction.MemberRemoved) => "Member removed",
+        nameof(AuditAction.RolePromoted) => "Promoted to commissioner",
+        nameof(AuditAction.RoleDemoted) => "Demoted to member",
+        nameof(AuditAction.RoleTransferred) => "Commissioner transferred",
+        nameof(AuditAction.ManualRefresh) => "Manual data refresh",
+        _ => action,
+    };
+
+    private static string Relative(DateTimeOffset value)
+    {
+        TimeSpan elapsed = DateTimeOffset.UtcNow - value;
+        return elapsed switch
+        {
+            _ when elapsed < TimeSpan.Zero => value.ToLocalTime().ToString("MMM d, h:mm tt"),
+            _ when elapsed < TimeSpan.FromMinutes(1) => "Just now",
+            _ when elapsed < TimeSpan.FromHours(1) => $"{(int)elapsed.TotalMinutes} min ago",
+            _ when elapsed < TimeSpan.FromDays(1) => $"{(int)elapsed.TotalHours} hr ago",
+            _ when elapsed < TimeSpan.FromDays(7) => $"{(int)elapsed.TotalDays} d ago",
+            _ => value.ToLocalTime().ToString("MMM d, h:mm tt"),
+        };
+    }
+}

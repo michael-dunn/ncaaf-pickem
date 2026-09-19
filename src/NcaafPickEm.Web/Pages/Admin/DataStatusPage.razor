@@ -1,11 +1,14 @@
 @page "/admin/data"
 @inject IAdminApi AdminApi
+@inject ICorrectionsApi CorrectionsApi
 @inject AppShellState Shell
 
 @*
     Data status (P2-04, Features 09 and 12): commissioner-only operational view of provider
     freshness, the CFBD monthly counter, live-score source health, unmatched games, and games
-    needing review. Phase 5 fills in the override/void actions the needs-review rows link to.
+    needing review. P5-05: each needs-review row gets a one-tap "Void" action (reason required,
+    behind a confirm) plus a "Review in week view" link for anything a void doesn't fit (e.g. a
+    postponed game that should instead be rescheduled or overridden with a winner).
 *@
 
 <PageTitle>Data status - NCAAF Pick Em</PageTitle>
@@ -123,12 +126,20 @@ else
                                 }
                                 (@row.LeagueName, week @row.Week, @row.Reason)
                             </span>
-                            <a class="btn btn-secondary" href="@($"/leagues/{row.LeagueId}/config/week/{row.Week}")">
-                                Review
-                            </a>
+                            <div class="row-actions">
+                                <button type="button" class="btn btn-danger" @onclick="() => BeginVoid(row)">
+                                    Void
+                                </button>
+                                <a class="btn btn-secondary" href="@($"/leagues/{row.LeagueId}/config/week/{row.Week}")">
+                                    Review
+                                </a>
+                            </div>
                         </li>
                     }
                 </ul>
+                <p class="text-sm">
+                    <a href="@($"/leagues/{_status.NeedsReview[0].LeagueId}/audit")">View activity log</a>
+                </p>
             </div>
         }
 
@@ -181,6 +192,28 @@ else
     }
 </BottomSheet>
 
+<BottomSheet IsOpen="_voiding is not null" Title="Void game" OnClose="CancelVoid">
+    @if (_voiding is not null)
+    {
+        <p class="text-sm">
+            Voiding @_voiding.AwayTeam @@ @_voiding.HomeTeam (@_voiding.LeagueName, week @_voiding.Week)
+            excludes it from scoring for everyone.
+        </p>
+        <div class="field">
+            <label for="void-reason">Reason</label>
+            <input id="void-reason" class="input" maxlength="200" @bind="_voidReasonDraft" @bind:event="oninput"
+                   placeholder="Why is this being voided?" />
+        </div>
+        <div class="void-sheet-actions">
+            <button type="button" class="btn btn-danger" disabled="@(_voidingBusy || _voidReasonDraft.Trim().Length is 0 or > 200)"
+                    @onclick="ConfirmVoidAsync">
+                @(_voidingBusy ? "Voiding..." : "Void")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CancelVoid">Cancel</button>
+        </div>
+    }
+</BottomSheet>
+
 @code {
     private DataStatusResponse? _status;
     private string? _error;
@@ -191,6 +224,11 @@ else
     private UnmatchedGameDto? _resolving;
     private string _resolveGameIdDraft = string.Empty;
     private bool _resolvingBusy;
+
+    // P5-05: void a needs-review game straight from this page.
+    private NeedsReviewGameDto? _voiding;
+    private string _voidReasonDraft = string.Empty;
+    private bool _voidingBusy;
 
     protected override async Task OnInitializedAsync()
     {
@@ -273,6 +311,48 @@ else
         finally
         {
             _resolvingBusy = false;
+        }
+    }
+
+    private void BeginVoid(NeedsReviewGameDto row)
+    {
+        _voiding = row;
+        _voidReasonDraft = string.Empty;
+    }
+
+    private void CancelVoid()
+    {
+        _voiding = null;
+        _voidReasonDraft = string.Empty;
+    }
+
+    private async Task ConfirmVoidAsync()
+    {
+        if (_voiding is not { } row || _voidReasonDraft.Trim().Length is 0 or > 200)
+        {
+            return;
+        }
+
+        _voidingBusy = true;
+        try
+        {
+            await CorrectionsApi.VoidGameAsync(row.LeagueId, row.Week, row.GameId, _voidReasonDraft.Trim());
+            _voiding = null;
+            await ReloadAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message switch
+            {
+                "NotLocked" => "This week isn't locked yet, so it can't be corrected.",
+                "AlreadyVoided" => "This game has already been voided.",
+                "GameNotFound" => "That game is no longer in this week's set.",
+                _ => ex.Message,
+            };
+        }
+        finally
+        {
+            _voidingBusy = false;
         }
     }
 
