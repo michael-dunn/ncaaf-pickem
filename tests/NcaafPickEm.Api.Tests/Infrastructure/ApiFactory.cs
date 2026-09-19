@@ -20,6 +20,7 @@ public class ApiFactory : WebApplicationFactory<Program>
     private readonly string _connectionString;
     private readonly bool _useTestAuth;
     private readonly TimeProvider? _timeProvider;
+    private readonly Action<IServiceCollection>? _configureServices;
 
     /// <summary>Creates a factory bound to a database created by <see cref="SqlTestDatabase"/>.</summary>
     /// <param name="connectionString">The test database.</param>
@@ -36,11 +37,22 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// registers the fake one afterwards in <c>ConfigureTestServices</c>, which runs after the
     /// app's own <c>ConfigureServices</c> and therefore wins.
     /// </param>
-    public ApiFactory(string connectionString, bool useTestAuth = true, TimeProvider? timeProvider = null)
+    /// <param name="configureServices">
+    /// Last-word service overrides, run inside <c>ConfigureTestServices</c> (P7-01 hook: swapping
+    /// <c>IPushSender</c> for a scriptable fake). The app has already registered everything by
+    /// then, so replacing a service means <c>RemoveAll&lt;T&gt;()</c> first — a <c>TryAdd</c>
+    /// here would lose to the real registration.
+    /// </param>
+    public ApiFactory(
+        string connectionString,
+        bool useTestAuth = true,
+        TimeProvider? timeProvider = null,
+        Action<IServiceCollection>? configureServices = null)
     {
         _connectionString = connectionString;
         _useTestAuth = useTestAuth;
         _timeProvider = timeProvider;
+        _configureServices = configureServices;
     }
 
     /// <summary>A client that is signed in as <paramref name="userId"/> on every request.</summary>
@@ -121,6 +133,11 @@ public class ApiFactory : WebApplicationFactory<Program>
         if (_timeProvider is not null)
         {
             builder.ConfigureTestServices(services => services.AddSingleton(_timeProvider));
+        }
+
+        if (_configureServices is not null)
+        {
+            builder.ConfigureTestServices(_configureServices);
         }
     }
 }

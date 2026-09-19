@@ -44,7 +44,15 @@ public sealed class HealthEndpointTests
         string[] applied = await _fixture.Factory.QueryDbAsync(async database =>
             (await database.Database.GetAppliedMigrationsAsync()).ToArray());
 
-        applied.Should().ContainSingle().Which.Should().EndWith("Phase0_02_InitialSchema");
+        // Every migration in the assembly, not just the first: phases add their own (P7-01 added
+        // Phase7_01_PushRetries), and a test database missing any of them fails confusingly later.
+        applied.Should().NotBeEmpty();
+        applied[0].Should().EndWith("Phase0_02_InitialSchema");
+
+        string[] pending = await _fixture.Factory.QueryDbAsync(async database =>
+            (await database.Database.GetPendingMigrationsAsync()).ToArray());
+
+        pending.Should().BeEmpty();
 
         _fixture.Database.DatabaseName.Should().StartWith("NcaafPickEm_Test_");
     }
