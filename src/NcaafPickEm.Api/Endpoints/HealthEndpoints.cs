@@ -35,13 +35,24 @@ public static class HealthEndpoints
 
     /// <summary>
     /// Readiness: the app can serve traffic, which means it can reach SQL Server.
-    /// Returns 503 with <c>ProblemDetails</c> when the database is unreachable or unconfigured.
+    /// Returns 503 with <c>ProblemDetails</c> when the database is unreachable or unconfigured,
+    /// or while startup migration is still running (P8-05 — Kestrel is already listening by then,
+    /// so "reachable" and "ready" are not the same answer during a container's first boot).
     /// </summary>
     private static async Task<Results<Ok<HealthResponse>, ProblemHttpResult>> GetReadyAsync(
         AppDbContext database,
+        DatabaseStartupState startupState,
         ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
     {
+        if (startupState.IsMigrating)
+        {
+            return TypedResults.Problem(
+                title: "Database migration in progress",
+                detail: "The API is applying schema migrations and is not ready to serve traffic.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
         try
         {
             if (await database.Database.CanConnectAsync(cancellationToken))

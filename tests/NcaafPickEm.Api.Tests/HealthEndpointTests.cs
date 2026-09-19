@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using NcaafPickEm.Api.Tests.Infrastructure;
+using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Shared.Contracts.Health;
 
 namespace NcaafPickEm.Api.Tests;
@@ -56,5 +58,33 @@ public sealed class HealthEndpointTests
         pending.Should().BeEmpty();
 
         _fixture.Database.DatabaseName.Should().StartWith("NcaafPickEm_Test_");
+    }
+
+    [Fact]
+    public async Task GivenStartupMigrationIsRunning_WhenReadinessProbes_ThenItIs503UntilItFinishes()
+    {
+        // P8-05: Kestrel is started by GenericWebHostService, which the web host registers before
+        // AddInfrastructure registers the migrator, so the container answers HTTP while the schema
+        // is still being applied. Docker's HEALTHCHECK and `depends_on: service_healthy` both read
+        // this route, so "reachable" must not be reported as "ready".
+        DatabaseStartupState state = _fixture.Factory.Services.GetRequiredService<DatabaseStartupState>();
+        using HttpClient client = _fixture.Factory.CreateClient();
+
+        state.BeginMigrating();
+        try
+        {
+            using HttpResponseMessage migrating = await client.GetAsync("/health/ready");
+
+            migrating.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+            migrating.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");
+        }
+        finally
+        {
+            state.EndMigrating();
+        }
+
+        using HttpResponseMessage ready = await client.GetAsync("/health/ready");
+
+        ready.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 }
