@@ -14,6 +14,11 @@ namespace NcaafPickEm.Shared.Contracts.Admin;
 /// <param name="HomeScore">Final home score, or null if the feed never reported one.</param>
 /// <param name="AwayScore">Final away score, or null if the feed never reported one.</param>
 /// <param name="Reason">Why review is needed, e.g. "Tie" or "Missing score".</param>
+/// <param name="WeekGameSetId">
+/// The <c>WeekGameSets.Id</c> the row belongs to, additive from P5-02, so the data-status page
+/// can drive a one-tap Void without a second lookup.
+/// </param>
+/// <param name="GameSetGameId">The <c>WeekGameSetGames.Id</c> row itself, additive from P5-02.</param>
 public sealed record NeedsReviewGameDto(
     Guid GameId,
     Guid LeagueId,
@@ -23,4 +28,6 @@ public sealed record NeedsReviewGameDto(
     string AwayTeam,
     int? HomeScore,
     int? AwayScore,
-    string Reason);
+    string Reason,
+    Guid? WeekGameSetId = null,
+    Guid? GameSetGameId = null);
