@@ -30,6 +30,7 @@ public static class EndpointMapping
         api.MapAdminEndpoints();
         api.MapGameSetEndpoints();
         api.MapInviteEndpoints();
+        api.MapLeaderboardEndpoints();
         api.MapLeagueEndpoints();
         api.MapPickEndpoints();
         api.MapPointRuleEndpoints();
@@ -37,7 +38,6 @@ public static class EndpointMapping
         api.MapSeasonEndpoints();
 
         // One line per feature, alphabetical. Later phases add:
-        //   api.MapLeaderboardEndpoints();   (P5-03)
         //   api.MapDashboardEndpoints();     (P6-02)
         api.MapMeEndpoints();
         api.MapPushEndpoints();
