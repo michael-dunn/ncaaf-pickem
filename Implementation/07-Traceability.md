@@ -4,21 +4,30 @@ Every acceptance-criteria group in the 13 stories, the task that delivers it, an
 
 Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual check at 375px (screenshot), **Ops** = manual operational check.
 
+**Result column values**: `PASS: <TestClass>.<Method>` (grep-verified to exist in `tests/`, and part of the
+green `dotnet test` run — 306 Domain.Tests + 516 Api.Tests, 822/822, this pass); `PASS: screenshot <file>`
+for a UI row proven only by a captured 375px screenshot under `Implementation/screenshots/`;
+`MANUAL PENDING (operator): <where the steps are>` for anything that needs a physical device, a live
+OAuth round trip, or the deployed home server; `GAP -> follow-up` for anything neither proven nor
+verifiable in this environment, with the follow-up recorded in `STATUS.md`'s Escalations table. Where
+the Proof column's cited class/method name was stale (renamed or never existed under that name), the
+Result gives the real one and the Proof column is left as originally written for history.
+
 ## Feature 01 - Leagues and Members
 
-| AC group | Task | Proof |
-|---|---|---|
-| League creation (name, season, creator is commissioner + member, 50-char name) | P1-01 | A `LeagueEndpointsTests.Create*` |
-| One season per league, no rollover | P1-01 | A: SeasonYear required; no rollover endpoint exists |
-| 50-member cap and "league is full" | P1-01 | A `InviteAcceptTests.GivenFullLeague_*` |
-| Invite generation shareable by text | P1-01, P1-02 | A `InviteTests`; A `FullWeekSimulationTests` (one code, five members accept it); UI share sheet |
-| Valid invite joins and lands on home; revoked/expired message; no double join | P1-01, P1-02 | A `InviteAcceptTests` x4 |
-| Mid-season join: 0 points, no earlier weeks | P1-01, P5-03 | A `StandingsTests.GivenLateJoiner_*` |
-| Remove member keeps picks as former member | P1-01, P5-03 | A `MembershipTests.Remove*`, `WeekLeaderboardTests.FormerMember*` |
-| Cannot remove self; transfer demotes only the transferer; promote/demote; at least one commissioner | P1-01 | A `RoleTests` x5 |
-| League home shows name, week, my status, links | P1-02 | UI |
-| Multi-league picker | P1-02 | UI + A `MeTests.ListsLeagues` |
-| Mobile 375px | P1-02 | UI |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| League creation (name, season, creator is commissioner + member, 50-char name) | P1-01 | A `LeagueEndpointsTests.Create*` | PASS: `LeagueEndpointsTests.GivenALoggedInUser_WhenCreatingALeague_ThenDefaultsAreAppliedAndCreatorIsCommissioner`, `.GivenAnEmptyName_WhenCreatingALeague_ThenItIsRejected`, `.GivenAMissingName_WhenCreatingALeague_ThenItIsRejected` |
+| One season per league, no rollover | P1-01 | A: SeasonYear required; no rollover endpoint exists | PASS: `LeagueEndpointsTests.GivenAChampionshipWeekAsLastWeek_WhenCreatingALeague_ThenItIsRejected` (season year required); route inventory (`RouteInventoryTests`) confirms no rollover endpoint is mapped |
+| 50-member cap and "league is full" | P1-01 | A `InviteAcceptTests.GivenFullLeague_*` | PASS: `InviteAcceptTests.GivenALeagueAtTheMemberCap_WhenAcceptAttempted_ThenItIs409WithFullState` (real method name — the Proof column's `GivenFullLeague_*` was never the actual name) |
+| Invite generation shareable by text | P1-01, P1-02 | A `InviteTests`; A `FullWeekSimulationTests` (one code, five members accept it); UI share sheet | PASS: `AuthMatrixTests.GivenTheInvitesGroup_WhenCalledByEachRole_ThenTheMatrixHolds` (creation succeeds for a commissioner), `FullWeekSimulationTests` (one invite code, five members accept it); PASS: screenshot `p1-02-invites-375.png` (share sheet). No `InviteTests` class exists — it was never real |
+| Valid invite joins and lands on home; revoked/expired message; no double join | P1-01, P1-02 | A `InviteAcceptTests` x4 | PASS: `InviteAcceptTests.GivenAValidInvite_WhenAccepted_ThenTheCallerJoinsAtTheCurrentWeekAndUsesIncrement`, `.GivenAnExpiredInvite_WhenAcceptAttempted_ThenItIs409WithExpiredState`, `.GivenARevokedInvite_WhenAcceptAttempted_ThenItIs409WithRevokedState`, `.GivenACallerAlreadyAMember_WhenAcceptAttempted_ThenItIs409WithAlreadyMemberState` |
+| Mid-season join: 0 points, no earlier weeks | P1-01, P5-03 | A `StandingsTests.GivenLateJoiner_*` | PASS: `StandingsCalculatorTests.GivenAMidSeasonJoiner_WhenTotallingTheSeason_ThenOnlyTheirOwnWeeksCount` (real class — `StandingsTests` was never real) |
+| Remove member keeps picks as former member | P1-01, P5-03 | A `MembershipTests.Remove*`, `WeekLeaderboardTests.FormerMember*` | PASS: `RoleTests.GivenACommissioner_WhenRemovingAMember_ThenTheyAreSoftDeletedAndAuditLogged`, `.GivenARemovedMember_WhenListingMembers_ThenTheyAreFlaggedFormer`, `StandingsCalculatorTests.GivenAFormerMember_WhenBuildingBothLeaderboards_ThenTheyAreOnTheWeekButNotTheSeason`, `LeaderboardEndpointsTests.GivenACompletedWeek_WhenReadingItsLeaderboard_ThenFormerMembersAppearAndTheWinnersAreMarked` (real classes — `MembershipTests`/`WeekLeaderboardTests` were never real) |
+| Cannot remove self; transfer demotes only the transferer; promote/demote; at least one commissioner | P1-01 | A `RoleTests` x5 | PASS: `RoleTests.GivenTheOnlyCommissioner_WhenRemovingThemself_ThenItIs409AsTheLastCommissioner`, `.GivenTheOnlyCommissioner_WhenDemotingThemself_ThenItIs409`, `.GivenATransfer_WhenApplied_ThenTargetIsPromotedCallerIsDemotedAndOthersAreUntouched`, `.GivenACommissioner_WhenPromotingAMember_ThenTheyBecomeCommissioner`, `.GivenTwoCommissioners_WhenDemotingOne_ThenTheOtherRemainsCommissioner` |
+| League home shows name, week, my status, links | P1-02 | UI | PASS: screenshot `p1-02-league-home-commish-375.png`, `p1-02-league-home-member-375.png` |
+| Multi-league picker | P1-02 | UI + A `MeTests.ListsLeagues` | PASS: `MeEndpointTests.GivenAMemberOfALeague_WhenGettingMe_ThenLeaguesIsFilled` (real class — `MeTests` was never real); screenshot `p1-02-picker-with-leagues-375.png` |
+| Mobile 375px | P1-02 | UI | PASS: screenshots `p1-02-*-375.png` (all 9 states, `scrollWidth === 375` per the P1-02 STATUS note) |
 
 ## Feature 02 - Weekly Game Set Configuration
 
