@@ -88,4 +88,93 @@ public sealed class CfbdCalendarNormalizationTests
 
         normalized.IsRegularSeason.Should().BeFalse();
     }
+
+    [Theory]
+    [InlineData("regular", true)]
+    [InlineData("Regular", true)]
+    [InlineData("REGULAR", true)]
+    [InlineData(" regular ", true)]
+    [InlineData("postseason", false)]
+    [InlineData("Postseason", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void GivenASeasonTypeSpelling_WhenTested_ThenTheComparisonIgnoresCase(string? seasonType, bool expected)
+    {
+        // The Kiota client hands back the enum's own "Regular"; the raw JSON says "regular".
+        CfbdCalendarNormalization.IsRegularSeasonType(seasonType).Should().Be(expected);
+    }
+
+    [Fact]
+    public void GivenTheShapeOfTheReal2026Calendar_WhenTheSeasonIsNormalized_ThenOnlyRegularWeeksSurvive()
+    {
+        // 15 regular weeks plus the single postseason row CFBD numbers 1 - the collision with
+        // regular week 1 that made the first live ingest throw (D-167).
+        List<ProviderCalendarWeek> providerWeeks = [.. Enumerable.Range(1, 15).Select(CfbdWeek)];
+        providerWeeks.Add(new ProviderCalendarWeek(
+            2026,
+            1,
+            "Postseason",
+            new DateTime(2026, 12, 14, 8, 0, 0, DateTimeKind.Utc),
+            new DateTime(2027, 1, 25, 7, 59, 0, DateTimeKind.Utc)));
+
+        CalendarNormalizationResult result = CfbdCalendarNormalization.NormalizeSeason(providerWeeks);
+
+        result.SkippedNonRegular.Should().Be(1);
+        result.DuplicateWeeks.Should().BeEmpty();
+        result.Weeks.Select(week => week.Week).Should().Equal(Enumerable.Range(1, 15));
+
+        // Championship week is the last regular week CFBD reports, and 04-Domain-Algorithms.md
+        // section 1 puts it out of scope, so a league defaults to 1..14.
+        result.Weeks.Single(week => week.Week == 15).IsRegularSeason.Should().BeFalse();
+        result.Weeks.Where(week => week.Week < 15).Should().OnlyContain(week => week.IsRegularSeason);
+        SeasonCalendar.DefaultLeagueRange([.. result.Weeks]).Should().Be(new LeagueWeekRange(1, 14));
+    }
+
+    [Fact]
+    public void GivenARepeatedWeekNumber_WhenTheSeasonIsNormalized_ThenTheFirstRowWins()
+    {
+        List<ProviderCalendarWeek> providerWeeks = [CfbdWeek(1), CfbdWeek(2), CfbdWeek(1), CfbdWeek(3)];
+
+        CalendarNormalizationResult result = CfbdCalendarNormalization.NormalizeSeason(providerWeeks);
+
+        result.DuplicateWeeks.Should().Equal(1);
+        result.Weeks.Select(week => week.Week).Should().Equal(1, 2, 3);
+        result.Weeks.Single(week => week.Week == 1).StartUtc
+            .Should().Be(SeasonCalendar.WeekWindow(SaturdayOf(1)).StartUtc);
+    }
+
+    [Fact]
+    public void GivenNothingButPostseasonRows_WhenTheSeasonIsNormalized_ThenNoWeeksAreStored()
+    {
+        CalendarNormalizationResult result = CfbdCalendarNormalization.NormalizeSeason(
+        [
+            new ProviderCalendarWeek(
+                2026,
+                1,
+                "postseason",
+                new DateTime(2026, 12, 14, 8, 0, 0, DateTimeKind.Utc),
+                new DateTime(2027, 1, 25, 7, 59, 0, DateTimeKind.Utc)),
+        ]);
+
+        result.Weeks.Should().BeEmpty();
+        result.SkippedNonRegular.Should().Be(1);
+    }
+
+    /// <summary>Week 1's Saturday, 2026-09-05, plus seven days per week after it.</summary>
+    private static DateOnly SaturdayOf(int week) => new DateOnly(2026, 9, 5).AddDays(7 * (week - 1));
+
+    /// <summary>
+    /// A CFBD-shaped row for <paramref name="week"/>: Monday-before through Monday-after in UTC,
+    /// with exactly one Saturday inside it whatever side of the DST change it falls on.
+    /// </summary>
+    private static ProviderCalendarWeek CfbdWeek(int week)
+    {
+        DateOnly saturday = SaturdayOf(week);
+        return new ProviderCalendarWeek(
+            2026,
+            week,
+            "Regular",
+            saturday.AddDays(-5).ToDateTime(new TimeOnly(7, 0), DateTimeKind.Utc),
+            saturday.AddDays(2).ToDateTime(new TimeOnly(6, 59), DateTimeKind.Utc));
+    }
 }

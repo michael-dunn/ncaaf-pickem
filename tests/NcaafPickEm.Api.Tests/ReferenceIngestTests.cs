@@ -330,59 +330,162 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task GivenCalendarIngestedTwice_ThenSeasonWeeksAreNormalizedAndNotDuplicated()
+    public async Task GivenTheShapeOfTheRealCalendar_WhenIngestedTwice_ThenOnlyRegularWeeksAreStoredOnce()
     {
         await using AppDbContext database = _database.CreateContext();
+
+        // The real 2026 payload: 15 regular weeks numbered 1..15 plus one postseason row, which
+        // CFBD also numbers 1. Before D-167 that collision made EF refuse to track two
+        // SeasonWeeks with the same (SeasonYear, Week) and the whole calendar step failed.
         var decorated = new DecoratingReferenceDataProvider(new FixtureReferenceDataProvider())
         {
-            // The fixture provider has no calendar.json, so the CFBD-shaped windows are supplied
-            // here: Monday 03:00 ET through the following Monday 02:59 ET, one Saturday inside.
             Calendar = (season, _) => Task.FromResult<IReadOnlyList<ProviderCalendarWeek>>(
             [
+                .. Enumerable.Range(1, 15).Select(week => CfbdWeek(season, week)),
                 new ProviderCalendarWeek(
                     season,
                     1,
-                    "regular",
-                    new DateTime(2026, 8, 31, 7, 0, 0, DateTimeKind.Utc),
-                    new DateTime(2026, 9, 7, 6, 59, 0, DateTimeKind.Utc)),
-                new ProviderCalendarWeek(
-                    season,
-                    2,
-                    "postseason",
-                    new DateTime(2026, 9, 7, 7, 0, 0, DateTimeKind.Utc),
-                    new DateTime(2026, 9, 14, 6, 59, 0, DateTimeKind.Utc)),
+                    "Postseason",
+                    new DateTime(2026, 12, 14, 8, 0, 0, DateTimeKind.Utc),
+                    new DateTime(2027, 1, 25, 7, 59, 0, DateTimeKind.Utc)),
             ]),
         };
         var service = CreateService(database, decorated);
 
         CalendarIngestResult first = await service.IngestCalendarAsync(Season);
         first.Success.Should().BeTrue();
-        first.Weeks.Should().Be(2);
+        first.Weeks.Should().Be(15);
+        first.SkippedNonRegular.Should().Be(1);
 
+        // Idempotent: the same payload again changes nothing.
         CalendarIngestResult second = await service.IngestCalendarAsync(Season);
         second.Success.Should().BeTrue();
+        second.Weeks.Should().Be(15);
+
+        database.ChangeTracker.Clear();
 
         List<SeasonWeek> stored = await database.SeasonWeeks
             .Where(w => w.SeasonYear == Season)
             .OrderBy(w => w.Week)
             .ToListAsync();
 
-        stored.Should().HaveCount(2);
+        stored.Should().HaveCount(15);
+        stored.Select(w => w.Week).Should().Equal(Enumerable.Range(1, 15));
 
+        // Sunday-Saturday Eastern, not CFBD's own Monday-to-Monday boundary.
         (DateTimeOffset expectedStart, DateTimeOffset expectedEnd) =
             SeasonCalendar.WeekWindow(new DateOnly(2026, 9, 5));
-        stored[0].Week.Should().Be(1);
         stored[0].StartUtc.Should().Be(expectedStart);
         stored[0].EndUtc.Should().Be(expectedEnd);
-        stored[0].IsRegularSeason.Should().BeTrue();
 
-        stored[1].Week.Should().Be(2);
-        stored[1].IsRegularSeason.Should().BeFalse();
+        // Week 15 is conference-championship week: stored, but not playable, so a new league
+        // defaults to weeks 1..14.
+        stored[^1].IsRegularSeason.Should().BeFalse();
+        stored.SkipLast(1).Should().OnlyContain(w => w.IsRegularSeason);
+        SeasonCalendar.DefaultLeagueRange(stored).Should().Be(new LeagueWeekRange(1, 14));
 
         DataRefreshStatus status = await database.DataRefreshStatuses
             .SingleAsync(s => s.DataType == RefreshDataType.Schedule);
         status.LastSuccessUtc.Should().NotBeNull();
         status.LastError.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task GivenTwoTeamsClaimingOneAliasAndATeamRepeatingItsOwn_WhenTeamsIngested_ThenTheFirstClaimantWins()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var decorated = new DecoratingReferenceDataProvider(new FixtureReferenceDataProvider())
+        {
+            // The collisions CFBD's real 2026 teams payload contains: the same alias claimed by
+            // two schools, the same alias in two casings (IX_TeamAliases_Source_Alias is unique
+            // under a case-insensitive collation), the same alias listed twice by one team, and
+            // an alias that only repeats the team's own school name.
+            Teams = (_, _) => Task.FromResult<IReadOnlyList<ProviderTeam>>(
+            [
+                new ProviderTeam(
+                    990001,
+                    "Alma",
+                    null,
+                    null,
+                    null,
+                    TeamClassification.Other,
+                    null,
+                    ["Alma College", "alma college", "Scots"]),
+                new ProviderTeam(
+                    990002,
+                    "Alma Mater",
+                    null,
+                    null,
+                    null,
+                    TeamClassification.Other,
+                    null,
+                    ["ALMA COLLEGE", "Alma Mater"]),
+            ]),
+        };
+        var service = CreateService(database, decorated);
+
+        TeamsIngestResult result = await service.IngestTeamsAsync(Season);
+
+        result.Success.Should().BeTrue();
+        result.Error.Should().BeNull();
+
+        database.ChangeTracker.Clear();
+
+        Guid almaId = (await database.Teams.SingleAsync(t => t.CfbdId == 990001)).Id;
+        List<TeamAlias> aliases = await database.TeamAliases
+            .Where(a => a.Source == ProviderSource.Cfbd)
+            .ToListAsync();
+
+        aliases.Select(a => a.Alias).Should().BeEquivalentTo(["Alma College", "Scots"]);
+        aliases.Should().OnlyContain(a => a.TeamId == almaId);
+
+        // And again: still exactly those two rows.
+        (await service.IngestTeamsAsync(Season)).Success.Should().BeTrue();
+        (await database.TeamAliases.CountAsync(a => a.Source == ProviderSource.Cfbd)).Should().Be(2);
+    }
+
+    [Fact]
+    public async Task GivenProviderStringsLongerThanTheirColumns_WhenTeamsIngested_ThenTheyAreTruncatedRatherThanRejected()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider)
+        {
+            Teams = async (season, ct) =>
+            {
+                IReadOnlyList<ProviderTeam> all = await baseProvider.GetTeamsAsync(season, ct);
+                return
+                [
+                    .. all.Select(t => t.CfbdId == 900123
+                        ? t with { School = new string('X', Team.SchoolMaxLength + 25) }
+                        : t),
+                ];
+            },
+        };
+        var service = CreateService(database, decorated);
+
+        TeamsIngestResult result = await service.IngestTeamsAsync(Season);
+
+        result.Success.Should().BeTrue();
+        result.Error.Should().BeNull();
+
+        Team stored = await database.Teams.SingleAsync(t => t.CfbdId == 900123);
+        stored.School.Should().HaveLength(Team.SchoolMaxLength);
+    }
+
+    /// <summary>
+    /// A CFBD-shaped calendar row: Monday-before through Monday-after the week's Saturday, which
+    /// for week 1 is 2026-09-05.
+    /// </summary>
+    private static ProviderCalendarWeek CfbdWeek(int season, int week)
+    {
+        DateOnly saturday = new DateOnly(2026, 9, 5).AddDays(7 * (week - 1));
+        return new ProviderCalendarWeek(
+            season,
+            week,
+            "Regular",
+            saturday.AddDays(-5).ToDateTime(new TimeOnly(7, 0), DateTimeKind.Utc),
+            saturday.AddDays(2).ToDateTime(new TimeOnly(6, 59), DateTimeKind.Utc));
     }
 
     [Fact]
