@@ -11,6 +11,7 @@ using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Infrastructure.Jobs;
+using NcaafPickEm.Infrastructure.Jobs.Refresh;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Espn;
@@ -108,8 +109,28 @@ public static class DependencyInjection
 
         RegisterReferenceDataProvider(services, configuration, referenceDataProvider, environment);
 
+        // P2-02 registers ReferenceDataIngestService only when Providers:ReferenceData is Cfbd
+        // (it needs the Kiota client). It works over any IReferenceDataProvider, and P2-04's
+        // refresh jobs (below) must exist and be registered in Fixture mode too, so it is
+        // registered here unconditionally; TryAddScoped no-ops when the Cfbd branch already added it.
+        services.TryAddScoped<ReferenceDataIngestService>();
+
         string liveScoreProvider = configuration["Providers:LiveScores"] ?? string.Empty;
         RegisterLiveScoreProvider(services, liveScoreProvider, environment);
+
+        // Provider data refresh jobs (P2-04). Cron times are Eastern, per AGENT-NOTES "Jobs".
+        services.AddScoped<ScheduleRefreshRunner>();
+        services.AddScoped<RankingsRefreshRunner>();
+        services.AddScheduledJob<TeamsRefreshJob>();
+        services.AddScheduledJob<ScheduleRefreshJob>();
+        services.AddScheduledJob<ScheduleRefreshDailyJob>();
+        services.AddScheduledJob<RankingsRefreshEveningJob>();
+        services.AddScheduledJob<RankingsRefreshTuesdayJob>();
+        services.AddScheduledJob<LinesRefreshJob>();
+
+        // The Saturday live-score poller (P2-04): its own BackgroundService, gated on
+        // Jobs:Enabled like the cron scheduler, since it is not cron-driven itself.
+        services.AddHostedService<SaturdayPoller>();
 
         services.TryAddScoped<FixtureSeeder>();
         services.AddHostedService<FixtureSeederHostedService>();
