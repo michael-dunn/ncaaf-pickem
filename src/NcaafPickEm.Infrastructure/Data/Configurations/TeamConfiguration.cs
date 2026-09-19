@@ -15,10 +15,10 @@ public sealed class TeamConfiguration : IEntityTypeConfiguration<Team>
         builder.ToTable("Teams");
         builder.HasKey(team => team.Id);
 
-        builder.Property(team => team.School).HasMaxLength(100).IsRequired();
-        builder.Property(team => team.Mascot).HasMaxLength(100);
-        builder.Property(team => team.Abbreviation).HasMaxLength(20);
-        builder.Property(team => team.LogoUrl).HasMaxLength(300);
+        builder.Property(team => team.School).HasMaxLength(Team.SchoolMaxLength).IsRequired();
+        builder.Property(team => team.Mascot).HasMaxLength(Team.MascotMaxLength);
+        builder.Property(team => team.Abbreviation).HasMaxLength(Team.AbbreviationMaxLength);
+        builder.Property(team => team.LogoUrl).HasMaxLength(Team.LogoUrlMaxLength);
         builder.Property(team => team.Classification).HasConversion<byte>();
 
         builder.HasOne(team => team.Conference)

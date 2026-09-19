@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Auth;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Services;
 using NcaafPickEm.Shared.Contracts.Reference;
 using NcaafPickEm.Shared.Enums;
 
@@ -41,7 +42,7 @@ public static class ReferenceEndpoints
             .OrderBy(c => c.Name)
             .ToListAsync(cancellationToken);
 
-        ConferenceDto[] dtos = [.. conferences.Select(c => new ConferenceDto(c.Id, c.Name, c.Abbreviation))];
+        ConferenceDto[] dtos = [.. conferences.Select(GameSetGameDtoMapper.ToConferenceDto)];
         return TypedResults.Ok(dtos);
     }
 
@@ -67,7 +68,7 @@ public static class ReferenceEndpoints
             .Take(MaxTeamResults)
             .ToListAsync(cancellationToken);
 
-        TeamDto[] dtos = [.. teams.Select(t => new TeamDto(t.Id, t.School, t.Abbreviation, t.ConferenceId, t.LogoUrl))];
+        TeamDto[] dtos = [.. teams.Select(GameSetGameDtoMapper.ToTeamDto)];
         return TypedResults.Ok(dtos);
     }
 }

@@ -14,6 +14,7 @@ Owner: `Seasons/SeasonCalendar`. Tests: `SeasonCalendarTests`.
 - A game belongs to its provider week regardless of when it finishes.
 - League range: `FirstWeek` default 1 (never 0 by default), `LastWeek` default = max week with `IsRegularSeason = 1`. Both clamped to regular-season weeks.
 - `LeagueIsComplete(nowUtc)` = now > `SeasonWeeks[LastWeek].EndUtc`.
+- What actually reaches `SeasonWeeks` (P8-07, D-167): CFBD calls every week of the regular season `regular`, including conference-championship week, and adds one `postseason` row per season covering bowls and the playoff — numbered **1**, which collides with regular week 1 on the `(SeasonYear, Week)` key. The ingest therefore stores regular rows only, and sets `IsRegularSeason = 0` on the **highest** week it stored, which is championship week. So a season's table has no postseason row at all, exactly one row with `IsRegularSeason = 0`, and "championship week and later are out of scope" is enforced by that flag: 2026 gives weeks 1..15 with week 15 flagged, hence the 1..14 league default.
 
 ## 2. Game set generation (Feature 02)
 

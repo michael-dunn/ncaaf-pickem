@@ -8,6 +8,18 @@ namespace NcaafPickEm.Domain.Seasons;
 /// </summary>
 public sealed class Team
 {
+    /// <summary>Maximum length of <see cref="School"/>, in characters.</summary>
+    public const int SchoolMaxLength = 100;
+
+    /// <summary>Maximum length of <see cref="Mascot"/>, in characters.</summary>
+    public const int MascotMaxLength = 100;
+
+    /// <summary>Maximum length of <see cref="Abbreviation"/>, in characters.</summary>
+    public const int AbbreviationMaxLength = 20;
+
+    /// <summary>Maximum length of <see cref="LogoUrl"/>, in characters.</summary>
+    public const int LogoUrlMaxLength = 300;
+
     public Guid Id { get; set; }
 
     /// <summary>CollegeFootballData's team id. The natural key for upserts.</summary>

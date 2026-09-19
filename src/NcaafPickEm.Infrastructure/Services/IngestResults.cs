@@ -9,9 +9,10 @@ public sealed record TeamsIngestResult(bool Success, string? Error, int Conferen
 
 /// <summary>
 /// Result of <see cref="ReferenceDataIngestService.IngestCalendarAsync"/>: count of
-/// <c>SeasonWeeks</c> rows the provider's calendar named.
+/// <c>SeasonWeeks</c> rows stored, plus how many calendar rows were dropped for being
+/// postseason (D-167).
 /// </summary>
-public sealed record CalendarIngestResult(bool Success, string? Error, int Weeks);
+public sealed record CalendarIngestResult(bool Success, string? Error, int Weeks, int SkippedNonRegular);
 
 /// <summary>
 /// Result of <see cref="ReferenceDataIngestService.IngestScheduleAsync"/>. <see cref="Upserted"/>

@@ -16,12 +16,33 @@ namespace NcaafPickEm.Infrastructure.Services;
 /// </summary>
 public static class GameSetGameDtoMapper
 {
-    /// <summary>Projects a <see cref="Team"/> entity to its DTO.</summary>
+    /// <summary>
+    /// Projects a <see cref="Team"/> entity to its DTO. A team with no abbreviation - CFBD
+    /// leaves it blank for a handful of the 682 schools it reports - falls back to its school
+    /// name, so no UI ever renders an empty chip (D-171).
+    /// </summary>
     public static TeamDto ToTeamDto(Team team)
     {
         ArgumentNullException.ThrowIfNull(team);
 
-        return new TeamDto(team.Id, team.School, team.Abbreviation, team.ConferenceId, team.LogoUrl);
+        string abbreviation = string.IsNullOrWhiteSpace(team.Abbreviation) ? team.School : team.Abbreviation;
+
+        return new TeamDto(team.Id, team.School, abbreviation, team.ConferenceId, team.LogoUrl);
+    }
+
+    /// <summary>
+    /// Projects a <see cref="Conference"/> entity to its DTO, with the same empty-abbreviation
+    /// fallback <see cref="ToTeamDto"/> uses (D-171).
+    /// </summary>
+    public static ConferenceDto ToConferenceDto(Conference conference)
+    {
+        ArgumentNullException.ThrowIfNull(conference);
+
+        string abbreviation = string.IsNullOrWhiteSpace(conference.Abbreviation)
+            ? conference.Name
+            : conference.Abbreviation;
+
+        return new ConferenceDto(conference.Id, conference.Name, abbreviation);
     }
 
     /// <summary>

@@ -15,6 +15,65 @@ namespace NcaafPickEm.Infrastructure.Providers.Cfbd;
 /// </remarks>
 public static class CfbdCalendarNormalization
 {
+    /// <summary>CFBD's <c>seasonType</c> for the weeks this product plays.</summary>
+    private const string RegularSeasonType = "regular";
+
+    /// <summary>
+    /// Turns one season's whole CFBD calendar into the <c>SeasonWeeks</c> rows to store (D-167):
+    /// postseason rows are dropped, a repeated week number keeps the first row, and the highest
+    /// remaining week is flagged <see cref="SeasonWeek.IsRegularSeason"/> <c>false</c> because it
+    /// is conference-championship week (<c>04-Domain-Algorithms.md</c> section 1).
+    /// </summary>
+    /// <param name="providerWeeks">Every row CFBD's <c>/calendar</c> returned for the season.</param>
+    public static CalendarNormalizationResult NormalizeSeason(IReadOnlyList<ProviderCalendarWeek> providerWeeks)
+    {
+        ArgumentNullException.ThrowIfNull(providerWeeks);
+
+        List<SeasonWeek> weeks = [];
+        List<int> duplicateWeeks = [];
+        HashSet<int> seenWeeks = [];
+        int skippedNonRegular = 0;
+
+        foreach (ProviderCalendarWeek providerWeek in providerWeeks)
+        {
+            if (!IsRegularSeasonType(providerWeek.SeasonType))
+            {
+                skippedNonRegular++;
+                continue;
+            }
+
+            if (!seenWeeks.Add(providerWeek.Week))
+            {
+                duplicateWeeks.Add(providerWeek.Week);
+                continue;
+            }
+
+            weeks.Add(Normalize(providerWeek));
+        }
+
+        if (weeks.Count > 0)
+        {
+            int championshipWeek = weeks.Max(week => week.Week);
+            weeks =
+            [
+                .. weeks.Select(week => week.Week == championshipWeek
+                    ? week with { IsRegularSeason = false }
+                    : week),
+            ];
+        }
+
+        return new CalendarNormalizationResult(weeks, skippedNonRegular, duplicateWeeks);
+    }
+
+    /// <summary>
+    /// True when CFBD called this week a regular-season week. Case-insensitive: the Kiota client
+    /// hands the enum's own spelling (<c>"Regular"</c>) back, while the raw JSON says
+    /// <c>"regular"</c>.
+    /// </summary>
+    /// <param name="seasonType">CFBD's <c>seasonType</c>, however it is spelled.</param>
+    public static bool IsRegularSeasonType(string? seasonType) =>
+        string.Equals(seasonType?.Trim(), RegularSeasonType, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>
     /// Finds the Saturday inside <paramref name="week"/>'s CFBD window and returns the
     /// <see cref="SeasonWeek"/> for <see cref="SeasonCalendar.WeekWindow"/> of that Saturday.
@@ -25,9 +84,7 @@ public static class CfbdCalendarNormalization
 
         DateOnly saturday = FindSaturdayEastern(week.StartUtc, week.EndUtc);
         (DateTimeOffset startUtc, DateTimeOffset endUtc) = SeasonCalendar.WeekWindow(saturday);
-        bool isRegularSeason = string.Equals(week.SeasonType, "regular", StringComparison.OrdinalIgnoreCase);
-
-        return new SeasonWeek(week.Season, week.Week, startUtc, endUtc, isRegularSeason);
+        return new SeasonWeek(week.Season, week.Week, startUtc, endUtc, IsRegularSeasonType(week.SeasonType));
     }
 
     /// <summary>
@@ -55,3 +112,24 @@ public static class CfbdCalendarNormalization
             nameof(endUtc));
     }
 }
+
+/// <summary>
+/// What <see cref="CfbdCalendarNormalization.NormalizeSeason"/> made of one season's calendar.
+/// </summary>
+/// <param name="Weeks">
+/// The rows to store, in payload order, with the highest week already flagged as championship
+/// week (<see cref="SeasonWeek.IsRegularSeason"/> <c>false</c>).
+/// </param>
+/// <param name="SkippedNonRegular">
+/// How many rows were dropped for not being regular-season weeks - CFBD returns exactly one
+/// postseason row per season, covering bowls and the playoff, which this product never plays.
+/// </param>
+/// <param name="DuplicateWeeks">
+/// Week numbers a later row repeated and which were therefore ignored. Empty for every real
+/// payload once the postseason row (always numbered 1) is gone; kept as a defensive report
+/// because a repeat is what made EF throw on the first live run.
+/// </param>
+public sealed record CalendarNormalizationResult(
+    IReadOnlyList<SeasonWeek> Weeks,
+    int SkippedNonRegular,
+    IReadOnlyList<int> DuplicateWeeks);

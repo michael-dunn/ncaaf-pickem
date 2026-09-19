@@ -32,6 +32,9 @@ public sealed class ReferenceDataIngestService
     /// </summary>
     private const RefreshDataType CalendarRefreshDataType = RefreshDataType.Schedule;
 
+    /// <summary>How many colliding aliases the one summary warning names (D-168).</summary>
+    private const int CollisionExamples = 5;
+
     private readonly AppDbContext _database;
     private readonly IReferenceDataProvider _provider;
     private readonly TimeProvider _timeProvider;
@@ -100,17 +103,35 @@ public sealed class ReferenceDataIngestService
                 IReadOnlyList<ProviderCalendarWeek> providerWeeks =
                     await _provider.GetCalendarAsync(season, cancellationToken).ConfigureAwait(false);
 
+                CalendarNormalizationResult normalizedSeason =
+                    CfbdCalendarNormalization.NormalizeSeason(providerWeeks);
+
+                if (normalizedSeason.SkippedNonRegular > 0)
+                {
+                    _logger.LogInformation(
+                        "Skipped {Skipped} non-regular-season calendar row(s) for {Season}; "
+                        + "bowls and the playoff are out of scope (D-167)",
+                        normalizedSeason.SkippedNonRegular,
+                        season);
+                }
+
+                if (normalizedSeason.DuplicateWeeks.Count > 0)
+                {
+                    _logger.LogWarning(
+                        "CFBD's calendar for {Season} repeated week number(s) {Weeks}; kept the first row of each",
+                        season,
+                        string.Join(", ", normalizedSeason.DuplicateWeeks));
+                }
+
                 Dictionary<int, SeasonWeek> existingByWeek = await _database.SeasonWeeks
                     .Where(week => week.SeasonYear == season)
                     .ToDictionaryAsync(week => week.Week, cancellationToken)
                     .ConfigureAwait(false);
 
                 int count = 0;
-                foreach (ProviderCalendarWeek providerWeek in providerWeeks)
+                foreach (SeasonWeek normalized in normalizedSeason.Weeks)
                 {
-                    SeasonWeek normalized = CfbdCalendarNormalization.Normalize(providerWeek);
-
-                    if (existingByWeek.TryGetValue(providerWeek.Week, out SeasonWeek? existingWeek))
+                    if (existingByWeek.TryGetValue(normalized.Week, out SeasonWeek? existingWeek))
                     {
                         if (existingWeek != normalized)
                         {
@@ -125,9 +146,9 @@ public sealed class ReferenceDataIngestService
                     count++;
                 }
 
-                return new CalendarIngestResult(true, null, count);
+                return new CalendarIngestResult(true, null, count, normalizedSeason.SkippedNonRegular);
             },
-            error => new CalendarIngestResult(false, error, 0),
+            error => new CalendarIngestResult(false, error, 0, 0),
             cancellationToken);
 
     /// <summary>
@@ -444,10 +465,20 @@ public sealed class ReferenceDataIngestService
         Dictionary<int, Guid> ids = [];
         foreach (ProviderConference providerConference in conferences)
         {
+            // Every string is truncated to its column length: CFBD is free to lengthen a name
+            // at any time and a 101-character conference would otherwise fail the whole ingest.
+            string name = Truncate(providerConference.Name, Conference.NameMaxLength);
+
+            // Never null in the column, and empty for most non-FBS conferences; the read models
+            // fall back to the name (D-171).
+            string abbreviation = Truncate(
+                providerConference.Abbreviation ?? string.Empty,
+                Conference.AbbreviationMaxLength);
+
             if (existingByCfbdId.TryGetValue(providerConference.CfbdId, out Conference? existing))
             {
-                existing.Name = providerConference.Name;
-                existing.Abbreviation = providerConference.Abbreviation;
+                existing.Name = name;
+                existing.Abbreviation = abbreviation;
                 existing.Classification = providerConference.Classification;
                 ids[providerConference.CfbdId] = existing.Id;
             }
@@ -457,8 +488,8 @@ public sealed class ReferenceDataIngestService
                 {
                     Id = Guid.CreateVersion7(),
                     CfbdId = providerConference.CfbdId,
-                    Name = providerConference.Name,
-                    Abbreviation = providerConference.Abbreviation,
+                    Name = name,
+                    Abbreviation = abbreviation,
                     Classification = providerConference.Classification,
                 };
                 _database.Conferences.Add(conference);
@@ -486,17 +517,24 @@ public sealed class ReferenceDataIngestService
                     ? mappedId
                     : null;
 
+            // Truncated to the column lengths so a long provider string is stored short rather
+            // than failing the whole ingest.
+            string school = Truncate(providerTeam.School, Team.SchoolMaxLength);
+            string? mascot = TruncateOptional(providerTeam.Mascot, Team.MascotMaxLength);
+            string? abbreviation = TruncateOptional(providerTeam.Abbreviation, Team.AbbreviationMaxLength);
+            string? logoUrl = TruncateOptional(providerTeam.LogoUrl, Team.LogoUrlMaxLength);
+
             if (existingByCfbdId.TryGetValue(providerTeam.CfbdId, out Team? existing))
             {
-                existing.School = providerTeam.School;
+                existing.School = school;
                 existing.ConferenceId = conferenceId ?? existing.ConferenceId;
                 existing.Classification = providerTeam.Classification;
 
                 // Optional fields: a payload that omits one means "CFBD did not say", not "clear
                 // it". Only a value actually supplied overwrites what is stored.
-                existing.Mascot = providerTeam.Mascot ?? existing.Mascot;
-                existing.Abbreviation = providerTeam.Abbreviation ?? existing.Abbreviation;
-                existing.LogoUrl = providerTeam.LogoUrl ?? existing.LogoUrl;
+                existing.Mascot = mascot ?? existing.Mascot;
+                existing.Abbreviation = abbreviation ?? existing.Abbreviation;
+                existing.LogoUrl = logoUrl ?? existing.LogoUrl;
                 ids[providerTeam.CfbdId] = existing.Id;
             }
             else
@@ -505,12 +543,12 @@ public sealed class ReferenceDataIngestService
                 {
                     Id = Guid.CreateVersion7(),
                     CfbdId = providerTeam.CfbdId,
-                    School = providerTeam.School,
-                    Mascot = providerTeam.Mascot,
-                    Abbreviation = providerTeam.Abbreviation,
+                    School = school,
+                    Mascot = mascot,
+                    Abbreviation = abbreviation,
                     ConferenceId = conferenceId,
                     Classification = providerTeam.Classification,
-                    LogoUrl = providerTeam.LogoUrl,
+                    LogoUrl = logoUrl,
                 };
                 _database.Teams.Add(team);
                 ids[providerTeam.CfbdId] = team.Id;
@@ -520,17 +558,40 @@ public sealed class ReferenceDataIngestService
         return ids;
     }
 
+    /// <summary>
+    /// Seeds <c>TeamAliases(Source=Cfbd)</c> from every team's <c>alternateNames</c>, first
+    /// claimant wins (D-168).
+    /// </summary>
+    /// <remarks>
+    /// <c>IX_TeamAliases_Source_Alias</c> is unique under the database's case-insensitive
+    /// collation, so the claim map is keyed <see cref="StringComparer.OrdinalIgnoreCase"/> and
+    /// spans the whole batch, not just the rows already on file: CFBD's real 2026 payload has
+    /// 682 teams and hands the same alias text to more than one of them ("Tiffin"), and the same
+    /// text in two casings ("Alma"/"ALMA"). Deduping only against existing rows - all P2-02 did -
+    /// left the collisions inside one <c>SaveChangesAsync</c>, which SQL Server rejected and
+    /// which therefore failed the entire teams ingest.
+    /// </remarks>
     private async Task<int> UpsertAliasesAsync(
         IReadOnlyList<ProviderTeam> teams,
         Dictionary<int, Guid> teamIdsByCfbdId,
         CancellationToken cancellationToken)
     {
-        Dictionary<string, TeamAlias> existingByAlias = await _database.TeamAliases
+        List<TeamAlias> existingAliases = await _database.TeamAliases
             .Where(alias => alias.Source == ProviderSource.Cfbd)
-            .ToDictionaryAsync(alias => alias.Alias, cancellationToken)
+            .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Built by hand rather than ToDictionary: a database whose collation ever let two rows
+        // differ only by case must not make the ingest throw on the way in.
+        Dictionary<string, TeamAlias> claimedByAlias = new(StringComparer.OrdinalIgnoreCase);
+        foreach (TeamAlias existing in existingAliases)
+        {
+            claimedByAlias.TryAdd(existing.Alias, existing);
+        }
+
         int count = 0;
+        List<string> collisions = [];
+
         foreach (ProviderTeam providerTeam in teams)
         {
             if (!teamIdsByCfbdId.TryGetValue(providerTeam.CfbdId, out Guid teamId))
@@ -545,19 +606,24 @@ public sealed class ReferenceDataIngestService
                     continue;
                 }
 
-                string trimmedAlias = Truncate(alias, TeamAlias.AliasMaxLength);
+                string trimmedAlias = Truncate(alias.Trim(), TeamAlias.AliasMaxLength);
 
-                if (existingByAlias.TryGetValue(trimmedAlias, out TeamAlias? existing))
+                // TeamNameIndex already indexes every team's own School, so an alias that only
+                // repeats it buys the matcher nothing and would just be one more row competing
+                // for the unique index (D-168).
+                if (string.Equals(trimmedAlias, providerTeam.School, StringComparison.OrdinalIgnoreCase))
                 {
-                    // An alias already owned by another team is left alone: P2-03's hand-verified
-                    // TeamAliasSeed rows share this Source and unique index, and silently
-                    // repointing one would break the matcher in a way nothing reports.
-                    if (existing.TeamId != teamId)
+                    continue;
+                }
+
+                if (claimedByAlias.TryGetValue(trimmedAlias, out TeamAlias? claimed))
+                {
+                    // An alias already claimed - by a row on file, including P2-03's
+                    // hand-verified TeamAliasSeed rows, or by an earlier team in this very batch
+                    // - is left where it is. Repointing it would break the matcher silently.
+                    if (claimed.TeamId != teamId)
                     {
-                        _logger.LogWarning(
-                            "CFBD alias {Alias} is claimed by team {CfbdId} but is already assigned to another team; keeping the existing assignment",
-                            trimmedAlias,
-                            providerTeam.CfbdId);
+                        collisions.Add($"{trimmedAlias} (claimed again by CFBD team {providerTeam.CfbdId})");
                         continue;
                     }
                 }
@@ -571,11 +637,21 @@ public sealed class ReferenceDataIngestService
                         Alias = trimmedAlias,
                     };
                     _database.TeamAliases.Add(row);
-                    existingByAlias[trimmedAlias] = row;
+                    claimedByAlias[trimmedAlias] = row;
                 }
 
                 count++;
             }
+        }
+
+        if (collisions.Count > 0)
+        {
+            // One line, not one per alias: the real payload collides dozens of times and a log
+            // entry each would bury the rest of the bootstrap.
+            _logger.LogWarning(
+                "Skipped {Count} CFBD alias(es) already claimed by another team; the first claimant keeps them. Examples: {Examples}",
+                collisions.Count,
+                string.Join("; ", collisions.Take(CollisionExamples)));
         }
 
         return count;
@@ -654,4 +730,11 @@ public sealed class ReferenceDataIngestService
 
     private static string Truncate(string value, int maxLength) =>
         value.Length <= maxLength ? value : value[..maxLength];
+
+    /// <summary>
+    /// <see cref="Truncate(string,int)"/> for an optional provider string: null stays null, so
+    /// "CFBD did not say" is still distinguishable from "CFBD said something long".
+    /// </summary>
+    private static string? TruncateOptional(string? value, int maxLength) =>
+        value is null ? null : Truncate(value, maxLength);
 }

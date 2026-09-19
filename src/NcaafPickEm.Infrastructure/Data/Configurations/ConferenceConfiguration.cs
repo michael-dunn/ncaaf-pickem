@@ -15,8 +15,8 @@ public sealed class ConferenceConfiguration : IEntityTypeConfiguration<Conferenc
         builder.ToTable("Conferences");
         builder.HasKey(conference => conference.Id);
 
-        builder.Property(conference => conference.Name).HasMaxLength(100).IsRequired();
-        builder.Property(conference => conference.Abbreviation).HasMaxLength(20).IsRequired();
+        builder.Property(conference => conference.Name).HasMaxLength(Conference.NameMaxLength).IsRequired();
+        builder.Property(conference => conference.Abbreviation).HasMaxLength(Conference.AbbreviationMaxLength).IsRequired();
         builder.Property(conference => conference.Classification).HasConversion<byte>();
 
         builder.HasIndex(conference => conference.CfbdId).IsUnique();
