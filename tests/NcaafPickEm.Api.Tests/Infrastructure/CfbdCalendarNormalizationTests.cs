@@ -52,6 +52,29 @@ public sealed class CfbdCalendarNormalizationTests
     }
 
     [Fact]
+    public void GivenAWeekThatCrossesTheFallBackTransition_WhenNormalized_ThenBothEndsUseTheirOwnOffset()
+    {
+        // 2025 DST ends Sunday 2025-11-02 at 02:00 ET. CFBD's week 11 window runs Monday
+        // 2025-11-03 03:00 EST (08:00Z) through the following Monday 02:59 EST, so the Saturday
+        // inside it is 2025-11-08 and the normalized window opens on Sunday 2025-11-02 — the day
+        // the clocks change.
+        var providerWeek = new ProviderCalendarWeek(
+            2025,
+            11,
+            "regular",
+            new DateTime(2025, 11, 3, 8, 0, 0, DateTimeKind.Utc),
+            new DateTime(2025, 11, 10, 7, 59, 0, DateTimeKind.Utc));
+
+        SeasonWeek normalized = CfbdCalendarNormalization.Normalize(providerWeek);
+
+        // Sunday 2025-11-02 00:00 is still EDT (-04:00); Saturday 2025-11-08 23:59:59.999 is EST
+        // (-05:00). A naive fixed-offset conversion would be an hour out on one of the two ends.
+        normalized.StartUtc.Should().Be(new DateTimeOffset(2025, 11, 2, 4, 0, 0, TimeSpan.Zero));
+        normalized.EndUtc.Should().Be(new DateTimeOffset(2025, 11, 9, 4, 59, 59, 999, TimeSpan.Zero));
+        (normalized.EndUtc - normalized.StartUtc).Should().Be(TimeSpan.FromDays(7).Add(TimeSpan.FromHours(1)) - TimeSpan.FromMilliseconds(1));
+    }
+
+    [Fact]
     public void GivenAPostseasonWeek_WhenNormalized_ThenIsRegularSeasonIsFalse()
     {
         var providerWeek = new ProviderCalendarWeek(

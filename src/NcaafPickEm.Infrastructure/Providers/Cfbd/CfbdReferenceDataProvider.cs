@@ -19,15 +19,30 @@ public sealed class CfbdReferenceDataProvider : IReferenceDataProvider
 {
     private readonly ApiClient _client;
     private readonly IProviderCallRecorder _recorder;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>Creates the provider.</summary>
-    public CfbdReferenceDataProvider(ApiClient client, IProviderCallRecorder recorder)
+    /// <param name="client">The Kiota-generated CFBD client.</param>
+    /// <param name="recorder">Writes one <c>ProviderCalls</c> row per outbound call.</param>
+    /// <param name="timeProvider">The only clock this codebase may read (05-Conventions.md).</param>
+    public CfbdReferenceDataProvider(ApiClient client, IProviderCallRecorder recorder, TimeProvider timeProvider)
     {
         _client = client;
         _recorder = recorder;
+        _timeProvider = timeProvider;
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Every conference CFBD knows for the season, all divisions, not just FBS.
+    /// </summary>
+    /// <remarks>
+    /// The <c>classification</c> filter is deliberately not sent. An FBS team's schedule contains
+    /// FBS-vs-FCS games, and those games' FCS side has to resolve to a real <c>Teams</c> row with
+    /// a real conference for the schedule ingest to store the game at all — see the decision in
+    /// DECISIONS.md.
+    /// </remarks>
+    /// <param name="season">Season year.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<IReadOnlyList<ProviderConference>> GetConferencesAsync(
         int season,
         CancellationToken cancellationToken = default)
@@ -36,23 +51,32 @@ public sealed class CfbdReferenceDataProvider : IReferenceDataProvider
             ProviderSource.Cfbd,
             "GetConferences",
             token => _client.Conferences.GetAsync(
-                cfg =>
-                {
-                    cfg.QueryParameters.Year = season;
-                    cfg.QueryParameters.ClassificationAsConferenceClassification = ConferenceClassification.Fbs;
-                },
+                cfg => cfg.QueryParameters.Year = season,
                 token),
             cancellationToken).ConfigureAwait(false);
 
         return MapMany(conferences, CfbdMapping.MapConference);
     }
 
-    /// <inheritdoc />
+    /// <summary>
+    /// Every team CFBD knows for the season, all divisions (<c>GET /teams?year=</c>), not the
+    /// FBS-only <c>GET /teams/fbs</c>.
+    /// </summary>
+    /// <remarks>
+    /// <c>GET /games?classification=fbs</c> returns games *involving* an FBS team, so an FBS-vs-FCS
+    /// game's away side is an FCS school. <c>ReferenceDataIngestService.IngestScheduleAsync</c>
+    /// skips any game whose home or away id is missing from <c>Teams</c>, so fetching only the FBS
+    /// list would drop every one of those games. Eligibility for a game set is still decided by the
+    /// generator (both teams FBS), and P2-03's matcher needs the FCS schools to be known so it can
+    /// ignore them rather than write <c>UnmatchedGames</c> noise. See DECISIONS.md.
+    /// </remarks>
+    /// <param name="season">Season year.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<IReadOnlyList<ProviderTeam>> GetTeamsAsync(
         int season,
         CancellationToken cancellationToken = default)
     {
-        // Every FBS team's alternateNames feeds TeamAliases directly (Implementation/spikes/
+        // Every team's alternateNames feeds TeamAliases directly (Implementation/spikes/
         // providers.md); fetching conferences first lets teams resolve ConferenceCfbdId by name
         // without a second round trip per team.
         IReadOnlyList<ProviderConference> conferences =
@@ -63,8 +87,8 @@ public sealed class CfbdReferenceDataProvider : IReferenceDataProvider
 
         List<Team>? teams = await _recorder.RecordAsync(
             ProviderSource.Cfbd,
-            "GetFbsTeams",
-            token => _client.Teams.Fbs.GetAsync(cfg => cfg.QueryParameters.Year = season, token),
+            "GetTeams",
+            token => _client.Teams.GetAsync(cfg => cfg.QueryParameters.Year = season, token),
             cancellationToken).ConfigureAwait(false);
 
         return MapMany(teams, team => CfbdMapping.MapTeam(team, conferenceIdsByName));
@@ -170,7 +194,7 @@ public sealed class CfbdReferenceDataProvider : IReferenceDataProvider
             return [];
         }
 
-        DateTime fetchedUtc = DateTime.UtcNow;
+        DateTime fetchedUtc = _timeProvider.GetUtcNow().UtcDateTime;
         List<ProviderLine> result = [];
         foreach (BettingGame bettingGame in bettingGames)
         {
