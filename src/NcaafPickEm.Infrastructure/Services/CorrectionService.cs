@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -344,7 +345,8 @@ public sealed class CorrectionService
         try
         {
             using JsonDocument document = JsonDocument.Parse(detailsJson);
-            if (document.RootElement.TryGetProperty(propertyName, out JsonElement element)
+            if (document.RootElement.ValueKind == JsonValueKind.Object
+                && document.RootElement.TryGetProperty(propertyName, out JsonElement element)
                 && element.ValueKind == JsonValueKind.String
                 && Guid.TryParse(element.GetString(), out Guid parsed))
             {
@@ -395,6 +397,13 @@ public sealed class CorrectionService
                 using JsonDocument document = JsonDocument.Parse(entry.Details);
                 JsonElement details = document.RootElement;
 
+                if (details.ValueKind != JsonValueKind.Object)
+                {
+                    // TryGetProperty throws InvalidOperationException on anything but an object,
+                    // and that is not a JsonException (P8-01, D-193).
+                    return entry.Action.ToString();
+                }
+
                 return entry.Action switch
                 {
                     AuditAction.ResultOverride => BuildResultOverride(details, games),
@@ -417,12 +426,12 @@ public sealed class CorrectionService
 
         private static string BuildResultOverride(JsonElement details, Dictionary<Guid, AuditGameNames> games)
         {
-            if (!TryGame(details, games, out AuditGameNames game))
+            if (!TryGame(details, games, out AuditGameNames game)
+                || !TryGuid(details, "after", out Guid after))
             {
                 return "Overrode a game result";
             }
 
-            Guid after = details.GetProperty("after").GetGuid();
             string winner = after == game.HomeTeamId ? game.HomeTeam : game.AwayTeam;
             string reason = ReasonOf(details);
             return $"Set {winner} as winner of {game.AwayTeam} @ {game.HomeTeam}: {reason}";
@@ -440,7 +449,7 @@ public sealed class CorrectionService
 
         private static string BuildGameAdded(JsonElement details, Dictionary<Guid, AuditGameNames> games)
         {
-            int week = details.GetProperty("week").GetInt32();
+            string week = WeekOf(details);
             if (!TryGame(details, games, out AuditGameNames game))
             {
                 return $"Added a game to week {week}";
@@ -451,7 +460,7 @@ public sealed class CorrectionService
 
         private static string BuildGameRemoved(JsonElement details, Dictionary<Guid, AuditGameNames> games)
         {
-            int week = details.GetProperty("week").GetInt32();
+            string week = WeekOf(details);
             if (!TryGame(details, games, out AuditGameNames game))
             {
                 return $"Removed a game from week {week}";
@@ -483,6 +492,27 @@ public sealed class CorrectionService
 
             game = found;
             return true;
+        }
+
+        /// <summary>
+        /// Every reader here is total: a <c>Details</c> blob that is valid JSON but the wrong
+        /// shape must degrade to a vaguer sentence, never throw. <c>JsonElement.GetProperty</c>
+        /// and the typed getters raise <see cref="KeyNotFoundException"/> and
+        /// <see cref="InvalidOperationException"/>, neither of which the <c>JsonException</c>
+        /// catch above would stop, so one bad row would 500 the whole audit list (P8-01, D-193).
+        /// </summary>
+        private static string WeekOf(JsonElement details) =>
+            details.TryGetProperty("week", out JsonElement week) && week.ValueKind == JsonValueKind.Number
+                ? week.GetInt32().ToString(CultureInfo.InvariantCulture)
+                : "?";
+
+        private static bool TryGuid(JsonElement details, string propertyName, out Guid value)
+        {
+            value = Guid.Empty;
+
+            return details.TryGetProperty(propertyName, out JsonElement element)
+                && element.ValueKind == JsonValueKind.String
+                && Guid.TryParse(element.GetString(), out value);
         }
 
         private static string ReasonOf(JsonElement details) =>
