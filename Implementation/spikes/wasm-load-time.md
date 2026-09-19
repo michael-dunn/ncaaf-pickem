@@ -97,6 +97,38 @@ unchanged and stays open until the operator's phone measurement below is recorde
 Both faults are invisible to `curl` and to `dotnet test`. Any future change to trimming, publishing,
 or `index.html` must be re-verified by actually rendering the app in a browser.
 
+## P4-03: Picks page repeat load (2026-09-19)
+
+Feature 04's own criterion ("interactive within 2 s on a repeat load") re-measured against the
+Picks page specifically, not just the home page, using this spike's method: puppeteer-core driving
+headless Edge over CDP, viewport 375x812, `Network.clearBrowserCache` for a cold run, "interactive"
+= wall clock from `Page.navigate` until the first `TeamPickButton` (a real tap target - Blazor's
+event dispatcher is live as soon as any interactive element is in the DOM) appears, polled every
+25 ms via `page.waitForFunction`.
+
+Build/server: Debug (not Release) publish of `NcaafPickEm.Api` with the Development-only fake API
+(`-p:DefineConstants=DEBUG%3BTRACE%3BUSE_FAKE_API` — see D-123/AGENT-NOTES for why the constants
+must be escaped that way), run on `http://localhost:5251` with `Providers__*=Fixture`,
+`Seed__DemoLeague=true`. Debug/unoptimized is a strictly harder case than the Release build P0-04
+measured (no trimming, no Brotli precompression), so these numbers are a conservative upper bound
+on the real published app. One page/tab reused across all five runs so the service worker's cache
+persists between "cold" and "warm" exactly like a real repeat visit; only the very first navigation
+goes through `/auth/dev-login` (a second navigation through it hits the now-registered service
+worker instead of the server's redirect — see AGENT-NOTES).
+
+| Run | Time to interactive |
+|---|---|
+| Cold 1 (cache cleared, via dev-login) | 477 ms |
+| Cold 2 (cache cleared) | 310 ms |
+| Warm 1 (repeat, cache intact) | 342 ms |
+| Warm 2 (repeat, cache intact) | 352 ms |
+| Warm 3 (repeat, cache intact) | 337 ms |
+
+**PASS, well inside the 2 s budget** — consistent with the home-page numbers above (~300-500 ms on
+localhost regardless of page, since the cost is WASM runtime instantiation plus one render pass,
+not this page's one extra `GET .../picks/me` call). The phone/Tailscale measurement stays operator-
+pending per the table below; nothing about the Picks page's own weight changes the estimate there.
+
 ## Operator to-do (the manual half of this spike)
 
 Agents cannot use an iPhone or the tailnet. Please do this before Phase 1 UI work is signed off and
