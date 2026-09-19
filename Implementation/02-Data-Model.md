@@ -149,6 +149,7 @@ When `WeekGameSets.UsesOverride = 1` for a week, only rows with that Week are us
 | Id Guid PK | |
 | WeekGameSetId FK, GameId FK | UQ |
 | Source | tinyint: Rule, Manual |
+| AddedUtc | datetime2 | When the game joined the set: written on insert and again when a removed row is re-added (P4-01, D-085). It is "the last time TotalCount increased" in `04-Domain-Algorithms.md` section 4, so `SubmittedUtc >= max(AddedUtc)` is what keeps a member Submitted. |
 | IsRemoved | bit | manual removal or schedule change before lock; stays removed on regen |
 | RemovedReason | nvarchar(200) null | |
 | PointValueOverride | int null | commissioner manual value |
@@ -179,7 +180,7 @@ When `WeekGameSets.UsesOverride = 1` for a week, only rows with that Week are us
 | SubmittedUtc null, LastChangedUtc | |
 | HasUnseenGameChanges | bit | drives "new games highlighted" in UI |
 
-Status derivation rules are in `04-Domain-Algorithms.md` section 4. `Locked` and `Incomplete` are written by the lock job; the others are recomputed on every pick change.
+Status derivation rules are in `04-Domain-Algorithms.md` section 4. `Locked` and `Incomplete` are written by the lock job; the others are recomputed on every pick change. A row exists only once a member has touched the week (or P4-04 flags a game change for them); the lock job then writes one for every membership active at lock, which is what makes "who was in the league at lock" answerable afterwards.
 
 ## Scoring (Features 06, 07)
 

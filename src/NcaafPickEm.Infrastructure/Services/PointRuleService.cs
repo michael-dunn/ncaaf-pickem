@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Points;
@@ -17,11 +18,13 @@ namespace NcaafPickEm.Infrastructure.Services;
 public sealed class PointRuleService
 {
     private readonly AppDbContext _database;
+    private readonly ILogger<PointRuleService> _logger;
 
     /// <summary>Creates the service.</summary>
-    public PointRuleService(AppDbContext database)
+    public PointRuleService(AppDbContext database, ILogger<PointRuleService> logger)
     {
         _database = database;
+        _logger = logger;
     }
 
     /// <summary>The league's point rules, ordered by priority.</summary>
@@ -91,6 +94,8 @@ public sealed class PointRuleService
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await ReResolveUnlockedWeeksAsync(leagueId, cancellationToken).ConfigureAwait(false);
 
+        _logger.LogInformation("League {LeagueId}: point rules replaced ({Count} rules).", leagueId, rules.Count);
+
         return await GetRulesAsync(leagueId, cancellationToken).ConfigureAwait(false);
     }
 
@@ -131,6 +136,13 @@ public sealed class PointRuleService
             .ConfigureAwait(false);
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "League {LeagueId} week {Week}: point override for game {GameId} set to {PointValue}.",
+            leagueId,
+            week,
+            gameId,
+            pointValue);
 
         Dictionary<Guid, int> ranks = await BuildRankLookupAsync(league.SeasonYear, week, cancellationToken)
             .ConfigureAwait(false);

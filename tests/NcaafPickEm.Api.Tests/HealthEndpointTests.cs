@@ -44,8 +44,9 @@ public sealed class HealthEndpointTests
         string[] applied = await _fixture.Factory.QueryDbAsync(async database =>
             (await database.Database.GetAppliedMigrationsAsync()).ToArray());
 
-        // Every migration in the assembly, not just the first: phases add their own (P7-01 added
-        // Phase7_01_PushRetries), and a test database missing any of them fails confusingly later.
+        // Every migration in the assembly, not just the first: phases add their own (P4-01 added
+        // Phase4_01_GameSetGameAddedUtc, P7-01 Phase7_01_PushRetries), and a test database missing
+        // any of them fails confusingly later.
         applied.Should().NotBeEmpty();
         applied[0].Should().EndWith("Phase0_02_InitialSchema");
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NcaafPickEm.Domain.Events;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.GameSets.Events;
@@ -30,18 +31,24 @@ public sealed class GameSetService
     private readonly TimeProvider _timeProvider;
     private readonly DomainEventCollector _collector;
     private readonly IDomainEventDispatcher _dispatcher;
+    private readonly ISeasonWeekSource _seasonWeekSource;
+    private readonly ILogger<GameSetService> _logger;
 
     /// <summary>Creates the service.</summary>
     public GameSetService(
         AppDbContext database,
         TimeProvider timeProvider,
         DomainEventCollector collector,
-        IDomainEventDispatcher dispatcher)
+        IDomainEventDispatcher dispatcher,
+        ISeasonWeekSource seasonWeekSource,
+        ILogger<GameSetService> logger)
     {
         _database = database;
         _timeProvider = timeProvider;
         _collector = collector;
         _dispatcher = dispatcher;
+        _seasonWeekSource = seasonWeekSource;
+        _logger = logger;
     }
 
     /// <summary>
@@ -137,7 +144,10 @@ public sealed class GameSetService
     /// <exception cref="GameSetRuleViolation">
     /// <see cref="GameSetRuleViolationCode.Locked"/> when the week is already locked, or
     /// <see cref="GameSetRuleViolationCode.ExceedsMax"/> when the rules would select more than
-    /// <see cref="GameSetLimits.MaxGames"/> games. Neither refusal persists anything.
+    /// <see cref="GameSetLimits.MaxGames"/> games. Neither refusal changes any existing row or
+    /// rule - the only thing either can have persisted first is
+    /// <see cref="GetOrCreateWeekSetAsync"/>'s empty <c>WeekGameSets</c> row, on a week that had
+    /// no set at all yet.
     /// </exception>
     public async Task<WeekGameSetResponse> GenerateAsync(Guid leagueId, int week, CancellationToken cancellationToken)
     {
@@ -188,7 +198,6 @@ public sealed class GameSetService
         }
 
         Dictionary<Guid, WeekGameSetGame> existingByGameId = existingRows.ToDictionary(row => row.GameId);
-        Dictionary<Guid, GameInfo> pool = games.ToDictionary(g => g.GameId);
         HashSet<Guid> removedIds = [.. result.Removed];
         HashSet<Guid> removedIneligibleIds = [.. result.RemovedIneligible];
 
@@ -211,6 +220,21 @@ public sealed class GameSetService
             removedEventTargets.Add((row.Id, row.GameId, ReasonScheduleChange));
         }
 
+        // One batched load of the Game+Teams navigation the new rows need for point-value
+        // recalculation below, instead of one query per added row.
+        Guid[] newGameIds = [.. result.Games
+            .Where(generated => !existingByGameId.ContainsKey(generated.GameId))
+            .Select(generated => generated.GameId)];
+
+        Dictionary<Guid, Game> newGamesById = newGameIds.Length == 0
+            ? []
+            : await _database.Games
+                .Include(g => g.HomeTeam)
+                .Include(g => g.AwayTeam)
+                .Where(g => newGameIds.Contains(g.Id))
+                .ToDictionaryAsync(g => g.Id, cancellationToken)
+                .ConfigureAwait(false);
+
         foreach (GeneratedGame generated in result.Games)
         {
             if (existingByGameId.TryGetValue(generated.GameId, out WeekGameSetGame? row))
@@ -225,17 +249,10 @@ public sealed class GameSetService
                 WeekGameSetId = set.Id,
                 GameId = generated.GameId,
                 Source = generated.Source,
+                AddedUtc = _timeProvider.GetUtcNow().UtcDateTime,
                 IsRemoved = false,
+                Game = newGamesById[generated.GameId],
             };
-
-            // Load the Game+Teams navigation for point-value recalculation below without a
-            // second query per row.
-            GameInfo info = pool[generated.GameId];
-            newRow.Game = await _database.Games
-                .Include(g => g.HomeTeam)
-                .Include(g => g.AwayTeam)
-                .FirstAsync(g => g.Id == info.GameId, cancellationToken)
-                .ConfigureAwait(false);
 
             _database.WeekGameSetGames.Add(newRow);
             existingRows.Add(newRow);
@@ -267,6 +284,13 @@ public sealed class GameSetService
         IReadOnlyList<IDomainEvent> raised = _collector.TakeAll();
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await _dispatcher.DispatchAsync(raised, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "League {LeagueId} week {Week} regenerated: {Added} added, {Removed} removed.",
+            leagueId,
+            week,
+            addedGameSetGameIds.Count,
+            removedEventTargets.Count);
 
         return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
     }
@@ -347,6 +371,8 @@ public sealed class GameSetService
             row.IsRemoved = false;
             row.RemovedReason = null;
             row.Source = GameSetGameSource.Manual;
+            // Re-adding grows the set again, so this counts as a fresh add for submission status.
+            row.AddedUtc = _timeProvider.GetUtcNow().UtcDateTime;
             row.Game = game;
             gameSetGameId = row.Id;
         }
@@ -358,6 +384,7 @@ public sealed class GameSetService
                 WeekGameSetId = set.Id,
                 GameId = gameId,
                 Source = GameSetGameSource.Manual,
+                AddedUtc = _timeProvider.GetUtcNow().UtcDateTime,
                 IsRemoved = false,
                 Game = game,
             };
@@ -381,6 +408,13 @@ public sealed class GameSetService
         IReadOnlyList<IDomainEvent> raised = _collector.TakeAll();
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await _dispatcher.DispatchAsync(raised, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "League {LeagueId} week {Week}: game {GameId} manually added ({GameSetGameId}).",
+            leagueId,
+            week,
+            gameId,
+            gameSetGameId);
 
         return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
     }
@@ -434,6 +468,13 @@ public sealed class GameSetService
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await _dispatcher.DispatchAsync(raised, cancellationToken).ConfigureAwait(false);
 
+        _logger.LogInformation(
+            "League {LeagueId} week {Week}: game {GameId} manually removed ({GameSetGameId}).",
+            leagueId,
+            week,
+            gameId,
+            row.Id);
+
         return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
     }
 
@@ -459,6 +500,7 @@ public sealed class GameSetService
             .Include(row => row.Game!.AwayTeam)
             .Where(row => row.WeekGameSetId == set.Id && !row.IsRemoved)
             .OrderBy(row => row.Game!.KickoffUtc)
+            .ThenBy(row => row.GameId)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -480,6 +522,46 @@ public sealed class GameSetService
         string? lockDisplay = lockAtUtc is DateTimeOffset value ? SeasonCalendar.EasternDisplay(value) : null;
 
         return new WeekGameSetResponse(week, lockAtUtc, lockDisplay, set.IsLocked, set.IsComplete, dtos);
+    }
+
+    /// <summary>
+    /// Every game inside an already-locked week that has since been postponed or cancelled and
+    /// has not yet been voided (Feature 02/06, P3-04): the "needs a decision" list P2-04's data
+    /// page and P5-02's corrections flow both read. Optionally scoped to one league.
+    /// </summary>
+    public async Task<NeedsVoidReviewItem[]> ListNeedsVoidReviewAsync(Guid? leagueId, CancellationToken cancellationToken)
+    {
+        IQueryable<WeekGameSetGame> query = _database.WeekGameSetGames
+            .AsNoTracking()
+            .Include(row => row.WeekGameSet!.League)
+            .Include(row => row.Game!.HomeTeam)
+            .Include(row => row.Game!.AwayTeam)
+            .Where(row => row.WeekGameSet!.LockedUtc != null
+                && !row.IsVoided
+                && (row.Game!.Status == GameStatus.Postponed || row.Game!.Status == GameStatus.Cancelled));
+
+        if (leagueId is Guid id)
+        {
+            query = query.Where(row => row.WeekGameSet!.LeagueId == id);
+        }
+
+        List<WeekGameSetGame> rows = await query
+            .OrderBy(row => row.WeekGameSet!.LeagueId)
+            .ThenBy(row => row.WeekGameSet!.Week)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return [.. rows.Select(row => new NeedsVoidReviewItem(
+            row.WeekGameSet!.LeagueId,
+            row.WeekGameSet!.League?.Name ?? string.Empty,
+            row.WeekGameSet!.Week,
+            row.WeekGameSetId,
+            row.Id,
+            row.GameId,
+            row.Game!.HomeTeam!.School,
+            row.Game!.AwayTeam!.School,
+            row.Game!.Status,
+            new DateTimeOffset(row.Game!.KickoffUtc, TimeSpan.Zero)))];
     }
 
     /// <summary>Saturday FBS games for a season/week, for the manual-add candidate search.</summary>
@@ -579,11 +661,19 @@ public sealed class GameSetService
     }
 
     /// <summary>
-    /// Full-replaces a week's rule override, or clears it. Save only. 409 when the week is
-    /// already locked.
+    /// Full-replaces a week's rule override, or clears it, then - only when <paramref name="week"/>
+    /// is the league's current week (D-082, superseding D-065 for this one route) - immediately
+    /// regenerates it through <see cref="GenerateAsync"/>, exactly as if the caller had made the
+    /// two calls the commissioner UI does. Every other week is still save only, as D-065 says.
+    /// 409 when the week is already locked.
     /// </summary>
     /// <exception cref="GameSetRuleConfigurationException">A rule is invalid (only checked when
     /// <paramref name="usesOverride"/> is true).</exception>
+    /// <exception cref="GameSetRuleViolation">
+    /// <see cref="GameSetRuleViolationCode.Locked"/> before anything is saved, or - only for the
+    /// current week - <see cref="GameSetRuleViolationCode.ExceedsMax"/> from the regenerate that
+    /// follows the save (the rules are saved either way; only the regeneration is refused).
+    /// </exception>
     public async Task<WeekRulesResponse> ReplaceWeekRulesAsync(
         Guid leagueId,
         int week,
@@ -593,7 +683,8 @@ public sealed class GameSetService
     {
         ArgumentNullException.ThrowIfNull(rules);
 
-        await WeekRangeGuard.EnsureWeekInRangeAsync(_database, leagueId, week, cancellationToken).ConfigureAwait(false);
+        League league = await WeekRangeGuard.EnsureWeekInRangeAsync(_database, leagueId, week, cancellationToken)
+            .ConfigureAwait(false);
 
         WeekGameSet set = await GetOrCreateWeekSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
 
@@ -622,7 +713,34 @@ public sealed class GameSetService
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
+        if (await IsCurrentWeekAsync(league, week, cancellationToken).ConfigureAwait(false))
+        {
+            await GenerateAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
+        }
+
         return await GetWeekRulesAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// True when <paramref name="week"/> is the league's current week right now (D-082): the
+    /// week <see cref="SeasonCalendar.CurrentWeekAt"/> reports, clamped to the league's own
+    /// <see cref="League.FirstWeek"/>/<see cref="League.LastWeek"/> range exactly like
+    /// <c>RegenerateGameSetsJob</c>.
+    /// </summary>
+    private async Task<bool> IsCurrentWeekAsync(League league, int week, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<SeasonWeek> weeks = await _seasonWeekSource
+            .GetWeeksAsync(league.SeasonYear, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (weeks.Count == 0)
+        {
+            return false;
+        }
+
+        int currentWeek = SeasonCalendar.CurrentWeekAt(_timeProvider.GetUtcNow(), weeks).Week;
+        currentWeek = Math.Clamp(currentWeek, league.FirstWeek, league.LastWeek);
+        return currentWeek == week;
     }
 
     private void InsertRules(Guid leagueId, int? week, IReadOnlyList<GameSetRuleDto> rules)

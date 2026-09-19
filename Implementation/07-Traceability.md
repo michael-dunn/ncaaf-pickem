@@ -33,11 +33,11 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | FCS excluded | P3-01 | D `*.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `*.GivenAnFcsHomeTeam_...` |
 | AP only | P3-03 | A: RuleType enum has no other poll |
 | 50-game cap with preview warning | P3-01, P3-03, P3-05 | D `*.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `*.GivenMoreThanFiftyMatchingGames_...`, A 409, UI warning |
-| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationTests.PostponedRemoved` |
+| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` |
 | Week override leaves default intact | P3-03 | A |
 | Manual remove sticky across regen; manual add included | P3-01 | D `*.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `*.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `*.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` |
 | Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI |
-| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `RegenerationJobTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
+| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
 | Member view ordered by kickoff in local time | P3-05 | UI |
 | Tap-only rule editing | P3-05 | UI |
 
@@ -128,11 +128,12 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | AC group | Task | Proof |
 |---|---|---|
 | Provider abstraction; local storage only | P2-02, P2-03 | Architecture review; A: features read DbContext only |
-| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` |
+| Refresh cadences | P2-04 | A `RefreshJobScheduleTests` (incl. the 2026-11-01 DST week) |
 | Idempotent refreshes | P2-02 | A `RefreshTwice_NoDuplicates` |
-| Failure keeps old data, logs; stale banner | P2-04, P6-02 | A, UI |
-| Rate limits respected | P2-04 | D poller cadence, call counter |
-| Data status page | P2-04 | UI |
+| Failure keeps old data, logs; stale banner | P2-02, P2-04, P6-02 | A `ReferenceIngestTests`; UI `DataStatusPage`'s `ScoresMayBeStale` banner |
+| Rate limits respected | P2-04 | D `SaturdayPollerScheduleTests` (window/cadence/fallback); A `AdminEndpointsTests` (CFBD counter warning at 800) |
+| Data status page | P2-04 | UI `Pages/Admin/DataStatusPage.razor`, `Implementation/screenshots/p2-04-data-status-375.png` |
+| Saturday poller applies fixture snapshots, scores every game | P2-04 | A `SaturdayPollerIntegrationTests` (Phase 2 exit criterion) |
 
 ## Feature 10 - Hosting and Platform
 
@@ -161,8 +162,8 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 |---|---|---|
 | Separate reference and live interfaces | P2-02, P2-03 | Architecture |
 | CFBD via official client and config key | P2-02 | A with recorded fixture |
-| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests` |
-| Monthly counter, warning at 800 | P2-04 | A |
+| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests` (cadence follows `ILiveScoreHealth.ActiveSource`) |
+| Monthly counter, warning at 800 | P2-04 | A `AdminEndpointsTests` (799 -> no warning, 800 -> warning) |
 | Name matching, unmatched surfaced | P2-03 | D `GameMatcherTests`, UI |
 | Follow-ups: tier confirm, sample payload, alias table | P2-01 | Doc in `Implementation/spikes/` |
 
@@ -175,4 +176,4 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | Season range defaults, Week 0 opt-in, regular season only | P0-05, P1-01 | D, A |
 | Before first week / after last week states | P1-02 | UI, A |
 | UTC storage, Eastern logic, local display with zone hint | P0-05, all UI | D, UI |
-| Schedule change before lock removes + notifies; after lock voids | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` |
+| Schedule change before lock removes + notifies; after lock flags for void review (`GameNeedsVoidReview`), P5-02 owns the actual void | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` |
