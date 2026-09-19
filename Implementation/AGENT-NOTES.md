@@ -12,7 +12,7 @@ Practical facts every implementation agent needs. Read after `00-README.md`, `05
 ## Git workflow
 - `main` is the integration branch. Parallel agents work in **git worktrees** on task branches `p<phase>-<task>-<slug>`. Agents do **not** merge to `main`; report `BRANCH: <name> @ <commit>` and the orchestrator merges.
 - Conventional Commits; every commit ends with `Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>`.
-- `.gitattributes` stores LF, checks out CRLF. `.editorconfig` demands CRLF; run `dotnet format` before committing or `dotnet format --verify-no-changes` fails with ENDOFLINE.
+- `.gitattributes` stores LF, checks out CRLF. `.editorconfig` no longer pins `end_of_line` (CI runs on Linux with LF checkouts); still run `dotnet format` before committing.
 - Run plain `dotnet format` (never `dotnet format --no-restore`): without restore it compiles against unresolved references and silently strips `using` directives from unrelated files.
 - Migrations: append-only, named `Phase<N>_<Task>_<What>`. Never edit another task's migration.
 - After any `git merge main`, run `grep -rn -E "^(<<<<<<<|=======|>>>>>>>)" Implementation src tests README.md` and fix every hit BEFORE `git add -A`; two merges have shipped conflict markers into STATUS.md/DECISIONS.md already. Keep both sides in the append-only docs.

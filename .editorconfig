@@ -3,7 +3,7 @@ root = true
 
 [*]
 charset = utf-8
-end_of_line = crlf
+# end_of_line intentionally unset: git normalizes line endings via .gitattributes (LF in the repo, native on checkout), so `dotnet format --verify-no-changes` passes on both Windows and Linux runners.
 indent_style = space
 indent_size = 4
 insert_final_newline = true
