@@ -1,0 +1,115 @@
+.bottom-sheet-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(11, 37, 69, 0.45);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 900;
+}
+
+.bottom-sheet {
+    width: 100%;
+    max-width: 480px;
+    max-height: 85dvh;
+    display: flex;
+    flex-direction: column;
+    background: var(--color-surface);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: var(--shadow-md);
+    padding-bottom: var(--safe-bottom);
+}
+
+.bottom-sheet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-4) var(--space-4) 0;
+}
+
+.bottom-sheet-header h2 {
+    margin: 0;
+}
+
+.bottom-sheet-close {
+    min-width: var(--tap-min);
+    min-height: var(--tap-min);
+    border: none;
+    background: transparent;
+    font-size: var(--text-lg);
+    cursor: pointer;
+    color: var(--color-text-muted);
+}
+
+.bottom-sheet-body {
+    overflow-y: auto;
+    padding: var(--space-3) var(--space-4) var(--space-5);
+}
+
+/* Three-across segmented control shared by the game-set-rule and point-rule "type" pickers.
+   ::deep: this content is passed in as ChildContent, so it renders with the *caller's* CSS
+   scope attribute, not this component's - ::deep reaches into it anyway (05-Conventions.md). */
+::deep .segmented {
+    display: flex;
+    gap: var(--space-2);
+    margin-bottom: var(--space-4);
+}
+
+::deep .segmented-option {
+    flex: 1 1 0;
+    min-height: var(--tap-min);
+    padding: var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: center;
+}
+
+::deep .segmented-option.is-selected {
+    background: var(--color-brand);
+    border-color: var(--color-brand);
+    color: var(--color-text-inverse);
+}
+
+::deep .sheet-field {
+    margin-bottom: var(--space-4);
+}
+
+::deep .sheet-field label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+}
+
+::deep .checkbox-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    max-height: 40vh;
+    overflow-y: auto;
+}
+
+::deep .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--tap-min);
+}
+
+::deep .checkbox-row input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+}
+
+::deep .search-result-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: var(--tap-min);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--color-border);
+}
