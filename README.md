@@ -331,6 +331,124 @@ negotiation. Do **not** add `UseBlazorFrameworkFiles()`: its private static-file
 endpoint middleware and returns 500 for every `/_framework` request once `MapStaticAssets()` owns
 those routes.
 
+## Deploy
+
+The home server (P8-02) runs one Windows service, `NcaafPickEm`, behind a Tailscale-issued HTTPS
+certificate, with SQL Server (Express is fine) on the same box. Everything below lives in
+`deploy/`.
+
+### First-time setup
+
+1. **Install Tailscale** on the home server and join the family's tailnet
+   (<https://tailscale.com/download>). Note the machine's tailnet hostname, e.g.
+   `pickem.tailnet-1234.ts.net` (`tailscale status` shows it).
+2. **Issue the HTTPS certificate**:
+
+   ```powershell
+   ./deploy/renew-cert.ps1 -TailnetHost pickem.tailnet-1234.ts.net -CertDir C:\NcaafPickEm\cert
+   ```
+
+   Writes `<host>.crt` / `<host>.key` (PEM) into `-CertDir`. Tailscale certs expire on the order
+   of months; register the monthly renewal task once the service exists (step 5 below).
+3. **Google OAuth**: add the redirect URI `https://<host>.<tailnet>.ts.net/auth/callback/google`
+   and the JavaScript origin `https://<host>.<tailnet>.ts.net` to the OAuth client from "Google
+   OAuth dev setup" above (or a separate production client - either works, they just need this
+   redirect URI registered).
+4. **Configure**: `cp deploy/.env.example deploy/.env` and fill in every value - see the comments
+   in that file for what each key means. `Kestrel__Certificates__Default__Path`/`KeyPath` must
+   point at the cert files from step 2; `App__PublicOrigin` and `ASPNETCORE_URLS`'s port must
+   agree with each other and with the Google redirect URI's host. `deploy/.env` is gitignored;
+   never commit it. `deploy/appsettings.Production.template.json` documents the same keys (plus
+   the ones the app reads from `appsettings.json` instead of the environment, like `Kestrel` and
+   `AllowedHosts`) for reference - it is not read directly; `install-service.ps1` writes `.env`'s
+   keys straight into the service's own environment.
+5. **Generate VAPID keys** (see "Web push (VAPID) keys" above) and put the pair into `deploy/.env`.
+6. **Install the service**:
+
+   ```powershell
+   ./deploy/install-service.ps1
+   ```
+
+   Publishes Release (trimmed, Brotli), creates `C:\NcaafPickEm\{app,logs,backups}`, creates the
+   `NcaafPickEm` Windows service pointed at the published exe, writes `.env`'s keys into the
+   service's own registry environment (not the machine-wide environment), sets it to auto-restart
+   on crash and start automatically on boot, starts it, and polls `/health/ready`. Idempotent -
+   re-running it stops the service, republishes over the same folder, and starts it again.
+7. **Register the recurring tasks** (SQL Server Express has no Agent, hence Task Scheduler):
+
+   ```powershell
+   ./deploy/register-backup-task.ps1
+   ./deploy/register-renew-cert-task.ps1 -TailnetHost pickem.tailnet-1234.ts.net
+   ```
+8. **Run the first backup and verify it restores** (see "Backups" below) before calling the setup
+   done.
+9. From a phone joined to the same tailnet, open `https://<host>.<tailnet>.ts.net[:port]/` in
+   Safari, sign in with Google, and Add to Home Screen.
+
+### Redeploying (a code/config change already on `main`)
+
+```powershell
+./deploy/deploy.ps1
+```
+
+Runs `dotnet ef database update`, stops the service, republishes, starts it, and polls
+`/health/ready` for up to 60 s (prints the last 20 log lines on failure). Refuses to run from
+Saturday 10:00 ET through Sunday 03:00 ET - the game window (Feature 10) - unless you pass
+`-Force`. `-WhatIf` prints every step, including whether the Saturday guard would currently block,
+without touching anything.
+
+### Tailscale HTTPS
+
+- `tailscale cert <host>.<tailnet>.ts.net` (wrapped by `deploy/renew-cert.ps1`) writes a PEM
+  cert+key pair; Kestrel's `Certificates:Default:Path`/`KeyPath` accept that pair directly (no
+  `.pfx` conversion needed, since .NET 5). One cert covers every HTTPS endpoint Kestrel binds.
+- The cert is only trusted by other devices on the same tailnet - that is the entire security
+  model here; nothing is exposed to the public Internet.
+- **Renewal**: `deploy/renew-cert.ps1` re-runs `tailscale cert` and restarts the service so Kestrel
+  picks up the new files (it only reads them at startup). `deploy/register-renew-cert-task.ps1`
+  schedules this every 4 weeks via Task Scheduler.
+- Google OAuth redirect URI: `https://<host>.<tailnet>.ts.net/auth/callback/google`.
+  `App__PublicOrigin` must match the scheme+host+port members see, since invite links
+  (`InviteResponse.Url`) are built from it.
+
+### Backups
+
+- `deploy/backup.sql` runs `BACKUP DATABASE ... WITH CHECKSUM, INIT` into
+  `deploy/.env`'s `BACKUP_FOLDER` (no `COMPRESSION`: that option is Standard/Enterprise-only and
+  SQL Server Express rejects it outright - confirmed while validating this script against
+  LocalDB, which reports as Express).
+- `deploy/backup.ps1` runs it (via a resolved copy of `backup.sql`, not `sqlcmd -v` - see the
+  comment in that script for why: this machine's `sqlcmd -v` mis-tokenizes any value containing a
+  drive-letter colon) and prunes `.bak` files older than 30 days.
+- `deploy/register-backup-task.ps1` schedules it daily at 03:45 local time via Task Scheduler
+  (SQL Server Express has no SQL Server Agent).
+- `deploy/restore-verify.ps1` restores the latest `.bak` into a throwaway
+  `<DatabaseName>_RestoreCheck` database, runs `DBCC CHECKDB`, prints `Users`/`Leagues`/`Picks`
+  row counts, then drops the scratch database. Run it once by hand after the first real nightly
+  backup lands, and periodically afterwards - a green `BACKUP DATABASE` exit code is not proof a
+  file is actually restorable.
+
+## Operate
+
+- **Data status page**: `/admin/data` (any commissioner) shows the last refresh attempt/success
+  per data type, the CFBD monthly call counter, the live-score source and staleness banner, and a
+  recent-jobs table. Use it first when something looks stale.
+- **Corrections**: a commissioner can override a game's result or void it from the week
+  configuration page (`/leagues/{id}/config/week/{week}`); scoring recomputes from there. There is
+  no separate "corrections" surface.
+- **Backups**: land nightly at 03:45 local in `BACKUP_FOLDER` (`deploy/.env`), retained 30 days.
+  Confirm the file appears the morning after the first deploy, and periodically run
+  `deploy/restore-verify.ps1` - see "Backups" above.
+- **Saturday rules**: `deploy/deploy.ps1` refuses to run from Saturday 10:00 ET to Sunday 03:00 ET
+  (the SaturdayPoller's own window) unless `-Force` is passed. Do not pass `-Force` on a normal
+  Saturday; it exists for a genuine emergency fix.
+- **Logs**: `logs/ncaaf-<date>.log` under the app's content root (`C:\NcaafPickEm\app\logs` with
+  the layout above), daily rolling, 31 files retained. `deploy/deploy.ps1` prints the last 20 lines
+  automatically when a redeploy's health check fails.
+- **Service control**: `Get-Service NcaafPickEm`, `Restart-Service NcaafPickEm`,
+  `Stop-Service NcaafPickEm`. Set to auto-restart on crash and start automatically on boot by
+  `install-service.ps1`.
+
 ## Package versions
 
 Central Package Management is on: every `PackageReference` in the repo is versionless and
