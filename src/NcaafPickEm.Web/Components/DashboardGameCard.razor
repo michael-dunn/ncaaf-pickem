@@ -33,7 +33,7 @@
                 case GameStatus.InProgress:
                     @if (Dto.Game.Period is { } period && !string.IsNullOrWhiteSpace(Dto.Game.Clock))
                     {
-                        <span>Q@period @Dto.Game.Clock &middot; @Dto.Game.AwayScore-@Dto.Game.HomeScore</span>
+                        <span>Q@(period) @Dto.Game.Clock &middot; @Dto.Game.AwayScore-@Dto.Game.HomeScore</span>
                     }
                     else
                     {
