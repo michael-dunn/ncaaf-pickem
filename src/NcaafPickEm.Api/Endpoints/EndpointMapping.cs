@@ -28,6 +28,7 @@ public static class EndpointMapping
             .AddEndpointFilter<CsrfEndpointFilter>();
 
         api.MapAdminEndpoints();
+        api.MapCorrectionEndpoints();
         api.MapDashboardEndpoints();
         api.MapGameSetEndpoints();
         api.MapInviteEndpoints();
