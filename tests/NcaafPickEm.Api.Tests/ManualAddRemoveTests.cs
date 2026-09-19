@@ -205,6 +205,100 @@ public sealed class ManualAddRemoveTests
     }
 
     [Fact]
+    public async Task GivenAWeekAlreadyAtFiftyGames_WhenReAddingAPreviouslyRemovedGame_ThenItIs409()
+    {
+        // Same shape as the 51st-game test, on a season year of its own (2097) so the synthetic
+        // games cannot leak into another test's eligible pool. The 51st game already has a row,
+        // flagged removed: flipping it back would take the set to 51 active games, so the cap
+        // must refuse it exactly as it refuses a brand new row.
+        await FixtureGameData.EnsureSeededAsync(_fixture.Factory);
+
+        const int seasonYear = 2097;
+        const int week = 1;
+
+        User commissioner = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "Commish"));
+        League league = await _fixture.Factory.QueryDbAsync(async db =>
+        {
+            var created = new League
+            {
+                Id = Guid.CreateVersion7(),
+                Name = $"Re-add League {Guid.CreateVersion7().ToString()[..8]}",
+                SeasonYear = seasonYear,
+                FirstWeek = week,
+                LastWeek = week,
+                DefaultPointValue = 10,
+                CreatedByUserId = commissioner.Id,
+                CreatedUtc = DateTime.UtcNow,
+            };
+            db.Leagues.Add(created);
+            await db.SaveChangesAsync();
+            return created;
+        });
+        await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
+        HttpClient client = _fixture.Factory.CreateMutatingClientAs(commissioner.Id);
+
+        WeekGameSet set = await _fixture.Factory.QueryDbAsync(async db =>
+        {
+            var created = new WeekGameSet
+            {
+                Id = Guid.CreateVersion7(),
+                LeagueId = league.Id,
+                Week = week,
+                UsesOverride = false,
+                GeneratedUtc = DateTime.UtcNow,
+            };
+            db.WeekGameSets.Add(created);
+            await db.SaveChangesAsync();
+            return created;
+        });
+
+        Guid michiganId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900101);
+        Guid otherTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900102);
+        DateTime kickoffUtc = new(2097, 1, 5, 17, 0, 0, DateTimeKind.Utc); // 2097-01-05 is a Saturday.
+
+        Guid removedGameId = Guid.CreateVersion7();
+
+        await _fixture.Factory.ExecuteDbAsync(async db =>
+        {
+            for (int i = 0; i < 51; i++)
+            {
+                var game = new Domain.Seasons.Game
+                {
+                    Id = i == 50 ? removedGameId : Guid.CreateVersion7(),
+                    CfbdGameId = 93_000_000 + i,
+                    SeasonYear = seasonYear,
+                    Week = week,
+                    HomeTeamId = michiganId,
+                    AwayTeamId = otherTeamId,
+                    KickoffUtc = kickoffUtc,
+                    KickoffEasternDate = DateOnly.FromDateTime(kickoffUtc),
+                    IsSaturdayEastern = true,
+                    IsConferenceGame = false,
+                    Status = GameStatus.Scheduled,
+                };
+                db.Games.Add(game);
+
+                db.WeekGameSetGames.Add(new WeekGameSetGame
+                {
+                    Id = Guid.CreateVersion7(),
+                    WeekGameSetId = set.Id,
+                    GameId = game.Id,
+                    Source = GameSetGameSource.Manual,
+                    IsRemoved = i == 50,
+                    RemovedReason = i == 50 ? "Manual" : null,
+                });
+            }
+
+            await db.SaveChangesAsync();
+        });
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/leagues/{league.Id}/weeks/{week}/gameset/games", new AddGameRequest(removedGameId));
+
+        response.StatusCode.Should().Be(HttpStatusCode.Conflict);
+    }
+
+    [Fact]
     public async Task GivenAnActiveGame_WhenRemovingManually_ThenItIsFlaggedAndAnExistingPickSurvives()
     {
         (League league, HttpClient client, Guid membershipId) = await CreateCommishLeagueAsync();
@@ -244,6 +338,81 @@ public sealed class ManualAddRemoveTests
             Pick pick = await db.Picks.SingleAsync(p => p.WeekGameSetGameId == gameSetGameId);
             pick.PickedTeamId.Should().Be(michiganId);
         });
+    }
+
+    [Fact]
+    public async Task GivenTheFixtureWeek_WhenSearchingCandidates_ThenOnlyEligibleGamesComeBackInKickoffOrder()
+    {
+        (_, HttpClient client, _) = await CreateCommishLeagueAsync();
+
+        using HttpResponseMessage response = await client.GetAsync(
+            $"/api/seasons/{FixtureGameData.SeasonYear}/weeks/{FixtureGameData.Week}/games");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        GameCandidate[]? candidates = await response.Content.ReadFromJsonAsync<GameCandidate[]>();
+
+        candidates.Should().NotBeEmpty();
+        candidates.Should().Contain(c => c.HomeTeam.School == "Michigan" && c.AwayTeam.School == "Texas");
+        candidates.Should().NotContain(c => c.HomeTeam.School == "Penn State", "Youngstown State is FCS");
+        candidates.Should().NotContain(c => c.HomeTeam.School == "Boise State", "that game kicks off on Friday Eastern");
+        candidates!.Select(c => c.KickoffUtc).Should().BeInAscendingOrder();
+    }
+
+    [Fact]
+    public async Task GivenASearchTerm_WhenSearchingCandidates_ThenOnlyMatchingGamesComeBack()
+    {
+        (_, HttpClient client, _) = await CreateCommishLeagueAsync();
+
+        using HttpResponseMessage response = await client.GetAsync(
+            $"/api/seasons/{FixtureGameData.SeasonYear}/weeks/{FixtureGameData.Week}/games?search=Michigan");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        GameCandidate[]? candidates = await response.Content.ReadFromJsonAsync<GameCandidate[]>();
+
+        candidates.Should().NotBeEmpty();
+        candidates.Should().OnlyContain(c =>
+            c.HomeTeam.School.Contains("Michigan") || c.AwayTeam.School.Contains("Michigan"));
+    }
+
+    [Fact]
+    public async Task GivenACallerWhoCommissionsNoLeague_WhenSearchingCandidates_ThenItIs403()
+    {
+        await FixtureGameData.EnsureSeededAsync(_fixture.Factory);
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+
+        string route = $"/api/seasons/{FixtureGameData.SeasonYear}/weeks/{FixtureGameData.Week}/games";
+
+        using HttpResponseMessage anonymous = await _fixture.Factory.CreateClient().GetAsync(route);
+        anonymous.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        using HttpResponseMessage member = await _fixture.Factory.CreateClientAs(scenario.MemberUserId).GetAsync(route);
+        member.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        using HttpResponseMessage commissioner =
+            await _fixture.Factory.CreateClientAs(scenario.CommissionerUserId).GetAsync(route);
+        commissioner.StatusCode.Should().Be(HttpStatusCode.OK);
+    }
+
+    [Fact]
+    public async Task GivenTwoActiveGames_WhenRemovingTheEarlierOne_ThenLockAtUtcMovesToTheRemainingKickoff()
+    {
+        (League league, HttpClient client, _) = await CreateCommishLeagueAsync();
+        Guid earlyGameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700002);  // Maryland / Rutgers, 16:00Z
+        Guid lateGameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700001);   // Michigan / Texas, 19:30Z
+
+        await client.PostAsJsonAsync($"/api/leagues/{league.Id}/weeks/7/gameset/games", new AddGameRequest(earlyGameId));
+        await client.PostAsJsonAsync($"/api/leagues/{league.Id}/weeks/7/gameset/games", new AddGameRequest(lateGameId));
+
+        using HttpResponseMessage response = await client.DeleteAsync(
+            $"/api/leagues/{league.Id}/weeks/7/gameset/games/{earlyGameId}");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        WeekGameSetResponse? body = await response.Content.ReadFromJsonAsync<WeekGameSetResponse>();
+        body!.LockAtUtc.Should().Be(new DateTimeOffset(2026, 10, 17, 19, 30, 0, TimeSpan.Zero));
+
+        DateTime? persisted = await _fixture.Factory.QueryDbAsync(
+            db => db.WeekGameSets.Where(s => s.LeagueId == league.Id && s.Week == 7).Select(s => s.LockAtUtc).SingleAsync());
+        persisted.Should().Be(new DateTime(2026, 10, 17, 19, 30, 0, DateTimeKind.Utc));
     }
 
     [Fact]
