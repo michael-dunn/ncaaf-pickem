@@ -44,6 +44,9 @@ try
     app.UseAuthentication();
     app.UseAuthorization();
 
+    // After UseStatusCodePages, so the 429 it writes comes back as ProblemDetails (P8-01).
+    app.UseRateLimiter();
+
     // Hosting of the Blazor WebAssembly PWA (NcaafPickEm.Web) as one deployable unit.
     // MapStaticAssets serves the Web project's wwwroot *and* its _framework payload from the
     // static-asset endpoint manifest, with fingerprinting and Brotli/gzip negotiation built in.
