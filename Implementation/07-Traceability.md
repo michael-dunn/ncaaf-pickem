@@ -133,13 +133,13 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 08 - Authentication
 
-| AC group | Task | Proof |
-|---|---|---|
-| First login creates account; returning matched by subject | P0-03 | A `AuthTests` with fake Google handler |
-| Works in iOS standalone | P0-04, P8-03 | Manual on iPhone - steps in `Implementation/screenshots/e2e/README.md` (Manual pending, operator) |
-| 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03 | A cookie attribute assertions |
-| Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A |
-| Member/commissioner authorization; non-member 404 | P0-03 + every endpoint task | A auth matrix test per group |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| First login creates account; returning matched by subject | P0-03 | A `AuthTests` with fake Google handler | PASS: `AuthTests.GivenNewGoogleAccount_WhenSigningIn_ThenTheUserIsCreatedFromTheGoogleProfile`, `.GivenAReturningAccount_WhenSigningInAgain_ThenItMatchesBySubjectAndDoesNotDuplicate` |
+| Works in iOS standalone | P0-04, P8-03 | Manual on iPhone - steps in `Implementation/screenshots/e2e/README.md` (Manual pending, operator) | MANUAL PENDING (operator): `Implementation/screenshots/e2e/README.md` (21-step walkthrough); also `Implementation/reviews/operator-checklist.md` item 8 |
+| 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03 | A cookie attribute assertions | PASS: `CookieSecurityTests.GivenARealSignIn_WhenTheCookieIsIssued_ThenTheHeaderCarriesEveryFlag`; `AuthTests.GivenASignedInSession_WhenLoggingOut_ThenTheCookieIsClearedAndMeIsUnauthorized` |
+| Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A | PASS: `DisplayNameTests.GivenAOneCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyOneCharacterOverride_WhenSettingIt_ThenItIsRejected`, `.GivenANameAlreadyUsedByAnotherActiveMember_WhenSettingIt_ThenItIs409`; `AuthTests.GivenAGoogleProfileNameOver30Characters_WhenSigningIn_ThenTheDisplayNameIsTrimmed` |
+| Member/commissioner authorization; non-member 404 | P0-03 + every endpoint task | A auth matrix test per group | PASS: one `*AuthMatrixTests`/`AuthMatrix.RunAsync` group per endpoint group (`GameSetAuthMatrixTests`, `PicksAuthMatrixTests`, `LeaderboardAuthMatrixTests`, `CorrectionsAuthMatrixTests`, `AuthMatrixTests`, plus `GeneratedAuthMatrixTests`'s inventory-driven sweep of every route) |
 
 ## Feature 09 - Game Data Feed
 
