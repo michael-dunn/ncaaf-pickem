@@ -19,12 +19,17 @@ public sealed class CfbdReferenceDataProvider : IReferenceDataProvider
 {
     private readonly ApiClient _client;
     private readonly IProviderCallRecorder _recorder;
+    private readonly TimeProvider _timeProvider;
 
     /// <summary>Creates the provider.</summary>
-    public CfbdReferenceDataProvider(ApiClient client, IProviderCallRecorder recorder)
+    /// <param name="client">The Kiota-generated CFBD client.</param>
+    /// <param name="recorder">Writes one <c>ProviderCalls</c> row per outbound call.</param>
+    /// <param name="timeProvider">The only clock this codebase may read (05-Conventions.md).</param>
+    public CfbdReferenceDataProvider(ApiClient client, IProviderCallRecorder recorder, TimeProvider timeProvider)
     {
         _client = client;
         _recorder = recorder;
+        _timeProvider = timeProvider;
     }
 
     /// <inheritdoc />
@@ -170,7 +175,7 @@ public sealed class CfbdReferenceDataProvider : IReferenceDataProvider
             return [];
         }
 
-        DateTime fetchedUtc = DateTime.UtcNow;
+        DateTime fetchedUtc = _timeProvider.GetUtcNow().UtcDateTime;
         List<ProviderLine> result = [];
         foreach (BettingGame bettingGame in bettingGames)
         {

@@ -79,7 +79,20 @@ public sealed class ReferenceDataIngestService
     /// Upserts <c>SeasonWeeks</c> from CFBD's calendar, normalized per
     /// <see cref="CfbdCalendarNormalization"/>.
     /// </summary>
-    public Task<CalendarIngestResult> IngestCalendarAsync(int season, CancellationToken cancellationToken = default) =>
+    public async Task<CalendarIngestResult> IngestCalendarAsync(int season, CancellationToken cancellationToken = default)
+    {
+        CalendarIngestResult result = await IngestCalendarCoreAsync(season, cancellationToken).ConfigureAwait(false);
+
+        if (result.Success)
+        {
+            // DbSeasonWeekSource caches weeks per season for a few minutes; the rows just changed.
+            DbSeasonWeekSource.Invalidate(season);
+        }
+
+        return result;
+    }
+
+    private Task<CalendarIngestResult> IngestCalendarCoreAsync(int season, CancellationToken cancellationToken) =>
         RunAsync(
             CalendarRefreshDataType,
             async () =>
@@ -567,6 +580,8 @@ public sealed class ReferenceDataIngestService
             status.LastSuccessUtc = nowUtc;
             status.LastError = null;
             await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            _logger.LogInformation("{DataType} ingest succeeded: {Result}", dataType, result);
 
             return result;
         }

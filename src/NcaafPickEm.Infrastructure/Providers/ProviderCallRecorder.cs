@@ -86,14 +86,19 @@ public sealed class ProviderCallRecorder : IProviderCallRecorder
     {
         DateTimeOffset now = _timeProvider.GetUtcNow();
         DateTime monthStartUtc = new(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        DateTime nextMonthStartUtc = monthStartUtc.AddMonths(1);
         string providerName = provider.ToString();
 
         await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
         AppDbContext database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+        // Half-open [monthStart, nextMonthStart) so the count is the calendar month and nothing
+        // else: an open-ended lower bound would also fold in any row stamped later than "now".
         return await database.ProviderCalls
             .AsNoTracking()
-            .Where(call => call.Provider == providerName && call.StartedUtc >= monthStartUtc)
+            .Where(call => call.Provider == providerName
+                && call.StartedUtc >= monthStartUtc
+                && call.StartedUtc < nextMonthStartUtc)
             .CountAsync(cancellationToken)
             .ConfigureAwait(false);
     }

@@ -108,6 +108,11 @@ public static class DependencyInjection
 
         RegisterReferenceDataProvider(services, configuration, referenceDataProvider, environment);
 
+        // Provider-neutral: it ingests whatever IReferenceDataProvider is registered above, so it
+        // must be resolvable under Fixture too (P2-04's refresh jobs and the admin refresh route
+        // run in Development against the fixture provider).
+        services.TryAddScoped<ReferenceDataIngestService>();
+
         string liveScoreProvider = configuration["Providers:LiveScores"] ?? string.Empty;
         RegisterLiveScoreProvider(services, liveScoreProvider, environment);
 
@@ -171,8 +176,6 @@ public static class DependencyInjection
             var requestAdapter = new HttpClientRequestAdapter(authenticationProvider, httpClient: httpClient);
             return new ApiClient(requestAdapter);
         });
-
-        services.TryAddScoped<ReferenceDataIngestService>();
     }
 
     private static void RegisterLiveScoreProvider(
