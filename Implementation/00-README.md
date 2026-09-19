@@ -18,7 +18,13 @@ The stories are the requirements. This plan is how the work is cut, ordered, ass
 | `Phases/Phase-N-*.md` | Task cards: scope, inputs, deliverables, tests, agent tier, who to talk to. | Assigned agents |
 | `DECISIONS.md` | Append-only log of decisions made during implementation. | Everyone; write when you decide something not in the plan |
 | `STATUS.md` | Live task board. One line per task, updated by the agent that owns it. | Orchestrator |
+| `AGENT-NOTES.md` | Living file of practical facts every implementation agent needs (environment, git workflow, composition root, auth, jobs, push, providers, fixtures). | Every agent, after `00`/`05`/`06` |
 | `reviews/security-review.md` | P8-01's security and correctness review: every route's auth scope and CSRF cover, the three "never" rules, rate limiting, dependency and secret audits, findings and their resolution. | Orchestrator for sign-off; any agent adding an endpoint |
+| `reviews/operator-checklist.md` | Every "Manual pending (operator)" item across the whole plan, in one ordered checklist with exact steps or the doc that has them. | The operator, before/during first real deploy |
+| `spikes/providers.md` | P2-01's live-capture spike against the real ESPN scoreboard and CFBD APIs: tier confirmation, corrections to the assumed contract, the verified team-alias draft. | Provider/domain agents, orchestrator |
+| `spikes/wasm-load-time.md` | P0-04's measured Blazor WASM load-time spike (cold/warm, localhost) against the 2 s/5 s budget, plus the pending phone-over-Tailscale measurement. | Orchestrator, anyone touching client startup |
+| `screenshots/` | 375px UI screenshots, one per page/state, named `p<task>-<state>-375.png`. | Orchestrator for sign-off; P8-04 traceability |
+| `screenshots/e2e/README.md` | The 21-step manual iPhone walkthrough of a full simulated week on the deployed server (P8-03), with exact screenshot filenames to save. | Operator, before the real season starts |
 
 Rule of precedence when documents disagree: **WorkItems story > 04-Domain-Algorithms > 02-Data-Model / 03-API-Contracts > Phase task card > DECISIONS.md.** If a story is ambiguous, the algorithm file decides; if the algorithm file is silent, log a decision in `DECISIONS.md` and continue.
 
