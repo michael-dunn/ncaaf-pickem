@@ -35,7 +35,11 @@ public static class InviteEndpoints
 
         RouteGroupBuilder invites = api.MapGroup("/invites")
             .WithTags("invites")
-            .RequireAuthorization(PolicyNames.Authenticated);
+            .RequireAuthorization(PolicyNames.Authenticated)
+
+            // P8-01: an invite code is the one secret a signed-in stranger can guess their way
+            // into a league with, so preview and accept get a fixed window per client IP.
+            .RequireRateLimiting(RateLimitingSetup.InvitePolicy);
 
         invites.MapGet("/{code}", PreviewAsync)
             .WithName("InvitePreview");
