@@ -155,14 +155,14 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 10 - Hosting and Platform
 
-| AC group | Task | Proof |
-|---|---|---|
-| Manifest, standalone, icons | P0-04 | Manual install on iPhone |
-| 375px first; no horizontal scroll; 44px; 16px | all UI tasks | UI checklist in each card |
-| Single deployable; env config; no secrets | P0-01, P8-02 | Ops |
-| Jobs in-process | P0-06 | Architecture |
-| Single DB; nightly backups 30 days; UTC storage | P8-02, P0-02 | Ops, D |
-| No Saturday deploys | P8-02 | deploy script guard |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Manifest, standalone, icons | P0-04 | Manual install on iPhone | PASS: `manifest.webmanifest` (icons, `display: standalone`) shipped and served, confirmed by build; MANUAL PENDING (operator): physical iPhone install — `Implementation/spikes/wasm-load-time.md` "Operator to-do", also `reviews/operator-checklist.md` item 2 |
+| 375px first; no horizontal scroll; 44px; 16px | all UI tasks | UI checklist in each card | PASS: every screenshot under `Implementation/screenshots/*.png` was captured at `scrollWidth === clientWidth === 375` (asserted by the capturing script per task, per each task's STATUS.md note); `app.css` sets the 44px tap-target and 16px base tokens (P0-04) |
+| Single deployable; env config; no secrets | P0-01, P8-02 | Ops | PASS: `dotnet publish src/NcaafPickEm.Api -c Release` produces one folder serving both API and Blazor app (`README.md` "Publish"); config is entirely environment variables / `appsettings*.json` (`Implementation/01-Architecture.md` "Configuration"); `deploy/.env.example` + `.gitignore`'s `.env`/`.env.*`/`!.env.example` rules keep secrets out of the repo (confirmed clean by the security review's secrets audit, §7) |
+| Jobs in-process | P0-06 | Architecture | PASS: `JobScheduler`/`SaturdayPoller` are both `BackgroundService`s hosted inside `NcaafPickEm.Api` (`Implementation/01-Architecture.md` "Runtime shape"; `JobSchedulerTests`) |
+| Single DB; nightly backups 30 days; UTC storage | P8-02, P0-02 | Ops, D | PASS: one `AppDbContext`/`ConnectionStrings:Default`; `deploy/backup.ps1` (nightly 03:45, `deploy/register-backup-task.ps1`) + 30-day prune, `deploy/restore-verify.ps1` run once against real LocalDB per the P8-02 STATUS note (backup succeeded 3.9 MB, restore + `DBCC CHECKDB` succeeded); UTC storage confirmed by the security review's `DateTime.UtcNow` grep (zero hits outside `TimeProvider`, §4.3). First real nightly backup appearing on the deployed server: MANUAL PENDING (operator) — `reviews/operator-checklist.md` item 5 |
+| No Saturday deploys | P8-02 | deploy script guard | PASS: `deploy/deploy.ps1`'s Saturday 10:00 ET - Sunday 03:00 ET guard (`-WhatIf`-verified dry run per the P8-02 STATUS note), overridable only with `-Force` |
 
 ## Feature 11 - Notifications
 
