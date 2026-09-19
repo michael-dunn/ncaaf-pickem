@@ -109,15 +109,18 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 
 | AC group | Task | Proof |
 |---|---|---|
-| Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, UI |
-| Trend indicator; none on first week | P5-03 | D `TrendTests` |
+| Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...`, UI |
+| Trend indicator; none on first week | P5-03 | D `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...` / `GivenOnlyOneSnapshotWeek_...`, A `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_...` |
 | No champion banner | P5-04 | UI |
-| Week rows, correct count, trophy, ties share | P5-03, P5-04 | D, UI |
-| In Progress label | P5-04 | UI |
-| Grid with colors, voided greyed, pinned column, horizontal scroll | P5-04 | UI |
-| Prev/next, jump to current, only generated weeks | P5-04 | UI, A `LeagueWeeksTests` |
-| Former members in past weeks only | P5-03 | D |
+| Week rows, correct count, trophy, ties share | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...`, UI |
+| In Progress label | P5-04 | UI (server flag: A `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_...`) |
+| Grid with colors, voided greyed, pinned column, horizontal scroll | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAGrid_...`, A `LeaderboardEndpointsTests.GivenALockedWeek_...`, UI |
+| Grid hidden before lock | P5-03 | A `LeaderboardEndpointsTests.GivenAnUnlockedWeek_WhenReadingTheGrid_ThenItIs403` |
+| Prev/next, jump to current, only generated weeks | P5-03, P5-04 | UI, A `LeaderboardEndpointsTests.GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable` |
+| Former members in past weeks only | P5-03 | D `StandingsCalculatorTests.GivenAFormerMember_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...` |
+| Mid-season joiners scored from their own weeks | P5-03 | D `StandingsCalculatorTests.GivenAMidSeasonJoiner_...`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...` |
 | Under 1 s for 50 members x 15 weeks | P5-03 | A `LeaderboardPerfTests` with seeded data |
+| Leaderboard authorization | P5-03 | A `LeaderboardAuthMatrixTests` |
 
 ## Feature 08 - Authentication
 

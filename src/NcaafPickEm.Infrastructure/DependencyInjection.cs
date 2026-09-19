@@ -105,6 +105,11 @@ public static class DependencyInjection
         services.AddScoped<LeagueService>();
         services.AddScoped<InviteService>();
 
+        // Leaderboards (P5-03). The snapshot writer must be registered before P5-01's
+        // TryAddScoped of the no-op one, so the real implementation wins.
+        services.AddScoped<IStandingsSnapshotWriter, StandingsSnapshotWriter>();
+        services.AddScoped<LeaderboardService>();
+
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
         // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.

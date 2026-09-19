@@ -8,8 +8,10 @@ namespace NcaafPickEm.Shared.Contracts.Picks;
 /// </summary>
 /// <param name="Games">Active games ordered by kickoff.</param>
 /// <param name="Members">
-/// Every membership that was active at lock — that is, every one holding a <c>WeekSubmissions</c>
-/// row — including members who have since left the league.
+/// Every membership that was active at lock — that is, every one the lock job settled, holding a
+/// <c>WeekSubmissions</c> row with status <c>Locked</c> or <c>Incomplete</c> (D-135) — including
+/// members who have since left the league. A member who picked and then left <em>before</em> the
+/// week locked is not one of them.
 /// </param>
 public sealed record WeekPicksResponse(
     GameSetGameDto[] Games,

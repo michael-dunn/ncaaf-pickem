@@ -31,14 +31,14 @@ public static class EndpointMapping
         api.MapDashboardEndpoints();
         api.MapGameSetEndpoints();
         api.MapInviteEndpoints();
+        api.MapLeaderboardEndpoints();
         api.MapLeagueEndpoints();
         api.MapPickEndpoints();
         api.MapPointRuleEndpoints();
         api.MapReferenceEndpoints();
         api.MapSeasonEndpoints();
 
-        // One line per feature, alphabetical. Later phases add:
-        //   api.MapLeaderboardEndpoints();   (P5-03)
+        // One line per feature, alphabetical.
         api.MapMeEndpoints();
         api.MapPushEndpoints();
 

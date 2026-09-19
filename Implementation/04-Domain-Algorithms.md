@@ -149,13 +149,19 @@ Overrides and voids are allowed only after lock. Both write `AuditLog` and trigg
 
 Owner: `Leaderboard/StandingsCalculator`. Tests: `StandingsCalculatorTests`.
 
-Season rows: active memberships only (RemovedUtc null). `TotalPoints` = sum of `WeekResults.Points` across the league's weeks. Rank uses competition ranking ("1224"): equal totals share a rank, next rank skips. `PointsBehind = leaderTotal - TotalPoints`. `WeeklyWins` = count of Complete weeks where the member's points equal that week's max among members with a result row (ties share the win).
+The calculator is pure and takes flattened records, not entities (P5-03): `StandingsMember(MembershipId, DisplayName, IsFormer, JoinedWeek)`, `StandingsWeekResult(MembershipId, Week, Points, CorrectCount, ActiveGameCount, IsWeekComplete)`, `StandingsSnapshot(ThroughWeek, MembershipId, Rank, TotalPoints)`, `GridGame(GameSetGameId, IsVoided, WinnerTeamId)` and `GridPick(MembershipId, GameSetGameId, TeamId)` in; the `Shared/Contracts/Leaderboard` rows out (D-139). `GridGame.WinnerTeamId` is the caller's answer from `Scoring/WinnerResolver` (D-098) - the grid never re-derives it. Ordering everywhere is score descending, then display name case-insensitively, then `MembershipId`, so two runs over the same inputs produce the same list.
 
-Trend: compare the member's rank in `SeasonStandingsSnapshots(ThroughWeek = latest Complete week)` with `ThroughWeek = previous Complete week`. Lower rank number = `Up`. Missing previous snapshot (first Complete week, or member joined since) = `None`.
+Season rows: active memberships only (RemovedUtc null). `TotalPoints` = sum of `WeekResults.Points` across the league's weeks, counting only weeks from the member's `JoinedWeek` onwards - a mid-season joiner is measured on their own weeks. Rank uses competition ranking ("1224"): equal totals share a rank, next rank skips. `PointsBehind = leaderTotal - TotalPoints`. `WeeklyWins` = count of Complete weeks where the member's points equal that week's max among members with a result row (ties share the win). A week is Complete when every result row for it says `IsWeekComplete`, and the max is taken over all of them, former members included, so a week won by somebody who has since left is not reassigned (D-141).
+
+Trend: compare the member's rank in `SeasonStandingsSnapshots(ThroughWeek = latest Complete week)` with `ThroughWeek = previous Complete week`. Snapshots exist only for Complete weeks, so those are simply the two highest `ThroughWeek` values present. Lower rank number = `Up`. Missing previous snapshot (first Complete week, or member joined since) = `None`.
+
+`ComputeSnapshot(members, results, throughWeek)` is the same season ranking over the results up to and including `throughWeek`, and is exactly what `Infrastructure/Scoring/StandingsSnapshotWriter` persists when section 7 reports a week complete - so an arrow always compares like with like. The writer is idempotent: it recomputes and upserts every row for that `(LeagueId, ThroughWeek)` and drops rows for memberships that are no longer active.
 
 Week rows: every membership with a `WeekResults` row for that week, including former members (`IsFormer`). Rank by `Points` with competition ranking. `IsWinner` = Points == max and week `IsComplete`. Weeks not Complete are labeled provisional by the client using `IsComplete`.
 
-Grid: rows = active games ordered by kickoff (voided included, flagged), columns = memberships with a submission row for the week. Cell outcome: `Voided` > `NoPick` (no pick row) > `Pending` (no winner yet) > `Correct` / `Incorrect`.
+Grid: rows = active games ordered by kickoff (voided included, flagged), columns = the memberships the lock job settled for the week - a `WeekSubmissions` row with `Status` in (`Locked`, `Incomplete`), which is the same roster rule section 6's dashboard uses (D-135, D-142), ordered by display name then `MembershipId`. A member removed *since* lock still has a column, flagged `IsFormer`; one who picked and then left *before* lock has none, and neither does a post-lock joiner. Cell outcome: `Voided` > `NoPick` (no pick row) > `Pending` (no winner yet) > `Correct` / `Incorrect`. The grid answers 403 (`PicksNotVisible`, the same code `GET .../picks` uses) until `LockedUtc != null`.
+
+Navigation: `GET /api/leagues/{leagueId}/weeks` marks a week `HasGameSet` only when it holds at least one active `WeekGameSetGames` row, since a `WeekGameSets` row alone is created by simply touching a week (D-140).
 
 ## 9. Provider matching (Feature 12)
 

@@ -71,7 +71,7 @@ public sealed class PicksVisibilityTests
     }
 
     [Fact]
-    public async Task GivenAMemberWhoLeftAfterPicking_WhenTheWeekIsLocked_ThenTheyStillAppear()
+    public async Task GivenAMemberWhoLeftAfterTheWeekLocked_WhenReadingEveryonesPicks_ThenTheyStillAppear()
     {
         PickWeekScenario scenario = await PickWeekScenario.CreateAsync(_fixture.PinnedFactory);
         using HttpClient member = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.MemberUserId);
@@ -81,19 +81,40 @@ public sealed class PicksVisibilityTests
         await PickAsync(member, scenario, first, first.HomeTeam.TeamId);
         await PickAsync(second, scenario, first, first.AwayTeam.TeamId);
 
-        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
-        {
-            Membership leaving = await db.Memberships.SingleAsync(m => m.Id == scenario.SecondMemberMembershipId);
-            leaving.RemovedUtc = ApiTestFixture.PinnedNowUtc.UtcDateTime;
-            await db.SaveChangesAsync();
-        });
+        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+
+        await RemoveMemberAsync(scenario.SecondMemberMembershipId);
+
+        using HttpResponseMessage response = await member.GetAsync(scenario.PicksRoute);
+        WeekPicksResponse? body = await response.Content.ReadFromJsonAsync<WeekPicksResponse>();
+
+        body!.Members.Should().Contain(row => row.MembershipId == scenario.SecondMemberMembershipId,
+            "their picks were part of the week that locked");
+    }
+
+    [Fact]
+    public async Task GivenAMemberWhoPickedThenLeftBeforeLock_WhenReadingEveryonesPicks_ThenTheyHaveNoColumn()
+    {
+        PickWeekScenario scenario = await PickWeekScenario.CreateAsync(_fixture.PinnedFactory);
+        using HttpClient member = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.MemberUserId);
+        using HttpClient second = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.SecondMemberUserId);
+
+        GameSetGameDto first = scenario.Games[0];
+        await PickAsync(member, scenario, first, first.HomeTeam.TeamId);
+        await PickAsync(second, scenario, first, first.AwayTeam.TeamId);
+
+        // Removed *before* the lock, so the lock job never settles their row (D-111) and it is left
+        // behind at InProgress. "Has a WeekSubmissions row" would still name them; the roster rule
+        // is the status the job writes (D-135).
+        await RemoveMemberAsync(scenario.SecondMemberMembershipId);
 
         await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
         using HttpResponseMessage response = await member.GetAsync(scenario.PicksRoute);
         WeekPicksResponse? body = await response.Content.ReadFromJsonAsync<WeekPicksResponse>();
 
-        body!.Members.Should().Contain(row => row.MembershipId == scenario.SecondMemberMembershipId);
+        body!.Members.Should().NotContain(row => row.MembershipId == scenario.SecondMemberMembershipId);
+        body.Members.Should().ContainSingle(row => row.MembershipId == scenario.MemberMembershipId);
     }
 
     [Fact]
@@ -180,6 +201,14 @@ public sealed class PicksVisibilityTests
         pickRow.MyTeamId.Should().Be(first.HomeTeam.TeamId);
         pickRow.Game.WinnerTeamId.Should().Be(first.HomeTeam.TeamId, "the picks page colours a past week from WinnerTeamId");
     }
+
+    private async Task RemoveMemberAsync(Guid membershipId) =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+        {
+            Membership leaving = await db.Memberships.SingleAsync(m => m.Id == membershipId);
+            leaving.RemovedUtc = ApiTestFixture.PinnedNowUtc.UtcDateTime;
+            await db.SaveChangesAsync();
+        });
 
     private static async Task PickAsync(
         HttpClient client,
