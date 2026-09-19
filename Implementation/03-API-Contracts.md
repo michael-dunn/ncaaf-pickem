@@ -77,7 +77,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 `TeamDto { TeamId, School, Abbreviation?, ConferenceId?, LogoUrl? }`, `ConferenceDto { ConferenceId, Name, Abbreviation }`, `GameCandidate { GameId, HomeTeam, AwayTeam, HomeRank?, AwayRank?, KickoffUtc, IsConferenceGame }`. `GameSetPreview` also carries `UsedFallbackRankings`. `GameSetGameId` is null in previews. Record definitions live in `Shared/Contracts/{GameSets,Points,Reference}`.
 
-**P3-03 clarifications** (D-053/D-062, D-054/D-063, D-055/D-064):
+**P3-03 clarifications** (D-053/D-063, D-054/D-064, D-055/D-065):
 - Both `PUT .../gameset-rules` routes (default and week-override) **save only**; they never call `generate` themselves. The commissioner UI's "Save and generate" action is two calls: `PUT` then `POST .../generate`. The Tuesday auto-regeneration job (P3-04) is the other caller of `generate`.
 - `POST .../gameset/games` and `DELETE .../gameset/games/{gameId}` both return the full `WeekGameSetResponse` (same shape as `generate`/`GET .../gameset`), not a bare `GameSetGameDto` or `204`, so the caller does not need a second round trip to see the updated `LockAtUtc` or games list.
 - Any route carrying `{week}` 404s (`ProblemDetails` title `WeekOutOfRange`) when the week is outside the league's `FirstWeek..LastWeek` range, checked before anything else.
@@ -91,7 +91,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | PUT | `/api/leagues/{leagueId}/point-rules` | Commish | full replace; `Priority` is taken from each entry, not from array order (must be unique — validated); re-resolves all unlocked weeks immediately |
 | PUT | `/api/leagues/{leagueId}/weeks/{week}/gameset/games/{gameId}/points` | Commish | `SetPointOverrideRequest { PointValue? }` null clears; 409 if locked; re-resolves immediately -> `GameSetGameDto` |
 
-`ConferenceName`/`TeamName` (D-067) are read-only display echoes, added trailing/additive to `PointRuleDto` at P3-05's request while building the config UI in parallel — matches `GameSetRuleDto`'s existing echo fields.
+`ConferenceName`/`TeamName` (D-068) are read-only display echoes, added trailing/additive to `PointRuleDto` at P3-05's request while building the config UI in parallel — matches `GameSetRuleDto`'s existing echo fields.
 
 ## Picks (Feature 04)
 
