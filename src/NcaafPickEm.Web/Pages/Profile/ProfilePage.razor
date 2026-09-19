@@ -4,9 +4,9 @@
 @inject AppShellState Shell
 
 @*
-    Profile (P1-03, Feature 08). Global display name with inline edit, per-league name section
-    (effective name per league, with a set/clear override control), sign out, and the Phase 7
-    notifications placeholder slot.
+    Profile (P1-03, Feature 08; notifications section by P7-02). Global display name with inline
+    edit, per-league name section (effective name per league, with a set/clear override control),
+    push notification settings, and sign out.
 *@
 
 <PageTitle>Profile - NCAAF Pick Em</PageTitle>
@@ -104,7 +104,7 @@ else
         </div>
     }
 
-    <NotificationsSettingsPlaceholder />
+    <NotificationSettings IsCommissioner="@_isCommissioner" />
 
     <div class="card">
         <h2>Account</h2>
@@ -116,6 +116,7 @@ else
     private MeResponse? _me;
     private readonly Dictionary<Guid, string> _effectiveLeagueNames = [];
     private string? _error;
+    private bool _isCommissioner;
 
     private bool _editingGlobalName;
     private string _globalNameDraft = string.Empty;
@@ -137,6 +138,7 @@ else
         try
         {
             _me = await MeApi.GetMeAsync();
+            _isCommissioner = _me.Leagues.Any(league => league.MyRole == MembershipRole.Commissioner);
             await LoadEffectiveLeagueNamesAsync();
         }
         catch (LeaguesApiException ex)

@@ -161,6 +161,29 @@ a real `mailto:` or `https:` contact — push services reject anything else.
 **Keep the pair.** Replacing it invalidates every stored subscription, and every member has to turn
 notifications on again. Never commit the private key.
 
+### Notifications on iPhone
+
+On iPhone/iPad, push only works from an app added to the Home Screen and opened from that icon
+(iOS 16.4+); a regular Safari tab reports permission as denied and cannot receive push
+(WorkItems/11-Notifications.txt). This has to be checked on a physical device — an operator step,
+not something an agent in this environment can automate:
+
+1. Set a real VAPID key pair on the server (`deploy/generate-vapid.ps1`, above) and confirm
+   `GET /api/push/vapid-public-key` does not answer 503.
+2. On the iPhone, open the deployed app's URL in Safari and sign in with Google.
+3. Tap the **Share** icon in Safari's toolbar, then **Add to Home Screen**.
+4. Open the app from its new Home Screen icon, not from Safari — this is what makes
+   `navigator.standalone` true and unlocks the Notifications section on `/me` (otherwise it shows
+   the "add to Home Screen first" instructions with the "Turn on" action hidden).
+5. On the Profile page, tap **Turn on notifications** and accept the permission prompt.
+6. As a league commissioner, trigger a test push: either the Development/Testing-only "Send test
+   notification" button (built with `DefineConstants=USE_FAKE_API` unset, in a Debug client build
+   talking to a Development/Testing Api) or `POST /api/push/test` directly.
+7. Confirm the notification banner appears, and that tapping it brings the standalone app to the
+   foreground (or launches it) at the target page rather than opening a new Safari tab.
+
+Record the result in `Implementation/STATUS.md`'s P7-02 row.
+
 ## Google OAuth dev setup
 
 Sign-in is ASP.NET Core cookie authentication plus the Google handler, with no Identity (D-004).

@@ -34,6 +34,12 @@
       "type": "image/png",
       "sizes": "180x180",
       "purpose": "any"
+    },
+    {
+      "src": "badge-96.png",
+      "type": "image/png",
+      "sizes": "96x96",
+      "purpose": "monochrome"
     }
   ]
 }
