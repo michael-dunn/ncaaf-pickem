@@ -2,8 +2,10 @@
 @inject AppShellState Shell
 
 @*
-    "More" tab (P0-04 placeholder, filled in by P1-03): a small menu to Profile, plus a note that
-    data status / admin land in a later phase (P8).
+    "More" tab (P0-04 placeholder, filled in by P1-03 and P2-04): a small menu to Profile and the
+    commissioner Data status page. The link is shown to everyone; the page itself checks
+    commissioner status server-side (the 403 from GET /api/admin/data-status) and shows a
+    friendly message to anyone who is not one, rather than hiding the link client-side.
 *@
 
 <PageTitle>More - NCAAF Pick Em</PageTitle>
@@ -14,10 +16,8 @@
     <h2>Account</h2>
     <ul class="more-menu">
         <li><a class="more-menu-item" href="/me">Profile &rsaquo;</a></li>
+        <li><a class="more-menu-item" href="/admin/data">Data status &rsaquo;</a></li>
     </ul>
-    <p class="placeholder-note">
-        Data status and admin tools arrive in a later phase.
-    </p>
 </div>
 
 <div class="card">

@@ -1,0 +1,263 @@
+using System.Net;
+using System.Net.Http.Json;
+using Microsoft.EntityFrameworkCore;
+using NcaafPickEm.Api.Tests.Infrastructure;
+using NcaafPickEm.Domain.GameSets;
+using NcaafPickEm.Domain.Leagues;
+using NcaafPickEm.Domain.Operations;
+using NcaafPickEm.Domain.Seasons;
+using NcaafPickEm.Infrastructure.Providers.Fixture;
+using NcaafPickEm.Shared.Contracts.Admin;
+using NcaafPickEm.Shared.Enums;
+
+namespace NcaafPickEm.Api.Tests;
+
+/// <summary>
+/// The P2-04 admin actions: <c>POST /api/admin/refresh/{dataType}</c>,
+/// <c>POST /api/admin/unmatched/{id}/resolve</c>, and the counter/needs-review additions to
+/// <c>GET /api/admin/data-status</c>.
+/// </summary>
+[Collection(ApiTestCollection.Name)]
+public sealed class AdminEndpointsTests
+{
+    private readonly ApiTestFixture _fixture;
+
+    public AdminEndpointsTests(ApiTestFixture fixture)
+    {
+        _fixture = fixture;
+    }
+
+    [Fact]
+    public async Task GivenAnonymousCaller_WhenRefreshing_ThenItIs401()
+    {
+        using HttpClient client = _fixture.Factory.CreateClient();
+
+        using HttpResponseMessage response = await client.PostAsync("/api/admin/refresh/Teams", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+    }
+
+    [Fact]
+    public async Task GivenANonCommissioner_WhenRefreshing_ThenItIs403()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+        using HttpClient client = _fixture.Factory.CreateMutatingClientAs(scenario.MemberUserId);
+
+        using HttpResponseMessage response = await client.PostAsync("/api/admin/refresh/Teams", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
+    public async Task GivenACommissioner_WhenRefreshingTeams_ThenItIs202AndWritesAManualRefreshAuditRow()
+    {
+        // A real refresh writes DataRefreshStatus(Teams), which would break
+        // AdminDataStatusTests's "every slice is null until something runs" assumption on the
+        // shared fixture database; this test gets its own throwaway one instead
+        // (ProviderCallRecorderTests does the same for the same reason).
+        await using SqlTestDatabase database = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(database.ConnectionString);
+
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(factory);
+        using HttpClient client = factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsync("/api/admin/refresh/Teams", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        ManualRefreshResponse? body = await response.Content.ReadFromJsonAsync<ManualRefreshResponse>();
+        body.Should().NotBeNull();
+        body!.DataType.Should().Be(RefreshDataType.Teams);
+        body.Success.Should().BeTrue();
+
+        bool auditWritten = await factory.QueryDbAsync(db => db.AuditLog
+            .AsNoTracking()
+            .Where(entry => entry.LeagueId == scenario.LeagueId && entry.Action == AuditAction.ManualRefresh)
+            .AnyAsync());
+        auditWritten.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownDataType_WhenRefreshing_ThenItIs400()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+        using HttpClient client = _fixture.Factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsync("/api/admin/refresh/NotAThing", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task GivenAnUnmatchedGameAndAResolvingGame_WhenResolved_ThenAliasesAreCreatedAndItIsMarkedResolved()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+
+        (Guid unmatchedId, Guid gameId, Guid homeTeamId, Guid awayTeamId) = await _fixture.Factory.QueryDbAsync(async database =>
+        {
+            Game game = await database.Games
+                .Where(g => g.SeasonYear == FixtureSeasonWeekSource.FixtureSeasonYear && g.Week == 7)
+                .FirstAsync();
+
+            var unmatched = new UnmatchedGame
+            {
+                Id = Guid.CreateVersion7(),
+                Source = ProviderSource.Espn,
+                RawHomeName = $"Raw Home {Guid.CreateVersion7().ToString()[..8]}",
+                RawAwayName = $"Raw Away {Guid.CreateVersion7().ToString()[..8]}",
+                GameDate = DateOnly.FromDateTime(game.KickoffUtc),
+                RawPayload = "{}",
+                FirstSeenUtc = DateTime.UtcNow,
+            };
+            database.UnmatchedGames.Add(unmatched);
+            await database.SaveChangesAsync();
+
+            return (unmatched.Id, game.Id, game.HomeTeamId, game.AwayTeamId);
+        });
+
+        using HttpClient client = _fixture.Factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/admin/unmatched/{unmatchedId}/resolve", new ResolveUnmatchedRequest(gameId));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NoContent);
+
+        await _fixture.Factory.ExecuteDbAsync(async database =>
+        {
+            UnmatchedGame resolved = await database.UnmatchedGames.SingleAsync(row => row.Id == unmatchedId);
+            resolved.ResolvedUtc.Should().NotBeNull();
+
+            bool homeAlias = await database.TeamAliases
+                .AnyAsync(alias => alias.TeamId == homeTeamId && alias.Source == ProviderSource.Espn);
+            bool awayAlias = await database.TeamAliases
+                .AnyAsync(alias => alias.TeamId == awayTeamId && alias.Source == ProviderSource.Espn);
+            homeAlias.Should().BeTrue();
+            awayAlias.Should().BeTrue();
+        });
+    }
+
+    [Fact]
+    public async Task GivenAnUnknownUnmatchedId_WhenResolved_ThenItIs404()
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+        using HttpClient client = _fixture.Factory.CreateMutatingClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            $"/api/admin/unmatched/{Guid.NewGuid()}/resolve", new ResolveUnmatchedRequest(Guid.NewGuid()));
+
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Theory]
+    [InlineData(799, false)]
+    [InlineData(800, true)]
+    public async Task GivenNCfbdCallsThisMonth_WhenReadingDataStatus_ThenTheWarningMatchesTheThreshold(
+        int callCount, bool expectedWarning)
+    {
+        await using SqlTestDatabase database = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(database.ConnectionString);
+
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(factory);
+
+        await factory.ExecuteDbAsync(async db =>
+        {
+            for (int i = 0; i < callCount; i++)
+            {
+                db.ProviderCalls.Add(new ProviderCall
+                {
+                    Id = Guid.CreateVersion7(),
+                    Provider = nameof(ProviderSource.Cfbd),
+                    Operation = "GetGames",
+                    StartedUtc = DateTime.UtcNow,
+                    DurationMs = 10,
+                    Success = true,
+                });
+            }
+
+            await db.SaveChangesAsync();
+        });
+
+        using HttpClient client = factory.CreateClientAs(scenario.CommissionerUserId);
+        using HttpResponseMessage response = await client.GetAsync("/api/admin/data-status");
+
+        DataStatusResponse? body = await response.Content.ReadFromJsonAsync<DataStatusResponse>();
+        body.Should().NotBeNull();
+        body!.CfbdCallsThisMonth.Should().Be(callCount);
+        body.CfbdWarning.Should().Be(expectedWarning);
+    }
+
+    [Fact]
+    public async Task GivenAFinalTieGameInAnActiveLeagueSet_WhenReadingDataStatus_ThenItListsAsNeedsReview()
+    {
+        // Mutates a fixture game's Status/scores directly, which would leak into any other test
+        // reading the shared fixture's Games table; this test gets its own throwaway database.
+        await using SqlTestDatabase testDatabase = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(testDatabase.ConnectionString);
+
+        (Guid leagueId, Guid tieGameId) = await SeedTieGameSetAsync(factory);
+
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(factory);
+        using HttpClient client = factory.CreateClientAs(scenario.CommissionerUserId);
+
+        using HttpResponseMessage response = await client.GetAsync("/api/admin/data-status");
+        DataStatusResponse? body = await response.Content.ReadFromJsonAsync<DataStatusResponse>();
+
+        body.Should().NotBeNull();
+        body!.NeedsReview.Should().Contain(row => row.GameId == tieGameId && row.LeagueId == leagueId);
+    }
+
+    /// <summary>
+    /// Marks a fixture Week 7 game Final with equal scores (a tie, "needs review") inside its own
+    /// league set, without going through the live-score poller — this is a data-status-shape
+    /// test, not a poller test.
+    /// </summary>
+    private static async Task<(Guid LeagueId, Guid GameId)> SeedTieGameSetAsync(ApiFactory factory)
+    {
+        return await factory.QueryDbAsync(async database =>
+        {
+            Game game = await database.Games
+                .Where(g => g.SeasonYear == FixtureSeasonWeekSource.FixtureSeasonYear && g.Week == 7)
+                .FirstAsync();
+
+            game.Status = GameStatus.Final;
+            game.HomeScore = 24;
+            game.AwayScore = 24;
+
+            Domain.Users.User owner = await TestUsers.CreateUserAsync(database);
+            var league = new League
+            {
+                Id = Guid.CreateVersion7(),
+                Name = $"Needs Review League {Guid.CreateVersion7().ToString()[..8]}",
+                SeasonYear = FixtureSeasonWeekSource.FixtureSeasonYear,
+                FirstWeek = 1,
+                LastWeek = 14,
+                DefaultPointValue = 10,
+                CreatedByUserId = owner.Id,
+                CreatedUtc = DateTime.UtcNow,
+            };
+            var set = new WeekGameSet
+            {
+                Id = Guid.CreateVersion7(),
+                LeagueId = league.Id,
+                Week = 7,
+                GeneratedUtc = DateTime.UtcNow,
+                LockAtUtc = game.KickoffUtc,
+            };
+            var setGame = new WeekGameSetGame
+            {
+                Id = Guid.CreateVersion7(),
+                WeekGameSetId = set.Id,
+                GameId = game.Id,
+                Source = GameSetGameSource.Rule,
+                ResolvedPointValue = 10,
+            };
+
+            database.Leagues.Add(league);
+            database.WeekGameSets.Add(set);
+            database.WeekGameSetGames.Add(setGame);
+            await database.SaveChangesAsync();
+
+            return (league.Id, game.Id);
+        });
+    }
+}

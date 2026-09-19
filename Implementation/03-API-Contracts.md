@@ -134,9 +134,9 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 | Method | Route | Scope | Response |
 |---|---|---|---|
-| GET | `/api/admin/data-status` | Commish (any league) | `DataStatusResponse { Refreshes: { DataType, LastSuccessUtc?, LastAttemptUtc?, LastError? }[], CfbdCallsThisMonth, CfbdWarning (>= 800), LiveScoreSource, Unmatched: UnmatchedGameDto[], RecentJobs: JobRunDto[] }` |
-| POST | `/api/admin/refresh/{dataType}` | Commish | dataType in Teams, Schedule, Rankings, Lines, Scores; runs now; audit logged |
-| POST | `/api/admin/unmatched/{id}/resolve` | Commish | `ResolveUnmatchedRequest { GameId }` creates TeamAliases |
+| GET | `/api/admin/data-status` | Commish (any league) | `DataStatusResponse { Refreshes: { DataType, LastSuccessUtc?, LastAttemptUtc?, LastError? }[], CfbdCallsThisMonth, CfbdWarning (>= 800), LiveScoreSource (configured), ActiveLiveScoreSource, ScoresMayBeStale, Unmatched: UnmatchedGameDto[], RecentJobs: JobRunDto[], NeedsReview: NeedsReviewGameDto[] { GameId, LeagueId, LeagueName, Week, HomeTeam, AwayTeam, HomeScore?, AwayScore?, Reason } }` (P2-04 additive: `ActiveLiveScoreSource`, `ScoresMayBeStale`, `NeedsReview`; `LiveScoreSource` keeps its P0-06 meaning, the *configured* provider — see D-080) |
+| POST | `/api/admin/refresh/{dataType}` | Commish | dataType in Teams, Schedule, Rankings, Lines, Scores; runs synchronously against the current season/week (Scores runs one live-score poll for today's Eastern date regardless of the Saturday window); 202 `ManualRefreshResponse { DataType, Success, Error? }`; audit logged as `ManualRefresh` against the caller's first commissioner league (D-079); 400 for an unrecognized dataType |
+| POST | `/api/admin/unmatched/{id}/resolve` | Commish | `ResolveUnmatchedRequest { GameId }`; creates `TeamAliases(Source = the unmatched row's own Source)` for the raw home/away names, learns `Games.EspnEventId` from the raw payload when the source is Espn and it is not already set, marks `ResolvedUtc`; 204; 404 for an unknown unmatched id; 400 for an unknown `GameId` |
 
 ## Push (Feature 11)
 
