@@ -27,6 +27,7 @@ public sealed class LeagueService
     private readonly TimeProvider _timeProvider;
     private readonly SeasonCalendar _calendar;
     private readonly ISeasonWeekSource _weekSource;
+    private readonly PointRuleService _pointRuleService;
     private readonly ILogger<LeagueService> _logger;
 
     /// <summary>Creates the service.</summary>
@@ -35,12 +36,14 @@ public sealed class LeagueService
         TimeProvider timeProvider,
         SeasonCalendar calendar,
         ISeasonWeekSource weekSource,
+        PointRuleService pointRuleService,
         ILogger<LeagueService> logger)
     {
         _database = database;
         _timeProvider = timeProvider;
         _calendar = calendar;
         _weekSource = weekSource;
+        _pointRuleService = pointRuleService;
         _logger = logger;
     }
 
@@ -272,12 +275,22 @@ public sealed class LeagueService
                 $"Default point value must be {League.MinPointValue} to {League.MaxPointValue}.");
         }
 
+        bool defaultPointValueChanged = league.DefaultPointValue != request.DefaultPointValue;
+
         league.Name = name;
         league.FirstWeek = request.FirstWeek;
         league.LastWeek = request.LastWeek;
         league.DefaultPointValue = request.DefaultPointValue;
 
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        // The default feeds PointValueResolver's fallback (Feature 03, P3-03); every unlocked
+        // week's ResolvedPointValue must reflect a changed default immediately, not on next
+        // generate.
+        if (defaultPointValueChanged)
+        {
+            await _pointRuleService.ReResolveUnlockedWeeksAsync(league.Id, cancellationToken).ConfigureAwait(false);
+        }
 
         return await BuildDetailAsync(league, membership, seasonWeeks, cancellationToken).ConfigureAwait(false);
     }

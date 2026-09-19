@@ -10,6 +10,8 @@ namespace NcaafPickEm.Shared.Contracts.Points;
 /// <param name="TeamId">Team rules only.</param>
 /// <param name="SpreadThreshold">CloseSpread rules only: matches when |spread| is strictly below this.</param>
 /// <param name="PointValue">1..100.</param>
+/// <param name="ConferenceName">Read-only echo for display; null unless <paramref name="ConferenceId"/> is set.</param>
+/// <param name="TeamName">Read-only echo for display; null unless <paramref name="TeamId"/> is set.</param>
 public sealed record PointRuleDto(
     Guid? RuleId,
     int Priority,
@@ -17,4 +19,6 @@ public sealed record PointRuleDto(
     Guid? ConferenceId,
     Guid? TeamId,
     decimal? SpreadThreshold,
-    int PointValue);
+    int PointValue,
+    string? ConferenceName = null,
+    string? TeamName = null);
