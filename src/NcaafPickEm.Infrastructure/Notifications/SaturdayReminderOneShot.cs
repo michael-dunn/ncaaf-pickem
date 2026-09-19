@@ -19,6 +19,12 @@ namespace NcaafPickEm.Infrastructure.Notifications;
 /// key as the set's id with the due time as its current <c>LockAtUtc - 1h</c>; the scheduler
 /// dedupes on <c>(Name:Key, ScheduledForUtc)</c>, so a moved lock time produces a genuinely new
 /// occurrence that runs again instead of being treated as already done.
+/// <para>
+/// The scheduler never drops an occurrence for being *late*, only for being in the future, so
+/// <see cref="RunAsync"/> is the one that decides a stale occurrence is not worth acting on: it
+/// sends nothing once <c>LockAtUtc</c> has passed, whether or not <c>LockWeekJob</c> has got round
+/// to setting <c>LockedUtc</c>.
+/// </para>
 /// </remarks>
 public sealed class SaturdayReminderOneShot : IOneShotJob
 {
@@ -26,16 +32,19 @@ public sealed class SaturdayReminderOneShot : IOneShotJob
 
     private readonly AppDbContext _database;
     private readonly NotificationService _notifications;
+    private readonly TimeProvider _timeProvider;
     private readonly ILogger<SaturdayReminderOneShot> _logger;
 
     /// <summary>Creates the job.</summary>
     public SaturdayReminderOneShot(
         AppDbContext database,
         NotificationService notifications,
+        TimeProvider timeProvider,
         ILogger<SaturdayReminderOneShot> logger)
     {
         _database = database;
         _notifications = notifications;
+        _timeProvider = timeProvider;
         _logger = logger;
     }
 
@@ -76,6 +85,24 @@ public sealed class SaturdayReminderOneShot : IOneShotJob
         if (set is null || set.LockedUtc is not null || set.LockAtUtc is null)
         {
             // Locked between the tick offering this occurrence and the run, or the set is gone.
+            return;
+        }
+
+        DateTime nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        if (set.LockAtUtc.Value <= nowUtc)
+        {
+            // The scheduler hands over every occurrence whose due time has passed, however long
+            // ago (IOneShotJob), so a host that was down across the lock — or a lock time pulled
+            // back into the past — can offer this one hours late. A nudge a minute before lock is
+            // still worth sending; "picks lock in 1 hour" after the lock instant is not, and
+            // LockedUtc alone does not catch it because LockWeekJob may not have run yet.
+            _logger.LogInformation(
+                "{JobName} for set {WeekGameSetId} is past its lock time {LockAtUtc:o}; no last-call reminder sent",
+                Name,
+                set.Id,
+                set.LockAtUtc.Value);
+
             return;
         }
 
