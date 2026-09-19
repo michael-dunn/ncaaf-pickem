@@ -48,11 +48,11 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | Default 10; change 1..100 applies to unmatched games | P3-02, P3-03 | D, A |
 | No rule = default; one rule = its value; multiple = highest priority | P3-02 | D `PointValueResolverTests` x3 |
 | Close spread with no spread = no match | P3-02 | D |
-| Daily spread refresh, snapshot at lock | P2-04, P4-02 | A `LockWeekJobTests.SnapshotsSpread` |
+| Daily spread refresh, snapshot at lock | P2-04, P4-02 | A `LockWeekJobTests.GivenADueWeek_WhenTheJobRuns_ThenEachActiveGameHasItsSpreadAndPointValueFrozen`, D `WeekLockerTests` |
 | Commissioner-only weighting | P3-03 | A: no member endpoint exists |
 | Override wins; per-week only | P3-02, P3-03 | D, A |
 | Point value visible and elevated badge | P4-03 | UI |
-| Frozen after lock | P3-03, P4-02 | A 409 after lock |
+| Frozen after lock | P3-03, P4-02 | A `PostLockMutationTests` (409 for generate/add/remove/week-rules/override, after the job and in the pre-job window), A `LockWeekJobTests.GivenALockedWeek_WhenAPointRuleAndTheLineChange_ThenTheFrozenValuesDoNotMove` |
 | Mid-week change updates submitted members' view, picks valid | P3-03 | A `PointRulesChange_KeepsPicks` |
 
 ## Feature 04 - Weekly Picks
@@ -66,8 +66,11 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | Change after submit keeps Submitted | P4-01 | D `SubmissionStatusTests` |
 | Past weeks read-only | P4-01 | A 409 on old week |
 | Game added reverts to In Progress, highlighted, notified | P4-04, P7-03 | A `GameAddedTests`, UI, A `NotificationTests.GamesAdded` |
+| Game removed keeps its pick row, counts update, member flagged only if they had a pick on it | P4-04 | A `GameRemovedTests` |
 | Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests` |
 | Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, D `WeekScorerTests.NoPickScoresZero` |
+| Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests`, A `PostLockMutationTests` |
+| Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, A `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, D `WeekScorerTests.NoPickScoresZero` |
 | Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` |
 | Status values on home; commissioner roster | P4-01, P1-02 | A, UI |
 | 44px targets, sticky submit, 2 s interactive | P4-03, P0-04 | UI, spike measurement |
@@ -77,6 +80,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | AC group | Task | Proof |
 |---|---|---|
 | Lock = earliest Saturday kickoff | P3-01, P0-05 | D `LockAtIsEarliestKickoff` |
+| Week locks at that instant: statuses settled, values frozen, `WeekLocked` raised | P4-02 | D `WeekLockerTests`, A `LockWeekJobTests` (due/not due, catch-up, idempotent second run, late joiner, event raised once, scheduler registration) |
 | Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.BeforeLock`, UI |
 | Opposite picks definition; No Pick group; viewer excluded; viewer no-pick case | P6-01 | D `InfluenceCalculatorTests.GivenTheWorkedExample_*` (the Overview example, from `influence-example.json`), `.GivenTheViewerPicked_WhenBuildingTheDashboard_ThenTheyAreInNoneOfTheirOwnLists`, `.GivenAMemberWithNoPick_*`, `.GivenTheViewerDidNotPick_WhenBuildingTheDashboard_ThenItStaysInGamesWithBothTeamsLists` |
 | Only members active at lock are listed (former in, post-lock joiner out); voided games excluded | P6-01 | D `InfluenceCalculatorTests.GivenAFormerMemberWhoWasActiveAtLock_*`, `.GivenAMemberWhoJoinedAfterLock_*`, `.GivenAVoidedGame_*` |

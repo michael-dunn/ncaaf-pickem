@@ -100,6 +100,66 @@ public sealed class SaturdayOneShotTests
         sender.SentTo(unsubmittedEndpoint).Should().ContainSingle();
     }
 
+    /// <summary>
+    /// The scheduler only drops occurrences dated in the *future*, so a host that was down across
+    /// the lock offers this one hours late. "Picks lock in 1 hour" after the lock instant is
+    /// worse than silence, and <c>LockedUtc</c> alone does not catch it because <c>LockWeekJob</c>
+    /// may not have run yet.
+    /// </summary>
+    [Fact]
+    public async Task GivenTheLockTimeHasAlreadyPassed_WhenTickedLate_ThenTheOccurrenceRunsButSendsNothing()
+    {
+        var sender = new FakePushSender();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        (League league, WeekGameSet set) = await SeedAsync(now.AddMinutes(-30));
+        (_, string endpoint) = await CreateSubscribedMemberAsync(league);
+
+        await using SchedulerHarness harness = Harness(sender);
+        await harness.Tick.TickAsync(now, CancellationToken.None);
+
+        sender.SentTo(endpoint).Should().BeEmpty("the picks are already locking or locked");
+        (await harness.ReadRunsAsync($"SaturdayReminder:{set.Id:N}")).Should().ContainSingle(
+            "the occurrence was due and did run — it just decided there was nothing worth sending");
+    }
+
+    /// <summary>
+    /// A lock pulled *earlier* after the reminder already went out makes a genuinely new
+    /// occurrence (D-034), which runs — and then the once-per-week index turns it into a Skipped
+    /// no-op rather than a second buzz. Documenting the interaction, which is the desired
+    /// behaviour: a member is nudged once per week per reminder type, however often the
+    /// commissioner edits the set.
+    /// </summary>
+    [Fact]
+    public async Task GivenTheReminderAlreadyWentOutAndTheLockMovesEarlier_WhenTickedAgain_ThenTheSecondSendIsSkipped()
+    {
+        var sender = new FakePushSender();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        (League league, WeekGameSet set) = await SeedAsync(now.AddHours(1));
+        (User member, string endpoint) = await CreateSubscribedMemberAsync(league);
+
+        await using SchedulerHarness first = Harness(sender);
+        await first.Tick.TickAsync(now, CancellationToken.None);
+        sender.SentTo(endpoint).Should().ContainSingle();
+
+        await Factory().ExecuteDbAsync(async db =>
+        {
+            WeekGameSet row = await db.WeekGameSets.SingleAsync(s => s.Id == set.Id);
+            row.LockAtUtc = now.AddMinutes(55).UtcDateTime;
+            await db.SaveChangesAsync();
+        });
+
+        await using SchedulerHarness second = Harness(sender);
+        await second.Tick.TickAsync(now, CancellationToken.None);
+
+        sender.SentTo(endpoint).Should().ContainSingle("the once-per-week index makes the new occurrence a no-op");
+        (await second.ReadRunsAsync($"SaturdayReminder:{set.Id:N}")).Should().HaveCount(
+            2, "the moved lock time is a second occurrence, which ran and sent nothing");
+
+        int logRows = await Factory().QueryDbAsync(db => db.NotificationLog.CountAsync(
+            row => row.UserId == member.Id && row.Type == NotificationType.SaturdayReminder));
+        logRows.Should().Be(1);
+    }
+
     [Fact]
     public async Task GivenTheWeekIsLocked_WhenTicked_ThenNothingRunsOrSends()
     {

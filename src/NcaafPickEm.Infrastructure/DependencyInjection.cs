@@ -111,6 +111,8 @@ public static class DependencyInjection
         // auto-create sweep, both against GameSetService.
         services.AddScheduledJob<RegenerateGameSetsJob>();
         services.AddScheduledJob<EnsureCurrentWeekSetsJob>();
+        // P4-02: the per-week lock. A one-shot, so every tick simply asks which weeks are due.
+        services.AddOneShotJob<LockWeekJob>();
         // Reference data and live scores (P2-02/P2-03/P2-05). Providers:ReferenceData and
         // Providers:LiveScores select the implementation; Fixture is the only one today and is
         // the default in Development when the key is unset. The snapshot state is always
@@ -128,6 +130,10 @@ public static class DependencyInjection
         services.AddPush(configuration);
         // P3-04: keeps WeekGameSetGames in sync with a game entering/leaving Postponed/Cancelled.
         services.AddDomainEventHandler<GameScheduleChanged, ScheduleChangeHandler>();
+        // P4-04: recomputes WeekSubmissions status and HasUnseenGameChanges when a game enters or
+        // leaves the set (order relative to P7-03's notification handlers does not matter).
+        services.AddDomainEventHandler<GameAddedToSet, GameAddedPickHandler>();
+        services.AddDomainEventHandler<GameRemovedFromSet, GameRemovedPickHandler>();
 
         // Reminder jobs and event notifications (P7-03, Feature 11 section 11). The two Friday
         // crons and the per-week Saturday one-shot; GameAddedToSet/GameRemovedFromSet handlers

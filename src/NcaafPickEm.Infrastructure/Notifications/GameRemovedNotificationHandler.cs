@@ -16,9 +16,12 @@ namespace NcaafPickEm.Infrastructure.Notifications;
 /// <see cref="GameRemovedFromSet"/>.
 /// </summary>
 /// <remarks>
-/// Recipients are every member with a <c>Picks</c> row on the removed
+/// Recipients are every <em>active</em> member with a <c>Picks</c> row on the removed
 /// <c>WeekGameSetGames</c> row, regardless of their overall submission status — the card's rule
-/// is "who had a pick on that game", not "who had submitted".
+/// is "who had a pick on that game", not "who had submitted". A removed membership
+/// (<c>RemovedUtc</c> set) keeps its pick rows for the locked-week history (04 section 6) but is
+/// no longer in the league, so it is never a recipient, exactly as in
+/// <see cref="ReminderRecipients"/>.
 /// </remarks>
 public sealed class GameRemovedNotificationHandler : IDomainEventHandler<GameRemovedFromSet>
 {
@@ -68,7 +71,11 @@ public sealed class GameRemovedNotificationHandler : IDomainEventHandler<GameRem
         List<Guid> recipients = await _database.Picks
             .AsNoTracking()
             .Where(p => p.WeekGameSetGameId == domainEvent.GameSetGameId)
-            .Join(_database.Memberships, p => p.MembershipId, m => m.Id, (p, m) => m.UserId)
+            .Join(
+                _database.Memberships.Where(m => m.RemovedUtc == null),
+                p => p.MembershipId,
+                m => m.Id,
+                (p, m) => m.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
 

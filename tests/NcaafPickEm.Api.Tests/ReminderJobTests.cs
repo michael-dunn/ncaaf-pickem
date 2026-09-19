@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -6,6 +7,7 @@ using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Notifications;
 using NcaafPickEm.Domain.Picks;
+using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Infrastructure.Notifications;
@@ -93,6 +95,86 @@ public sealed class ReminderJobTests : IAsyncLifetime
         bool submittedHasLogRow = await Factory.QueryDbAsync(db => db.NotificationLog.AnyAsync(
             row => row.UserId == submitted.Id && row.Type == NotificationType.FridayReminder));
         submittedHasLogRow.Should().BeFalse("a Submitted member is never a recipient at all");
+    }
+
+    /// <summary>
+    /// A commissioner is a member too (Feature 01): they pick like everyone else, so the member
+    /// reminder must not skip them just because their role is Commissioner. Also pins the
+    /// catalog #1 wording and tap target literally.
+    /// </summary>
+    [Fact]
+    public async Task GivenACommissionerWhoHasNotSubmitted_WhenTheFridayReminderRuns_ThenTheyAreRemindedAsAMember()
+    {
+        League league = await CreateLeagueAsync();
+        WeekGameSet set = await SeedWeekSetAsync(league.Id, 7, [700001, 700006, 700007]);
+        (_, string commishEndpoint) = await CreateSubscribedMemberAsync(
+            league, "commish-member", MembershipRole.Commissioner);
+
+        await RunFridayMemberReminderAsync();
+
+        FakePushSender.SentPush push = _sender.SentTo(commishEndpoint).Should().ContainSingle().Subject;
+
+        string lockTime = SeasonCalendar.ToEastern(new DateTimeOffset(set.LockAtUtc!.Value, TimeSpan.Zero))
+            .ToString("h:mm tt", CultureInfo.InvariantCulture);
+
+        push.Payload.Body.Should().Be($"You have 3 picks left for Week 7. Lock is Saturday at {lockTime}.");
+        push.Payload.Url.Should().Be($"/leagues/{league.Id}/weeks/7/picks");
+        push.Ttl.Should().Be(PushTtl.Reminder);
+    }
+
+    [Fact]
+    public async Task GivenAMemberRemovedFromTheLeague_WhenTheFridayReminderRuns_ThenTheyGetNothing()
+    {
+        League league = await CreateLeagueAsync();
+        await SeedWeekSetAsync(league.Id, 7, [700001]);
+        (User former, string formerEndpoint) = await CreateSubscribedMemberAsync(league, "former", removed: true);
+        (_, string activeEndpoint) = await CreateSubscribedMemberAsync(league, "still-here");
+
+        await RunFridayMemberReminderAsync();
+
+        _sender.SentTo(activeEndpoint).Should().ContainSingle();
+        _sender.SentTo(formerEndpoint).Should().BeEmpty("a removed membership is no longer in the league");
+
+        bool formerHasLogRow = await Factory.QueryDbAsync(db => db.NotificationLog.AnyAsync(
+            row => row.UserId == former.Id && row.Type == NotificationType.FridayReminder));
+        formerHasLogRow.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GivenAMemberRemovedFromTheLeague_WhenTheCommissionerSummaryRuns_ThenTheyAreNotNamed()
+    {
+        League league = await CreateLeagueAsync();
+        await SeedWeekSetAsync(league.Id, 7, [700001]);
+        (User commissioner, string commishEndpoint) = await CreateSubscribedMemberAsync(
+            league, "commish3", MembershipRole.Commissioner);
+        await CreateSubscribedMemberAsync(league, "Departed", removed: true);
+        await CreateSubscribedMemberAsync(league, "Riley");
+
+        await Factory.ExecuteDbAsync(async db =>
+        {
+            Guid membershipId = await db.Memberships
+                .Where(m => m.LeagueId == league.Id && m.UserId == commissioner.Id)
+                .Select(m => m.Id)
+                .SingleAsync();
+
+            WeekGameSet set = await db.WeekGameSets.SingleAsync(s => s.LeagueId == league.Id && s.Week == 7);
+            db.WeekSubmissions.Add(new WeekSubmission
+            {
+                MembershipId = membershipId,
+                WeekGameSetId = set.Id,
+                Status = SubmissionStatus.Submitted,
+                SubmittedUtc = DateTime.UtcNow,
+                LastChangedUtc = DateTime.UtcNow,
+            });
+
+            await db.SaveChangesAsync();
+        });
+
+        await RunCommissionerSummaryAsync();
+
+        FakePushSender.SentPush push = _sender.SentTo(commishEndpoint).Should().ContainSingle().Subject;
+        push.Payload.Body.Should().Be($"1 members haven't submitted Week 7 picks: Riley.");
+        push.Payload.Url.Should().Be($"/leagues/{league.Id}");
     }
 
     [Fact]
@@ -238,12 +320,13 @@ public sealed class ReminderJobTests : IAsyncLifetime
     private async Task<(User User, string Endpoint)> CreateSubscribedMemberAsync(
         League league,
         string name,
-        MembershipRole role = MembershipRole.Member)
+        MembershipRole role = MembershipRole.Member,
+        bool removed = false)
     {
         return await Factory.QueryDbAsync(async db =>
         {
             User user = await TestUsers.CreateUserAsync(db, name);
-            await TestUsers.CreateMembershipAsync(db, league, user, role);
+            await TestUsers.CreateMembershipAsync(db, league, user, role, removed);
 
             string endpoint = $"https://push.example/send/{Guid.CreateVersion7():N}";
             db.PushSubscriptions.Add(new PushSubscription

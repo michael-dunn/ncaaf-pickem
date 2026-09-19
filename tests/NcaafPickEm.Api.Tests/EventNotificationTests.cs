@@ -153,6 +153,62 @@ public sealed class EventNotificationTests : IAsyncLifetime
         _sender.SentTo(otherEndpoint).Should().BeEmpty("only a member with a pick on the removed game is notified");
     }
 
+    /// <summary>
+    /// A removed membership keeps its <c>Picks</c> rows (they are the locked-week history), but it
+    /// is no longer in the league, so it is never a notification recipient.
+    /// </summary>
+    [Fact]
+    public async Task GivenARemovedMemberWithAPickOnAGame_WhenTheGameIsRemoved_ThenTheyAreNotNotified()
+    {
+        (League league, HttpClient client) = await CreateCommishLeagueAsync();
+        (User former, string formerEndpoint) = await CreateSubscribedMemberAsync(league, removed: true);
+        (User active, string activeEndpoint) = await CreateSubscribedMemberAsync(league);
+
+        await PutRulesAsync(client, league.Id, [Top25Rule()]);
+        await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
+
+        Guid michiganTexasGameId = await FixtureGameData.GetGameIdAsync(Factory, 700001);
+        Guid michiganId = await FixtureGameData.GetTeamIdAsync(Factory, 900101);
+
+        Guid weekGameSetGameId = await Factory.QueryDbAsync(db => db.WeekGameSetGames
+            .Where(g => g.GameId == michiganTexasGameId && g.WeekGameSet!.LeagueId == league.Id)
+            .Select(g => g.Id)
+            .SingleAsync());
+
+        foreach (User picker in new[] { former, active })
+        {
+            await Factory.ExecuteDbAsync(async db =>
+            {
+                Guid membershipId = await db.Memberships
+                    .Where(m => m.LeagueId == league.Id && m.UserId == picker.Id)
+                    .Select(m => m.Id)
+                    .SingleAsync();
+
+                db.Picks.Add(new Pick
+                {
+                    Id = Guid.CreateVersion7(),
+                    MembershipId = membershipId,
+                    WeekGameSetGameId = weekGameSetGameId,
+                    PickedTeamId = michiganId,
+                    UpdatedUtc = DateTime.UtcNow,
+                });
+
+                await db.SaveChangesAsync();
+            });
+        }
+
+        using HttpResponseMessage remove = await client.DeleteAsync(
+            $"/api/leagues/{league.Id}/weeks/7/gameset/games/{michiganTexasGameId}");
+        remove.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        _sender.SentTo(activeEndpoint).Should().ContainSingle();
+        _sender.SentTo(formerEndpoint).Should().BeEmpty("a removed membership is no longer in the league");
+
+        bool formerHasLogRow = await Factory.QueryDbAsync(db => db.NotificationLog.AnyAsync(
+            row => row.UserId == former.Id && row.Type == NotificationType.GameRemoved));
+        formerHasLogRow.Should().BeFalse();
+    }
+
     [Fact]
     public async Task GivenALockedWeek_WhenTheGamesAddedHandlerRuns_ThenNothingIsSent()
     {
@@ -219,12 +275,12 @@ public sealed class EventNotificationTests : IAsyncLifetime
         return (league, client);
     }
 
-    private async Task<(User User, string Endpoint)> CreateSubscribedMemberAsync(League league)
+    private async Task<(User User, string Endpoint)> CreateSubscribedMemberAsync(League league, bool removed = false)
     {
         return await Factory.QueryDbAsync(async db =>
         {
             User user = await TestUsers.CreateUserAsync(db, "Member");
-            await TestUsers.CreateMembershipAsync(db, league, user);
+            await TestUsers.CreateMembershipAsync(db, league, user, MembershipRole.Member, removed);
 
             string endpoint = $"https://push.example/send/{Guid.CreateVersion7():N}";
             db.PushSubscriptions.Add(new PushSubscription
