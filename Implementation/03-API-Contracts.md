@@ -134,11 +134,19 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 | Method | Route | Scope | Request / Response |
 |---|---|---|---|
-| GET | `/api/push/vapid-public-key` | Auth | `{ PublicKey }` |
-| POST | `/api/push/subscriptions` | Auth | `PushSubscriptionRequest { Endpoint, P256dh, Auth, UserAgent }` upsert |
-| DELETE | `/api/push/subscriptions` | Auth | `{ Endpoint }` |
-| GET | `/api/push/status` | Auth | `{ HasSubscriptionForThisDevice }` (client passes `?endpoint=`) |
-| GET | `/api/leagues/{leagueId}/notifications/log` | Commish | `NotificationLogRow[]` last 200 |
+| GET | `/api/push/vapid-public-key` | Auth | `VapidPublicKeyResponse { PublicKey }`, or **503** `ProblemDetails` when `Push__*` is unset or invalid (D-068) |
+| POST | `/api/push/subscriptions` | Auth | `PushSubscriptionRequest { Endpoint, P256dh, Auth, UserAgent? }` upsert by `Endpoint` -> **204** |
+| DELETE | `/api/push/subscriptions` | Auth | body `DeletePushSubscriptionRequest { Endpoint }` -> **204**, idempotent |
+| GET | `/api/push/status?endpoint=` | Auth | `PushStatusResponse { HasSubscriptionForThisDevice }` |
+| POST | `/api/push/test` | Commish (any league) | **Development/Testing only.** Sends "Test notification" to the caller's own devices; returns the `NotificationResult`. |
+| GET | `/api/leagues/{leagueId}/notifications/log` | Commish | `NotificationLogRow[] { CreatedUtc, UserDisplayName, Week, Type, Result, Error }` last 200, newest first |
+
+DTOs live in `NcaafPickEm.Shared/Contracts/Push/`. Notes P7-02 needs:
+
+- `POST /subscriptions` is an **upsert keyed on `Endpoint`**: posting the same endpoint twice leaves one row, and posting an endpoint another account owns re-owns it (D-070). `Endpoint` must be an absolute https URL of at most 2048 characters and both keys must be non-empty, or it is 400 with an `errors` dictionary.
+- `DELETE /subscriptions` only removes the caller's own subscription; an unknown endpoint, or one owned by somebody else, is still 204.
+- `GET /status` with no `endpoint` query value answers `false` rather than 400.
+- The 503 from `vapid-public-key` is the "notifications unavailable on this server" signal; the settings page should hide the turn-on action rather than retry.
 
 ## Health
 
