@@ -81,6 +81,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 - Both `PUT .../gameset-rules` routes (default and week-override) **save only**; they never call `generate` themselves — with one exception (D-082, P3-04): the week-override route also regenerates when `{week}` is the league's current week. The commissioner UI's "Save and generate" action is still two calls (`PUT` then `POST .../generate`); the second call is a no-op on the current week now that the first one already regenerated. The Tuesday auto-regeneration job (P3-04) is the other caller of `generate`.
 - `POST .../gameset/games` and `DELETE .../gameset/games/{gameId}` both return the full `WeekGameSetResponse` (same shape as `generate`/`GET .../gameset`), not a bare `GameSetGameDto` or `204`, so the caller does not need a second round trip to see the updated `LockAtUtc` or games list.
 - Any route carrying `{week}` 404s (`ProblemDetails` title `WeekOutOfRange`) when the week is outside the league's `FirstWeek..LastWeek` range, checked before anything else.
+- **"409 if locked" on every configuration route means frozen, not merely job-run** (D-089): `LockedUtc != null` **or** `now >= LockAtUtc`, the same test picks use. A commissioner cannot regenerate, add, remove, re-rule or re-price a week once its first game has kicked off, whether or not P4-02's lock job has caught up. `WeekGameSetResponse.IsLocked` keeps its narrower meaning ("the lock job has run"), so the UI can still tell the two apart.
 - A 409 for `Locked` or `GameNotEligible` carries no extra body; a 409 for `ExceedsMax` (on `generate` or the manual-add cap) adds `"count"` to the `ProblemDetails` extensions with how many games the configuration would produce (or the set would hold after the add).
 - `GameSetRuleDto.SortOrder` is taken from the PUT body's array order, not from a field the caller sets independently (contrast `PointRuleDto.Priority` below, which comes from each entry).
 
@@ -89,7 +90,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | Method | Route | Scope | Request / Response |
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/point-rules` | Commish | `PointRuleDto[] { RuleId, Priority, RuleType, ConferenceId?, TeamId?, SpreadThreshold?, PointValue, ConferenceName?, TeamName? }` |
-| PUT | `/api/leagues/{leagueId}/point-rules` | Commish | full replace; `Priority` is taken from each entry, not from array order (must be unique — validated); re-resolves all unlocked weeks immediately |
+| PUT | `/api/leagues/{leagueId}/point-rules` | Commish | full replace; `Priority` is taken from each entry, not from array order (must be unique — validated); re-resolves every not-yet-frozen week immediately (a week at or past its `LockAtUtc` is left alone, D-089) |
 | PUT | `/api/leagues/{leagueId}/weeks/{week}/gameset/games/{gameId}/points` | Commish | `SetPointOverrideRequest { PointValue? }` null clears; 409 if locked; re-resolves immediately -> `GameSetGameDto` |
 
 `ConferenceName`/`TeamName` (D-068) are read-only display echoes, added trailing/additive to `PointRuleDto` at P3-05's request while building the config UI in parallel — matches `GameSetRuleDto`'s existing echo fields.
