@@ -11,7 +11,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | League creation (name, season, creator is commissioner + member, 50-char name) | P1-01 | A `LeagueEndpointsTests.Create*` |
 | One season per league, no rollover | P1-01 | A: SeasonYear required; no rollover endpoint exists |
 | 50-member cap and "league is full" | P1-01 | A `InviteAcceptTests.GivenFullLeague_*` |
-| Invite generation shareable by text | P1-01, P1-02 | A `InviteTests`; UI share sheet |
+| Invite generation shareable by text | P1-01, P1-02 | A `InviteTests`; A `FullWeekSimulationTests` (one code, five members accept it); UI share sheet |
 | Valid invite joins and lands on home; revoked/expired message; no double join | P1-01, P1-02 | A `InviteAcceptTests` x4 |
 | Mid-season join: 0 points, no earlier weeks | P1-01, P5-03 | A `StandingsTests.GivenLateJoiner_*` |
 | Remove member keeps picks as former member | P1-01, P5-03 | A `MembershipTests.Remove*`, `WeekLeaderboardTests.FormerMember*` |
@@ -37,7 +37,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | Week override leaves default intact | P3-03 | A |
 | Manual remove sticky across regen; manual add included | P3-01 | D `*.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `*.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `*.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` |
 | Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI |
-| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
+| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `FullWeekSimulationTests` (the real Tuesday 03:30 ET cron builds the week through `SchedulerTick`), A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
 | Member view ordered by kickoff in local time | P3-05 | UI |
 | Tap-only rule editing | P3-05 | UI |
 
@@ -72,7 +72,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | Server-side lock enforcement | P4-01, P4-02 | A `LockEnforcementTests`, A `PostLockMutationTests` |
 | Unpicked at lock = Incomplete and 0 points | P4-02, P5-01 | D `WeekLockerTests`, A `LockWeekJobTests.GivenASubmitterAndAPartialPicker_WhenTheJobRuns_ThenOneIsLockedAndTheOtherIncomplete`, D `WeekScorerTests.NoPickScoresZero` |
 | Picks hidden before lock, visible after | P4-01 | A `PicksVisibilityTests` |
-| Status values on home; commissioner roster | P4-01, P1-02 | A, UI |
+| Status values on home; commissioner roster | P4-01, P1-02 | A `FullWeekSimulationTests` (Submitted x4, InProgress 5 of 7, NotStarted on the real roster route), UI |
 | 44px targets, sticky submit, 2 s interactive | P4-03, P0-04 | UI, spike measurement |
 
 ## Feature 05 - Pick Lock and Influence Dashboard
@@ -96,7 +96,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 |---|---|---|
 | Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `...DidNotPick...` |
 | Idempotent; not-final unscored | P5-01 | D `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `...GivenAGameThatIsNotFinal...`; A `ScoringSnapshotWalkTests` (two extra rescores change nothing) |
-| Weekly total; Complete flag | P5-01 | D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` |
+| Weekly total; Complete flag | P5-01 | A `FullWeekSimulationTests` (six members across six snapshots, a void and an override, week Complete), D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` |
 | Post-midnight delayed game counts | P5-01, P2-03 | D `WeekScorerTests.GivenTheFixturesPostMidnightFinish...` (read out of snapshot 6); A `ScoringSnapshotWalkTests` (snapshot 6 adds the late game's points to week 7) |
 | Nightly recompute keeps results true | P5-01 | A `ScoringServiceTests.GivenALockedWeekNobodyScored...`, `...GivenASetWhoseResultsDisagreeWithIt...` |
 | No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` |
@@ -110,7 +110,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | AC group | Task | Proof |
 |---|---|---|
 | Season rows, competition ranking, behind leader, weekly wins, highlight | P5-03, P5-04 | D `StandingsCalculatorTests`, A `LeaderboardEndpointsTests.GivenScoredWeeks_...`, UI |
-| Trend indicator; none on first week | P5-03 | D `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...` / `GivenOnlyOneSnapshotWeek_...`, A `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_...` |
+| Trend indicator; none on first week | P5-03 | D `StandingsCalculatorTests.GivenTwoSnapshotWeeks_...` / `GivenOnlyOneSnapshotWeek_...`, A `LeaderboardEndpointsTests.GivenTwoCompletedWeeks_...`, A `FullWeekSimulationTests` (Up/Down/Same off two genuinely scored weeks) |
 | No champion banner | P5-04 | UI |
 | Week rows, correct count, trophy, ties share | P5-03, P5-04 | D `StandingsCalculatorTests.GivenAWeekThatIsNotComplete_...`, A `LeaderboardEndpointsTests.GivenACompletedWeek_...`, UI |
 | In Progress label | P5-04 | UI (server flag: A `LeaderboardEndpointsTests.GivenAWeekStillBeingPlayed_...`) |
@@ -127,7 +127,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | AC group | Task | Proof |
 |---|---|---|
 | First login creates account; returning matched by subject | P0-03 | A `AuthTests` with fake Google handler |
-| Works in iOS standalone | P0-04, P8-03 | Manual on iPhone |
+| Works in iOS standalone | P0-04, P8-03 | Manual on iPhone - steps in `Implementation/screenshots/e2e/README.md` (Manual pending, operator) |
 | 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03 | A cookie attribute assertions |
 | Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A |
 | Member/commissioner authorization; non-member 404 | P0-03 + every endpoint task | A auth matrix test per group |
@@ -163,7 +163,7 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | In-process scheduler; once per week; no set = none; status at send time; Saturday recomputed on lock move | P7-03 | A `ReminderJobTests` (recipients by status, 7:59 submit, no set, locked week, twice-in-a-week skip, real-cron test), `SaturdayOneShotTests` (due at `LockAtUtc-1h`, not due before, submitted-by-then, locked week, lock move -> new occurrence) |
 | VAPID delivery; 404/410 cleanup; retries; log | P7-01 | A with fake push transport |
 | Text excludes others' picks; opens standalone | P7-02 | Review, manual |
-| Catalog #1/#3 (member reminders) and #2 (commissioner summary, only when someone unsubmitted, names listed) | P7-03 | A `ReminderJobTests` |
+| Catalog #1/#3 (member reminders) and #2 (commissioner summary, only when someone unsubmitted, names listed) | P7-03 | A `ReminderJobTests`; A `FullWeekSimulationTests` (all three fired by the real scheduler at 20:00/21:00/lock-1h ET, recipients and body text asserted) |
 | Catalog #4 (games added, coalesced, previously-Submitted members only) and #5 (game removed, members with a pick only) | P7-03 | A `EventNotificationTests` |
 
 ## Feature 12 - Data Provider Evaluation
