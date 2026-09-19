@@ -97,6 +97,38 @@ public sealed class SaturdayPollerScheduleTests
         atClose.NextPollAtUtc.Should().BeNull();
     }
 
+    [Fact]
+    public void GivenAWindowOpenPastMidnight_WhenEvaluated_ThenItStillReportsTheSaturdayEasternDate()
+    {
+        PollerWeekSet[] sets = [new PollerWeekSet(Guid.NewGuid(), LockAtUtc, false)];
+
+        // Sunday 2026-10-18 01:30 ET (EDT, UTC-4) = 05:30 UTC.
+        DateTimeOffset afterMidnight = new(2026, 10, 18, 5, 30, 0, TimeSpan.Zero);
+
+        PollerDecision decision = SaturdayPollerSchedule.Evaluate(afterMidnight, sets, LiveScoreSource.Espn);
+
+        decision.InWindow.Should().BeTrue();
+        decision.SaturdayEastern.Should().Be(
+            new DateOnly(2026, 10, 17),
+            "ESPN buckets the post-midnight final on the Saturday date it kicked off");
+    }
+
+    [Fact]
+    public void GivenTheNovemberDstSaturday_WhenEvaluated_ThenTheHardCloseIsThreeAmEasternStandardTime()
+    {
+        // Saturday 2026-10-31 19:00 ET (EDT, UTC-4) = 23:00 UTC. Eastern falls back at 02:00 on
+        // Sunday 2026-11-01, so 03:00 ET that morning is EST (UTC-5) = 08:00 UTC, not 07:00.
+        var lockAtUtc = new DateTime(2026, 10, 31, 23, 0, 0, DateTimeKind.Utc);
+        PollerWeekSet[] sets = [new PollerWeekSet(Guid.NewGuid(), lockAtUtc, false)];
+
+        DateTimeOffset hardClose = new(2026, 11, 1, 8, 0, 0, TimeSpan.Zero);
+
+        SaturdayPollerSchedule.Evaluate(hardClose.AddMinutes(-1), sets, LiveScoreSource.Espn).InWindow
+            .Should().BeTrue("07:59 UTC is 02:59 EST, one minute short of the hard close");
+        SaturdayPollerSchedule.Evaluate(hardClose, sets, LiveScoreSource.Espn).InWindow
+            .Should().BeFalse("08:00 UTC is exactly 03:00 EST");
+    }
+
     [Theory]
     [InlineData(LiveScoreSource.Espn, PollerCadence.FiveMinutes)]
     [InlineData(LiveScoreSource.Cfbd, PollerCadence.TenMinutes)]
