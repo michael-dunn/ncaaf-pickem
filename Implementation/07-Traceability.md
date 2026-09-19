@@ -31,24 +31,24 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 02 - Weekly Game Set Configuration
 
-| AC group | Task | Proof |
-|---|---|---|
-| Rules saved to default config | P3-03 | A `GameSetRulesEndpointsTests` |
-| Union of rules, distinct | P3-01 | D `GameSetGeneratorTests.GivenSeveralRules_WhenGenerating_ThenTheResultIsTheirUnionWithEachGameOnce` |
-| Top 25 uses current AP poll | P3-01 | D `*.GivenTwoPollsForTheWeek_WhenGenerating_ThenTheLatestFetchWinsAndNoFallbackIsFlagged`, `*.GivenNoPollForTheWeek_WhenGenerating_ThenThePriorWeekPollIsUsedAndFlagged` |
-| Conference-games-only | P3-01 | D `*.GivenAConferenceRule_WhenConferenceGamesOnlyIsOff_ThenEitherTeamQualifies`, `*...IsOn_ThenBothTeamsMustQualify` |
-| Team bye yields nothing | P3-01 | D `*.GivenATeamRule_WhenThatTeamHasAByeWeek_ThenNoGameIsAdded` |
-| Saturday in Eastern only | P3-01, P0-05 | D `SeasonCalendarTests` (Friday Pacific is Saturday Eastern), `GameSetGeneratorTests.GivenFridayKickoffs_WhenGenerating_ThenOnlyTheFridayPacificGameIsSaturdayEastern` |
-| FCS excluded | P3-01 | D `*.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `*.GivenAnFcsHomeTeam_...` |
-| AP only | P3-03 | A: RuleType enum has no other poll |
-| 50-game cap with preview warning | P3-01, P3-03, P3-05 | D `*.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `*.GivenMoreThanFiftyMatchingGames_...`, A 409, UI warning |
-| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` |
-| Week override leaves default intact | P3-03 | A |
-| Manual remove sticky across regen; manual add included | P3-01 | D `*.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `*.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `*.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` |
-| Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI |
-| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `FullWeekSimulationTests` (the real Tuesday 03:30 ET cron builds the week through `SchedulerTick`), A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
-| Member view ordered by kickoff in local time | P3-05 | UI |
-| Tap-only rule editing | P3-05 | UI |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Rules saved to default config | P3-03 | A `GameSetRulesEndpointsTests` | PASS: `GameSetRulesEndpointsTests.GivenValidRules_WhenPuttingDefaultRules_ThenTheyRoundTripWithEchoedNames`, `.GivenNoRulesSaved_WhenGettingDefaultRules_ThenTheArrayIsEmpty` |
+| Union of rules, distinct | P3-01 | D `GameSetGeneratorTests.GivenSeveralRules_WhenGenerating_ThenTheResultIsTheirUnionWithEachGameOnce` | PASS: `GameSetGeneratorTests.GivenSeveralRules_WhenGenerating_ThenTheResultIsTheirUnionWithEachGameOnce` |
+| Top 25 uses current AP poll | P3-01 | D `*.GivenTwoPollsForTheWeek_WhenGenerating_ThenTheLatestFetchWinsAndNoFallbackIsFlagged`, `*.GivenNoPollForTheWeek_WhenGenerating_ThenThePriorWeekPollIsUsedAndFlagged` | PASS: `GameSetGeneratorTests.GivenTwoPollsForTheWeek_WhenGenerating_ThenTheLatestFetchWinsAndNoFallbackIsFlagged`, `.GivenNoPollForTheWeek_WhenGenerating_ThenThePriorWeekPollIsUsedAndFlagged` |
+| Conference-games-only | P3-01 | D `*.GivenAConferenceRule_WhenConferenceGamesOnlyIsOff_ThenEitherTeamQualifies`, `*...IsOn_ThenBothTeamsMustQualify` | PASS: `GameSetGeneratorTests.GivenAConferenceRule_WhenConferenceGamesOnlyIsOff_ThenEitherTeamQualifies` (and its `...IsOn_...` pair) |
+| Team bye yields nothing | P3-01 | D `*.GivenATeamRule_WhenThatTeamHasAByeWeek_ThenNoGameIsAdded` | PASS: `GameSetGeneratorTests.GivenATeamRule_WhenThatTeamHasAByeWeek_ThenNoGameIsAdded` |
+| Saturday in Eastern only | P3-01, P0-05 | D `SeasonCalendarTests` (Friday Pacific is Saturday Eastern), `GameSetGeneratorTests.GivenFridayKickoffs_WhenGenerating_ThenOnlyTheFridayPacificGameIsSaturdayEastern` | PASS: `SeasonCalendarTests`, `GameSetGeneratorTests.GivenFridayKickoffs_WhenGenerating_ThenOnlyTheFridayPacificGameIsSaturdayEastern` |
+| FCS excluded | P3-01 | D `*.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `*.GivenAnFcsHomeTeam_...` | PASS: `GameSetGeneratorTests.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `.GivenAnFcsHomeTeam_...` |
+| AP only | P3-03 | A: RuleType enum has no other poll | PASS: `RuleType` enum has no other poll value (checked in `Shared/Enums`) |
+| 50-game cap with preview warning | P3-01, P3-03, P3-05 | D `*.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `*.GivenMoreThanFiftyMatchingGames_...`, A 409, UI warning | PASS: `GameSetGeneratorTests.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `.GivenMoreThanFiftyMatchingGames_...`; screenshot `p3-05-rules-preview-375.png` |
+| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` | PASS: `GameSetGeneratorTests.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` |
+| Week override leaves default intact | P3-03 | A | PASS: `GameSetRulesEndpointsTests.GivenAnOverrideThenCleared_WhenGettingWeekRules_ThenItEchoesTheDefaultAgain` |
+| Manual remove sticky across regen; manual add included | P3-01 | D `*.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `*.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `*.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` | PASS: `GameSetGeneratorTests.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` |
+| Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI | PASS: `GameSetGeneratorTests.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`; screenshot `p3-05-rules-preview-375.png` |
+| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `FullWeekSimulationTests` (the real Tuesday 03:30 ET cron builds the week through `SchedulerTick`), A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` | PASS: `FullWeekSimulationTests`, `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests.GivenTheCurrentWeek_WhenAnOverrideIsSaved_ThenTheSetIsRegeneratedInTheSameCall`, `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
+| Member view ordered by kickoff in local time | P3-05 | UI | PASS: screenshot `p3-05-member-week-375.png` |
+| Tap-only rule editing | P3-05 | UI | PASS: screenshot `p3-05-rules-375.png` (`BottomSheet`/`NumberStepper` tap controls, no free-text entry) |
 
 ## Feature 03 - Point Values
 
