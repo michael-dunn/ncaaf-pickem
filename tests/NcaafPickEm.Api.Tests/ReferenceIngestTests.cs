@@ -162,6 +162,82 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GivenScheduleIngestedTwice_ThenGameRowCountIsUnchanged()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var service = CreateService(database, new FixtureReferenceDataProvider());
+
+        await service.IngestTeamsAsync(Season);
+
+        ScheduleIngestResult first = await service.IngestScheduleAsync(Season, Week);
+        first.Success.Should().BeTrue();
+        int gamesAfterFirst = await database.Games.CountAsync();
+        gamesAfterFirst.Should().BeGreaterThan(0);
+
+        ScheduleIngestResult second = await service.IngestScheduleAsync(Season, Week);
+        second.Success.Should().BeTrue();
+        second.Postponed.Should().Be(0);
+
+        (await database.Games.CountAsync()).Should().Be(gamesAfterFirst);
+    }
+
+    [Fact]
+    public async Task GivenCalendarIngestedTwice_ThenSeasonWeeksAreNormalizedAndNotDuplicated()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var decorated = new DecoratingReferenceDataProvider(new FixtureReferenceDataProvider())
+        {
+            // The fixture provider has no calendar.json, so the CFBD-shaped windows are supplied
+            // here: Monday 03:00 ET through the following Monday 02:59 ET, one Saturday inside.
+            Calendar = (season, _) => Task.FromResult<IReadOnlyList<ProviderCalendarWeek>>(
+            [
+                new ProviderCalendarWeek(
+                    season,
+                    1,
+                    "regular",
+                    new DateTime(2026, 8, 31, 7, 0, 0, DateTimeKind.Utc),
+                    new DateTime(2026, 9, 7, 6, 59, 0, DateTimeKind.Utc)),
+                new ProviderCalendarWeek(
+                    season,
+                    2,
+                    "postseason",
+                    new DateTime(2026, 9, 7, 7, 0, 0, DateTimeKind.Utc),
+                    new DateTime(2026, 9, 14, 6, 59, 0, DateTimeKind.Utc)),
+            ]),
+        };
+        var service = CreateService(database, decorated);
+
+        CalendarIngestResult first = await service.IngestCalendarAsync(Season);
+        first.Success.Should().BeTrue();
+        first.Weeks.Should().Be(2);
+
+        CalendarIngestResult second = await service.IngestCalendarAsync(Season);
+        second.Success.Should().BeTrue();
+
+        List<SeasonWeek> stored = await database.SeasonWeeks
+            .Where(w => w.SeasonYear == Season)
+            .OrderBy(w => w.Week)
+            .ToListAsync();
+
+        stored.Should().HaveCount(2);
+
+        (DateTimeOffset expectedStart, DateTimeOffset expectedEnd) =
+            SeasonCalendar.WeekWindow(new DateOnly(2026, 9, 5));
+        stored[0].Week.Should().Be(1);
+        stored[0].StartUtc.Should().Be(expectedStart);
+        stored[0].EndUtc.Should().Be(expectedEnd);
+        stored[0].IsRegularSeason.Should().BeTrue();
+
+        stored[1].Week.Should().Be(2);
+        stored[1].IsRegularSeason.Should().BeFalse();
+
+        DataRefreshStatus status = await database.DataRefreshStatuses
+            .SingleAsync(s => s.DataType == RefreshDataType.Schedule);
+        status.LastSuccessUtc.Should().NotBeNull();
+        status.LastError.Should().BeNull();
+    }
+
+    [Fact]
     public async Task GivenRankingsIngestedTwice_ThenNoDuplicateRankingRows()
     {
         await using AppDbContext database = _database.CreateContext();
@@ -246,6 +322,8 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
 
         public Func<int, int, CancellationToken, Task<IReadOnlyList<ProviderLine>>>? Lines { get; set; }
 
+        public Func<int, CancellationToken, Task<IReadOnlyList<ProviderCalendarWeek>>>? Calendar { get; set; }
+
         public Task<IReadOnlyList<ProviderConference>> GetConferencesAsync(
             int season, CancellationToken cancellationToken = default) =>
             _inner.GetConferencesAsync(season, cancellationToken);
@@ -281,6 +359,8 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
 
         public Task<IReadOnlyList<ProviderCalendarWeek>> GetCalendarAsync(
             int season, CancellationToken cancellationToken = default) =>
-            _inner.GetCalendarAsync(season, cancellationToken);
+            Calendar is not null
+                ? Calendar(season, cancellationToken)
+                : _inner.GetCalendarAsync(season, cancellationToken);
     }
 }
