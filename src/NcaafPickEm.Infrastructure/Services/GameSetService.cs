@@ -225,6 +225,7 @@ public sealed class GameSetService
                 WeekGameSetId = set.Id,
                 GameId = generated.GameId,
                 Source = generated.Source,
+                AddedUtc = _timeProvider.GetUtcNow().UtcDateTime,
                 IsRemoved = false,
             };
 
@@ -345,6 +346,8 @@ public sealed class GameSetService
             row.IsRemoved = false;
             row.RemovedReason = null;
             row.Source = GameSetGameSource.Manual;
+            // Re-adding grows the set again, so this counts as a fresh add for submission status.
+            row.AddedUtc = _timeProvider.GetUtcNow().UtcDateTime;
             row.Game = game;
             gameSetGameId = row.Id;
         }
@@ -356,6 +359,7 @@ public sealed class GameSetService
                 WeekGameSetId = set.Id,
                 GameId = gameId,
                 Source = GameSetGameSource.Manual,
+                AddedUtc = _timeProvider.GetUtcNow().UtcDateTime,
                 IsRemoved = false,
                 Game = game,
             };

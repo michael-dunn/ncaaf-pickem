@@ -25,6 +25,14 @@ public sealed class WeekGameSetGame
 
     public GameSetGameSource Source { get; set; }
 
+    /// <summary>
+    /// When this game joined the set: set on insert and again whenever a removed row is
+    /// re-activated. It is what "the last time TotalCount increased" means in
+    /// <c>04-Domain-Algorithms.md</c> section 4, so a game added after a member pressed Submit
+    /// reverts them to In Progress (D-070).
+    /// </summary>
+    public DateTime AddedUtc { get; set; }
+
     /// <summary>Removed before lock, by hand or by a schedule change. Sticky across regeneration.</summary>
     public bool IsRemoved { get; set; }
 
