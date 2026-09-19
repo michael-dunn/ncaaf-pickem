@@ -1,0 +1,50 @@
+@* One game row: "Away @ Home" with ranks, local kickoff time, and a point badge when elevated.
+   Shared by the commissioner config pages (P3-05) and, per the task card, expected to be reused
+   by Picks/Dashboard/Leaderboard (Phases 4-6) - kept generic via the Trailing render fragment for
+   whatever per-row action a caller needs (remove button, point stepper, a pick button, nothing). *@
+
+<div class="game-row">
+    <div class="game-row-top">
+        <div class="game-row-matchup">
+            @if (Game.AwayRank is { } awayRank)
+            {
+                <span class="game-row-rank">#@awayRank</span>
+            }
+            <span>@Game.AwayTeam.School</span>
+            <span class="game-row-at">@@</span>
+            @if (Game.HomeRank is { } homeRank)
+            {
+                <span class="game-row-rank">#@homeRank</span>
+            }
+            <span>@Game.HomeTeam.School</span>
+        </div>
+        <KickoffTime Utc="Game.KickoffUtc" />
+    </div>
+
+    <div class="game-row-bottom">
+        @if (ShowPointBadge)
+        {
+            <span class="point-badge @(Game.IsPointValueElevated ? "point-badge-elevated" : "")">
+                @Game.PointValue pt@(Game.PointValue == 1 ? "" : "s")
+            </span>
+        }
+        @if (Trailing is not null)
+        {
+            <div class="game-row-trailing">@Trailing</div>
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>The game to render.</summary>
+    [Parameter, EditorRequired]
+    public GameSetGameDto Game { get; set; } = null!;
+
+    /// <summary>Whether to show the point-value badge. Default true.</summary>
+    [Parameter]
+    public bool ShowPointBadge { get; set; } = true;
+
+    /// <summary>Optional per-row trailing action (remove button, point stepper, pick button, ...).</summary>
+    [Parameter]
+    public RenderFragment? Trailing { get; set; }
+}

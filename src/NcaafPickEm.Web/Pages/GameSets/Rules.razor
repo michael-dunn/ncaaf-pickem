@@ -1,0 +1,436 @@
+@page "/leagues/{LeagueId:guid}/config/games"
+@inject ILeaguesApi LeaguesApi
+@inject IGameSetsApi GameSetsApi
+@inject AppShellState Shell
+
+@*
+    Game set rules (P3-05). Commissioner-only: default rules (used by every week) plus, via the
+    week selector and "Override this week" toggle, one week's own rule set. Add-rule sheet covers
+    Top 25 / Conference (multi-select + "conference games only") / Team (debounced search).
+    Preview shows what the current, possibly-unsaved rules would select; "Save and generate"
+    persists them and regenerates the selected week's game set.
+*@
+
+<PageTitle>Game set rules - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_league is null)
+{
+    <LoadingSkeleton Rows="4" />
+}
+else if (_league.MyRole != MembershipRole.Commissioner)
+{
+    <p class="muted">Commissioners only.</p>
+}
+else
+{
+    <h1>Game set rules</h1>
+
+    <div class="week-chip-row">
+        @for (int week = _league.FirstWeek; week <= _league.LastWeek; week++)
+        {
+            int w = week;
+            <button type="button"
+                    class="week-chip @(w == _selectedWeek ? "is-selected" : "")"
+                    @onclick="() => SelectWeekAsync(w)">
+                @w
+            </button>
+        }
+    </div>
+
+    <div class="card override-toggle-row">
+        <label class="toggle-label">
+            <input type="checkbox" checked="@_usesOverride" @onchange="OnToggleOverrideAsync" />
+            <span>Override this week</span>
+        </label>
+        <p class="text-sm muted">
+            @(_usesOverride ? $"Editing rules for week {_selectedWeek} only." : "Editing the league's default rules.")
+        </p>
+    </div>
+
+    <div class="card">
+        @if (_rules.Count == 0)
+        {
+            <p class="muted">No rules yet. Add one below.</p>
+        }
+        else
+        {
+            @foreach (GameSetRuleDto rule in _rules)
+            {
+                <div class="rule-card">
+                    <span class="rule-icon" aria-hidden="true">@RuleIcon(rule)</span>
+                    <span class="rule-description">@RuleDescription(rule)</span>
+                    <button type="button" class="rule-remove" aria-label="Remove rule" @onclick="() => RemoveRule(rule)">&#10005;</button>
+                </div>
+            }
+        }
+        <button type="button" class="btn btn-secondary rule-add-btn" @onclick="OpenAddRuleSheet">Add rule</button>
+    </div>
+
+    <div class="card preview-actions">
+        <button type="button" id="preview-btn" class="btn btn-secondary" disabled="@_previewLoading" @onclick="PreviewAsync">
+            @(_previewLoading ? "Loading..." : "Preview")
+        </button>
+        <button type="button" class="btn btn-primary" disabled="@_saving" @onclick="SaveAndGenerateAsync">
+            @(_saving ? "Saving..." : "Save and generate")
+        </button>
+    </div>
+
+    @if (_generatedCount is { } count)
+    {
+        <div class="card">
+            <p>Generated <strong>@count</strong> game@(count == 1 ? "" : "s") for week @_selectedWeek.</p>
+        </div>
+    }
+
+    @if (_preview is { } preview)
+    {
+        <div class="card preview-card">
+            <h2>Preview</h2>
+            @if (preview.ExceedsMax)
+            {
+                <p class="preview-warning">Over 50 games (@preview.Count). Narrow the rules before saving.</p>
+            }
+            else
+            {
+                <p class="muted">@preview.Count game@(preview.Count == 1 ? "" : "s")</p>
+            }
+            @if (preview.UsedFallbackRankings)
+            {
+                <p class="text-sm muted">No AP poll for this week yet; used last week's rankings.</p>
+            }
+            @if (preview.Games.Length == 0)
+            {
+                <p class="muted">No games match these rules.</p>
+            }
+            else
+            {
+                @foreach (GameSetGameDto game in preview.Games)
+                {
+                    <GameRow Game="game" ShowPointBadge="false" />
+                }
+            }
+        </div>
+    }
+}
+
+<BottomSheet IsOpen="_showAddRule" Title="Add rule" OnClose="CloseAddRuleSheet">
+    <div class="segmented">
+        <button type="button" class="segmented-option @(_addRuleType == GameSetRuleType.Top25 ? "is-selected" : "")"
+                @onclick="() => _addRuleType = GameSetRuleType.Top25">
+            Top 25
+        </button>
+        <button type="button" class="segmented-option @(_addRuleType == GameSetRuleType.Conference ? "is-selected" : "")"
+                @onclick="() => _addRuleType = GameSetRuleType.Conference">
+            Conference
+        </button>
+        <button type="button" class="segmented-option @(_addRuleType == GameSetRuleType.Team ? "is-selected" : "")"
+                @onclick="() => _addRuleType = GameSetRuleType.Team">
+            Team
+        </button>
+    </div>
+
+    @switch (_addRuleType)
+    {
+        case GameSetRuleType.Top25:
+            <p class="muted">Every Saturday FBS game with at least one AP Top 25 team.</p>
+            <button type="button" class="btn btn-primary" @onclick="AddTop25Rule">Add Top 25</button>
+            break;
+
+        case GameSetRuleType.Conference:
+            <div class="sheet-field">
+                <label class="toggle-label">
+                    <input type="checkbox" @bind="_conferenceGamesOnly" />
+                    <span>Conference games only</span>
+                </label>
+            </div>
+            <div class="checkbox-list">
+                @foreach (ConferenceDto conference in _conferences)
+                {
+                    <label class="checkbox-row">
+                        <input type="checkbox"
+                               checked="@_selectedConferenceIds.Contains(conference.ConferenceId)"
+                               @onchange="e => ToggleConference(conference.ConferenceId, (bool)e.Value!)" />
+                        <span>@conference.Name</span>
+                    </label>
+                }
+            </div>
+            <button type="button" class="btn btn-primary rule-add-btn" disabled="@(_selectedConferenceIds.Count == 0)" @onclick="AddConferenceRules">
+                Add @_selectedConferenceIds.Count conference rule@(_selectedConferenceIds.Count == 1 ? "" : "s")
+            </button>
+            break;
+
+        case GameSetRuleType.Team:
+            <div class="sheet-field">
+                <label for="team-search">Team</label>
+                <input id="team-search" class="input" type="search" placeholder="Search teams..." @bind="_teamSearchText" @bind:event="oninput" @bind:after="OnTeamSearchInput" />
+            </div>
+            @foreach (TeamDto team in _teamResults)
+            {
+                <div class="search-result-row">
+                    <span>@team.School</span>
+                    <button type="button" class="btn btn-secondary" @onclick="() => AddTeamRule(team)">Add</button>
+                </div>
+            }
+            break;
+    }
+</BottomSheet>
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private LeagueDetail? _league;
+    private ConferenceDto[] _conferences = [];
+    private readonly List<GameSetRuleDto> _rules = [];
+    private bool _usesOverride;
+    private int _selectedWeek;
+    private GameSetPreview? _preview;
+    private bool _previewLoading;
+    private bool _saving;
+    private int? _generatedCount;
+    private string? _error;
+
+    private bool _showAddRule;
+    private GameSetRuleType _addRuleType = GameSetRuleType.Top25;
+    private readonly HashSet<Guid> _selectedConferenceIds = [];
+    private bool _conferenceGamesOnly;
+    private string _teamSearchText = string.Empty;
+    private TeamDto[] _teamResults = [];
+    private CancellationTokenSource? _teamSearchDebounce;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Game set rules");
+        _error = null;
+        try
+        {
+            _league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(_league.LeagueId, _league.Name, _league.CurrentWeek);
+            if (_league.MyRole != MembershipRole.Commissioner)
+            {
+                return;
+            }
+
+            _conferences = await GameSetsApi.GetConferencesAsync();
+            _selectedWeek = Math.Clamp(_league.CurrentWeek, _league.FirstWeek, _league.LastWeek);
+            await LoadRulesForSelectedWeekAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task LoadRulesForSelectedWeekAsync()
+    {
+        _preview = null;
+        _generatedCount = null;
+        WeekRulesResponse weekRules = await GameSetsApi.GetWeekRulesAsync(LeagueId, _selectedWeek);
+        _usesOverride = weekRules.UsesOverride;
+        GameSetRuleDto[] rules = weekRules.UsesOverride
+            ? weekRules.Rules
+            : await GameSetsApi.GetDefaultRulesAsync(LeagueId);
+        _rules.Clear();
+        _rules.AddRange(rules);
+    }
+
+    private async Task SelectWeekAsync(int week)
+    {
+        _selectedWeek = week;
+        try
+        {
+            await LoadRulesForSelectedWeekAsync();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private async Task OnToggleOverrideAsync(ChangeEventArgs e)
+    {
+        bool turnOn = (bool)e.Value!;
+        _preview = null;
+        _generatedCount = null;
+        try
+        {
+            if (!turnOn)
+            {
+                await GameSetsApi.SaveWeekRulesAsync(LeagueId, _selectedWeek, new WeekRulesResponse(false, []));
+                _usesOverride = false;
+                GameSetRuleDto[] defaults = await GameSetsApi.GetDefaultRulesAsync(LeagueId);
+                _rules.Clear();
+                _rules.AddRange(defaults);
+            }
+            else
+            {
+                _usesOverride = true;
+            }
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private void RemoveRule(GameSetRuleDto rule)
+    {
+        _rules.Remove(rule);
+        _preview = null;
+    }
+
+    private void OpenAddRuleSheet()
+    {
+        _addRuleType = GameSetRuleType.Top25;
+        _selectedConferenceIds.Clear();
+        _conferenceGamesOnly = false;
+        _teamSearchText = string.Empty;
+        _teamResults = [];
+        _showAddRule = true;
+    }
+
+    private void CloseAddRuleSheet() => _showAddRule = false;
+
+    private void AddTop25Rule()
+    {
+        if (!_rules.Any(r => r.RuleType == GameSetRuleType.Top25))
+        {
+            _rules.Add(new GameSetRuleDto(null, GameSetRuleType.Top25, null, null, null, null, false, _rules.Count));
+        }
+
+        _preview = null;
+        _showAddRule = false;
+    }
+
+    private void ToggleConference(Guid conferenceId, bool selected)
+    {
+        if (selected)
+        {
+            _selectedConferenceIds.Add(conferenceId);
+        }
+        else
+        {
+            _selectedConferenceIds.Remove(conferenceId);
+        }
+    }
+
+    private void AddConferenceRules()
+    {
+        foreach (Guid conferenceId in _selectedConferenceIds)
+        {
+            ConferenceDto? conference = _conferences.FirstOrDefault(c => c.ConferenceId == conferenceId);
+            if (conference is null || _rules.Any(r => r.RuleType == GameSetRuleType.Conference && r.ConferenceId == conferenceId))
+            {
+                continue;
+            }
+
+            _rules.Add(new GameSetRuleDto(
+                null, GameSetRuleType.Conference, conferenceId, conference.Name, null, null, _conferenceGamesOnly, _rules.Count));
+        }
+
+        _preview = null;
+        _showAddRule = false;
+    }
+
+    private void AddTeamRule(TeamDto team)
+    {
+        if (!_rules.Any(r => r.RuleType == GameSetRuleType.Team && r.TeamId == team.TeamId))
+        {
+            _rules.Add(new GameSetRuleDto(null, GameSetRuleType.Team, null, null, team.TeamId, team.School, false, _rules.Count));
+        }
+
+        _preview = null;
+    }
+
+    private void OnTeamSearchInput()
+    {
+        _teamSearchDebounce?.Cancel();
+        var cts = new CancellationTokenSource();
+        _teamSearchDebounce = cts;
+        _ = DebouncedSearchAsync(_teamSearchText, cts.Token);
+    }
+
+    private async Task DebouncedSearchAsync(string query, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await Task.Delay(300, cancellationToken);
+            _teamResults = await GameSetsApi.SearchTeamsAsync(query, cancellationToken);
+            StateHasChanged();
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer keystroke.
+        }
+        catch (LeaguesApiException)
+        {
+            _teamResults = [];
+        }
+    }
+
+    private async Task PreviewAsync()
+    {
+        _previewLoading = true;
+        _error = null;
+        try
+        {
+            _preview = await GameSetsApi.PreviewAsync(LeagueId, _selectedWeek, _rules.ToArray());
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _previewLoading = false;
+        }
+    }
+
+    private async Task SaveAndGenerateAsync()
+    {
+        _saving = true;
+        _error = null;
+        try
+        {
+            if (_usesOverride)
+            {
+                await GameSetsApi.SaveWeekRulesAsync(LeagueId, _selectedWeek, new WeekRulesResponse(true, _rules.ToArray()));
+            }
+            else
+            {
+                await GameSetsApi.SaveDefaultRulesAsync(LeagueId, _rules.ToArray());
+            }
+
+            WeekGameSetResponse result = await GameSetsApi.GenerateAsync(LeagueId, _selectedWeek);
+            _generatedCount = result.Games.Length;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private static string RuleIcon(GameSetRuleDto rule) => rule.RuleType switch
+    {
+        GameSetRuleType.Top25 => "#25",
+        GameSetRuleType.Conference => "\U0001F3C6",
+        GameSetRuleType.Team => "\U0001F3C8",
+        _ => "•",
+    };
+
+    private static string RuleDescription(GameSetRuleDto rule) => rule.RuleType switch
+    {
+        GameSetRuleType.Top25 => "Top 25 (AP)",
+        GameSetRuleType.Conference when rule.ConferenceGamesOnly => $"{rule.ConferenceName} · conference games only",
+        GameSetRuleType.Conference => rule.ConferenceName ?? "Conference",
+        GameSetRuleType.Team => rule.TeamName ?? "Team",
+        _ => "Rule",
+    };
+}
