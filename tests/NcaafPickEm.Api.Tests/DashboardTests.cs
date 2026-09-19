@@ -74,7 +74,7 @@ public sealed class DashboardTests
     public async Task GivenTheOverviewExample_WhenDanceAsksForHerDashboard_ThenItMatchesTheWorkedExample()
     {
         DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(_fixture.PinnedFactory);
-        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+        await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
         using HttpClient dance = _fixture.PinnedFactory.CreateClientAs(scenario.UserIdByName["Dance"]);
         using HttpResponseMessage response = await dance.GetAsync(scenario.DashboardRoute);
@@ -116,7 +116,7 @@ public sealed class DashboardTests
     public async Task GivenTheOverviewExample_WhenAlysonAsksForHerDashboard_ThenItMatchesTheWorkedExample()
     {
         DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(_fixture.PinnedFactory);
-        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+        await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
         using HttpClient alyson = _fixture.PinnedFactory.CreateClientAs(scenario.UserIdByName["Alyson"]);
         using HttpResponseMessage response = await alyson.GetAsync(scenario.DashboardRoute);
@@ -166,7 +166,7 @@ public sealed class DashboardTests
             });
 
         DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(factory);
-        await scenario.MarkLockedAsync(factory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+        await scenario.LockAsync(factory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
         using HttpClient michael = factory.CreateClientAs(scenario.UserIdByName["Michael"]);
         using HttpResponseMessage response = await michael.GetAsync(scenario.DashboardRoute);
@@ -185,7 +185,7 @@ public sealed class DashboardTests
     public async Task GivenAFinalGameWithAWinner_WhenTheViewerPickedIt_ThenWonAndPointsSoFarUpdate()
     {
         DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(_fixture.PinnedFactory);
-        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+        await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
         // Michigan (home) wins; Alyson picked Michigan on this game. The Games row is shared by
         // every league in the run's one database, so it must be restored afterward or later
@@ -238,7 +238,7 @@ public sealed class DashboardTests
     public async Task GivenAMemberWhoJoinedAfterLock_WhenTheyAskForTheirOwnDashboard_ThenTheySeeNoPickEverywhere()
     {
         DashboardWeekScenario scenario = await DashboardWeekScenario.CreateAsync(_fixture.PinnedFactory);
-        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+        await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
         Guid latecomerUserId = await _fixture.PinnedFactory.QueryDbAsync(async db =>
         {
@@ -279,7 +279,7 @@ public sealed class DashboardTests
             await db.SaveChangesAsync();
         });
 
-        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+        await scenario.LockAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
 
         using HttpClient michael = _fixture.PinnedFactory.CreateClientAs(scenario.UserIdByName["Michael"]);
         using HttpResponseMessage response = await michael.GetAsync(scenario.DashboardRoute);

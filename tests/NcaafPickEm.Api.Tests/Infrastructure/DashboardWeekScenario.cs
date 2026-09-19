@@ -1,10 +1,11 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
-using NcaafPickEm.Domain.GameSets;
+using Microsoft.Extensions.DependencyInjection;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Users;
+using NcaafPickEm.Infrastructure.Jobs;
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Picks;
 using NcaafPickEm.Shared.Enums;
@@ -36,7 +37,7 @@ public sealed record DashboardWeekScenario(
     /// <summary>
     /// Seeds the fixture reference data, the league and its five members, adds the two fixture
     /// games, and records every member's pick exactly as <c>influence-example.json</c> documents.
-    /// Does not lock the week - call <see cref="MarkLockedAsync"/> afterwards.
+    /// Does not lock the week - call <see cref="LockAsync"/> afterwards.
     /// </summary>
     /// <param name="factory">
     /// The app to seed through. Pass a factory whose clock is inside the fixture week
@@ -124,17 +125,24 @@ public sealed record DashboardWeekScenario(
             league.Id, michael.Id, setId, michiganTexas, marylandRutgers, userIdByName, membershipIdByName);
     }
 
-    /// <summary>Marks the week locked the way P4-02's job will, without running the job.</summary>
-    public async Task MarkLockedAsync(ApiFactory factory, DateTime lockedUtc)
+    /// <summary>
+    /// Locks the week by actually running P4-02's <see cref="LockWeekJob"/> (not by hand-setting
+    /// <c>LockedUtc</c>), so the dashboard sees the same frozen point values and
+    /// <c>WeekSubmissions</c> rows the real job writes.
+    /// </summary>
+    /// <param name="factory">The app whose database to lock through.</param>
+    /// <param name="dueUtc">The occurrence's due instant, for the job's own log line only -
+    /// <see cref="LockWeekJob"/> reads the set's persisted <c>LockAtUtc</c>, not this value, to
+    /// decide who joined before lock.</param>
+    public async Task LockAsync(ApiFactory factory, DateTime dueUtc)
     {
         ArgumentNullException.ThrowIfNull(factory);
 
-        await factory.ExecuteDbAsync(async db =>
-        {
-            WeekGameSet set = await db.WeekGameSets.SingleAsync(candidate => candidate.Id == WeekGameSetId);
-            set.LockedUtc = lockedUtc;
-            await db.SaveChangesAsync();
-        });
+        await using AsyncServiceScope scope = factory.Services.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope();
+        LockWeekJob job = ActivatorUtilities.CreateInstance<LockWeekJob>(scope.ServiceProvider);
+        await job.RunAsync(
+            new OneShotOccurrence(WeekGameSetId.ToString("N"), new DateTimeOffset(dueUtc, TimeSpan.Zero)),
+            CancellationToken.None);
     }
 
     private static async Task ResetGameAsync(ApiFactory factory, long cfbdGameId) =>
