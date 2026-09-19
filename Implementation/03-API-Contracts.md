@@ -98,14 +98,20 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
 | Method | Route | Scope | Request / Response |
 |---|---|---|---|
-| GET | `/api/leagues/{leagueId}/weeks/{week}/picks/me` | Member | `MyPicksResponse { Week, Status, LockAtUtc?, IsLocked, PickedCount, TotalCount, HasUnseenGameChanges, Games: MyPickGameDto[] }` |
-| PUT | `/api/leagues/{leagueId}/weeks/{week}/picks/me/{gameId}` | Member | `SetPickRequest { TeamId }` -> `MyPicksResponse`; 409 if locked; 400 if team not in game |
-| POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/submit` | Member | 409 if any active game unpicked or locked -> `MyPicksResponse` |
-| POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/ack-changes` | Member | clears `HasUnseenGameChanges` |
-| GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: { GameSetGameId, TeamId? }[] } }` |
+| GET | `/api/leagues/{leagueId}/weeks/{week}/picks/me` | Member | `MyPicksResponse { Week, Status, LockAtUtc?, LockAtEasternDisplay?, IsLocked, PickedCount, TotalCount, HasUnseenGameChanges, Games: MyPickGameDto[] }`. Works read-only for **any** week in the league's range, so past weeks render with results. |
+| PUT | `/api/leagues/{leagueId}/weeks/{week}/picks/me/{gameId}` | Member | `SetPickRequest { TeamId }` -> `MyPicksResponse`; 409 if locked or the week is not current; 400 if team not in game. Re-tapping the picked team is a 200 no-op. |
+| POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/submit` | Member | 409 if any active game unpicked, the week is locked, or the week is not current -> `MyPicksResponse`. Idempotent: a second submit leaves `SubmittedUtc` alone. |
+| POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/ack-changes` | Member | clears `HasUnseenGameChanges`; 204 (also 204 when the caller has no submission row yet) |
+| GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: MemberPickDto[] { GameSetGameId, TeamId? } } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/picks/status` | Commish | `MemberStatusRow[] { MembershipId, DisplayName, Status, PickedCount, TotalCount }` |
 
-`MyPickGameDto` = `GameSetGameDto` + `{ MyTeamId?, IsNewSinceSubmit }`.
+**P4-01 clarifications** (D-084, D-086, D-087, D-088):
+- `MyPickGameDto` **composes** the game rather than flattening it: `MyPickGameDto { Game: GameSetGameDto, MyTeamId?, IsNewSinceSubmit }`, the same shape `DashboardGameDto` uses. `Games` lists every non-removed game ordered by kickoff; a voided game is still listed (`Game.IsVoided`) but counts towards neither `PickedCount` nor `TotalCount`.
+- `MyPicksResponse.IsLocked` is "picks are frozen now" — `LockedUtc != null` **or** `now >= LockAtUtc` — which is deliberately broader than `WeekGameSetResponse.IsLocked` ("the lock job has run"). The server refuses picks from `LockAtUtc` onwards whether or not P4-02's job has run.
+- `{gameId}` on the set-pick route is the `Games.Id`, matching the conventions and the game-set routes; the response carries both ids per game.
+- 409/40x titles (the `ProblemDetails` `title` is the code name): `WeekNotCurrent` 409 (a week in range that is not the current week, past or future — set-pick and submit only), `Locked` 409, `GameNotActive` 409 (removed or voided), `IncompletePicks` 409 with `"count"` = how many games still need a pick, `NoGamesInSet` 409 (submit on an empty set), `GameNotInSet` 404, `TeamNotInGame` 400, `PicksNotVisible` 403. A week outside `FirstWeek..LastWeek` is still 404 `WeekOutOfRange` (D-064), checked first.
+- `WeekPicksResponse.Members` is built from the week's `WeekSubmissions` rows — whoever was in the league at lock, former members included — not from today's roster. Every member carries one `MemberPickDto` per active game, with `TeamId` null where they never picked.
+- `MemberStatusRow[]` covers every **active** membership, `NotStarted` for anyone with no row. Before lock the counts and status are computed live; after lock the job's `Locked`/`Incomplete` is reported as written.
 
 ## Influence dashboard (Feature 05)
 

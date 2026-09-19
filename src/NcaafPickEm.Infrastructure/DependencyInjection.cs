@@ -90,6 +90,9 @@ public static class DependencyInjection
         services.AddScoped<PointRuleService>();
         services.AddScoped<GameSetService>();
 
+        // Weekly picks (P4-01). Scoped; takes GameSetService for the shared game projection.
+        services.AddScoped<PickService>();
+
         // Leagues and members (P1-01). Scoped: both take AppDbContext.
         services.AddScoped<LeagueService>();
         services.AddScoped<InviteService>();
