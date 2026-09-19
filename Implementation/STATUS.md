@@ -132,13 +132,10 @@ Live task board. The agent that owns a task updates its row. States: Todo, In Pr
 | 2026-09-19 | P7-02 | `src/NcaafPickEm.Web/wwwroot/manifest.webmanifest` | One icon entry added: `badge-96.png`, 96x96, `purpose: monochrome`. Every existing entry unchanged. |
 | 2026-09-19 | P7-02 | `src/NcaafPickEm.Web/wwwroot/service-worker.js` | Filled in the `push`/`notificationclick` stubs P0-04 left (same handlers as `.published.js` below); the dev worker's `fetch` no-op passthrough is untouched. |
 | 2026-09-19 | P7-02 | `src/NcaafPickEm.Web/wwwroot/service-worker.published.js` | Filled in the `push`/`notificationclick` stubs P0-04 left; the offline-shell install/activate/fetch caching logic above them is untouched. |
-<<<<<<< HEAD
-| 2026-09-19 | P6-03 | `src/NcaafPickEm.Web/Services/DependencyInjection.cs` | Two lines: registers `IDashboardApi` as the real `DashboardApi` (or `Fakes.FakeDashboardApi` under `DEBUG && USE_FAKE_API`), alongside the existing registrations in the same guarded block. Own commit. |
-| 2026-09-19 | P6-03 | `src/NcaafPickEm.Web/_Imports.razor` | One line: `@using NcaafPickEm.Shared.Contracts.Dashboard`, needed by the dashboard page/components for `DashboardResponse`/`DashboardGameDto`/`MemberRef`. Own commit. |
-=======
 | 2026-09-19 | P6-02 | `src/NcaafPickEm.Api/Endpoints/EndpointMapping.cs` | Own commit. One line, alphabetical: `api.MapDashboardEndpoints();`, and removed its "later phases add" comment line. |
 | 2026-09-19 | P6-02 | `src/NcaafPickEm.Infrastructure/DependencyInjection.cs` | Own commit. One line: `services.AddScoped<DashboardService>();`, right after the P4-01 `PickService` registration (it takes the same `GameSetService`). |
->>>>>>> main
+| 2026-09-19 | P6-03 | `src/NcaafPickEm.Web/Services/DependencyInjection.cs` | Two lines: registers `IDashboardApi` as the real `DashboardApi` (or `Fakes.FakeDashboardApi` under `DEBUG && USE_FAKE_API`), alongside the existing registrations in the same guarded block. Own commit. |
+| 2026-09-19 | P6-03 | `src/NcaafPickEm.Web/_Imports.razor` | One line: `@using NcaafPickEm.Shared.Contracts.Dashboard`, needed by the dashboard page/components for `DashboardResponse`/`DashboardGameDto`/`MemberRef`. Own commit. |
 
 ## Escalations
 
