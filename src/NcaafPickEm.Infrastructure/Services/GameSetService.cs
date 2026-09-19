@@ -658,7 +658,7 @@ public sealed class GameSetService
 
     /// <summary>
     /// Full-replaces a week's rule override, or clears it, then - only when <paramref name="week"/>
-    /// is the league's current week (D-070, superseding D-065 for this one route) - immediately
+    /// is the league's current week (D-082, superseding D-065 for this one route) - immediately
     /// regenerates it through <see cref="GenerateAsync"/>, exactly as if the caller had made the
     /// two calls the commissioner UI does. Every other week is still save only, as D-065 says.
     /// 409 when the week is already locked.
@@ -718,7 +718,7 @@ public sealed class GameSetService
     }
 
     /// <summary>
-    /// True when <paramref name="week"/> is the league's current week right now (D-070): the
+    /// True when <paramref name="week"/> is the league's current week right now (D-082): the
     /// week <see cref="SeasonCalendar.CurrentWeekAt"/> reports, clamped to the league's own
     /// <see cref="League.FirstWeek"/>/<see cref="League.LastWeek"/> range exactly like
     /// <c>RegenerateGameSetsJob</c>.

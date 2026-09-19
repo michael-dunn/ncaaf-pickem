@@ -9,7 +9,7 @@ using NcaafPickEm.Shared.Enums;
 namespace NcaafPickEm.Api.Tests;
 
 /// <summary>
-/// D-070 (Feature 02, P3-04): <c>PUT .../weeks/{week}/gameset-rules</c> also regenerates the week
+/// D-082 (Feature 02, P3-04): <c>PUT .../weeks/{week}/gameset-rules</c> also regenerates the week
 /// when it saves an override for the league's *current* week, so a commissioner editing the
 /// current week's rules sees the effect immediately instead of an empty-looking week until they
 /// remember to press "generate" too. Driven against <see cref="ApiTestFixture.PinnedFactory"/> so
