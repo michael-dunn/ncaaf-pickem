@@ -81,6 +81,11 @@ public static class DependencyInjection
 
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
 
+        // Game-set and point-value configuration (P3-03). Registered before LeagueService,
+        // which takes PointRuleService to re-resolve unlocked weeks when DefaultPointValue changes.
+        services.AddScoped<PointRuleService>();
+        services.AddScoped<GameSetService>();
+
         // Leagues and members (P1-01). Scoped: both take AppDbContext.
         services.AddScoped<LeagueService>();
         services.AddScoped<InviteService>();

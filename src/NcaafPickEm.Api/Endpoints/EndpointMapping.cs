@@ -28,12 +28,14 @@ public static class EndpointMapping
             .AddEndpointFilter<CsrfEndpointFilter>();
 
         api.MapAdminEndpoints();
+        api.MapGameSetEndpoints();
         api.MapInviteEndpoints();
         api.MapLeagueEndpoints();
+        api.MapPointRuleEndpoints();
+        api.MapReferenceEndpoints();
         api.MapSeasonEndpoints();
 
         // One line per feature, alphabetical. Later phases add:
-        //   api.MapGameSetEndpoints();       (P3-03)
         //   api.MapPickEndpoints();          (P4-01)
         //   api.MapLeaderboardEndpoints();   (P5-03)
         //   api.MapDashboardEndpoints();     (P6-02)

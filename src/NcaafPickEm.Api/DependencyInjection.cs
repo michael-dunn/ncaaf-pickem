@@ -1,7 +1,9 @@
 using FluentValidation;
 using NcaafPickEm.Api.Auth;
 using NcaafPickEm.Api.Validation;
+using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Leagues;
+using NcaafPickEm.Shared.Contracts.Points;
 
 namespace NcaafPickEm.Api;
 
@@ -31,6 +33,8 @@ public static class DependencyInjection
         services.AddScoped<IValidator<UpdateLeagueSettingsRequest>, UpdateLeagueSettingsRequestValidator>();
         services.AddScoped<IValidator<SetLeagueDisplayNameRequest>, SetLeagueDisplayNameRequestValidator>();
         services.AddScoped<IValidator<TransferRequest>, TransferRequestValidator>();
+        services.AddScoped<IValidator<AddGameRequest>, AddGameRequestValidator>();
+        services.AddScoped<IValidator<SetPointOverrideRequest>, SetPointOverrideRequestValidator>();
 
         return services;
     }

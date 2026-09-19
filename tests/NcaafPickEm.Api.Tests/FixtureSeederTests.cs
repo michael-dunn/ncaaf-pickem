@@ -34,7 +34,11 @@ public sealed class FixtureSeederTests
         AppDbContext database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         int teamCount = await database.Teams.CountAsync();
-        int gameCount = await database.Games.CountAsync();
+
+        // Scoped to the fixture's own season/week: P3-03's overflow tests (409 over the 50-game
+        // cap) insert their own synthetic games under unrelated season years so they can exceed
+        // 50 eligible games without touching this count.
+        int gameCount = await database.Games.CountAsync(g => g.SeasonYear == 2026 && g.Week == 7);
 
         teamCount.Should().Be(40); // The 12 real captured teams + 28 invented; see teams.json.
         gameCount.Should().Be(16);
