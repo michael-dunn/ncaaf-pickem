@@ -61,19 +61,27 @@ Dependency direction is enforced by project references: `Web -> Shared`;
 
 ### Runtime shape
 
-One process (`NcaafPickEm.Api`) running as a Windows service on the home server, listening on
-HTTPS with a certificate issued by Tailscale for the machine's tailnet hostname. It serves the
-Blazor app's static files, the JSON API under `/api`, the auth endpoints under `/auth`, and hosts
-the job scheduler. SQL Server is on the same machine.
+One process (`NcaafPickEm.Api`) on the home server. It serves the Blazor app's static files, the
+JSON API under `/api`, the auth endpoints under `/auth`, and hosts the job scheduler; SQL Server
+sits beside it. The primary deployment is Docker on a headless Linux box (P8-05, D-158): the
+process runs in a container on plain HTTP on a loopback-only port, `tailscale serve` terminates
+TLS on the host with the tailnet certificate, and SQL Server is a second container. The Windows
+service from P8-02 is the alternative, and binds HTTPS itself with the Tailscale PEM pair.
 
 ```
-Phone (home-screen PWA) --HTTPS over Tailscale--> NcaafPickEm.Api
+Phone (home-screen PWA)
+   |
+   `--HTTPS over Tailscale--> tailscale serve (host :443)
+                                  |
+                                  `--HTTP--> 127.0.0.1:5000 -> ncaaf-api container :8080
                                                   |-- /            Blazor WASM static files
                                                   |-- /api/*       minimal endpoints (cookie auth)
                                                   |-- /auth/*      Google OAuth in/out
                                                   |-- Scheduler    cron jobs (refresh, lock, reminders)
                                                   |-- SaturdayPoller  adaptive 5-min score polling
-                                                  `-- SQL Server (localhost)
+                                                  |-- /app/keys    data-protection key ring (volume)
+                                                  |-- /app/logs    Serilog rolling file (volume)
+                                                  `-- ncaaf-db container (SQL Server 2022) :1433
                                         outbound: CFBD API, ESPN scoreboard, Google OAuth, push services
 ```
 
@@ -507,107 +515,226 @@ those routes.
 
 ## 5. Deploy
 
-The home server (P8-02) runs one Windows service, `NcaafPickEm`, behind a Tailscale-issued HTTPS
-certificate, with SQL Server (Express is fine) on the same box. Everything below lives in
-`deploy/`. The operator-facing version of this section, with every manual verification listed in
-order, is [`Implementation/reviews/operator-checklist.md`](Implementation/reviews/operator-checklist.md).
+The home server is a headless Linux box running Docker, and the app runs entirely in containers
+(P8-05): one `api` container holding the API, the hosted Blazor client and the job scheduler, one
+`mssql` container, and a `watchtower` container that pulls a new image when one is published.
+GitHub Actions builds the image into GHCR on every merge to `main`, so a merge *is* the
+deployment. Nothing is exposed to the Internet — `tailscale serve` terminates TLS on the host
+with the tailnet certificate and forwards to a loopback-only port.
+
+```
+Phone (PWA) --HTTPS--> tailscale serve (host, :443) --HTTP--> 127.0.0.1:5000 -> ncaaf-api :8080
+                                                                                     |
+                                                                              ncaaf-db :1433
+```
+
+Everything the server needs is in [`deploy/docker/`](deploy/docker): `compose.yaml`,
+`.env.example`, `backup.sh`, `restore-verify.sh`. The image is built from the repo-root
+[`Dockerfile`](Dockerfile). The operator-facing version of this section, with every manual
+verification listed in order, is
+[`Implementation/reviews/operator-checklist.md`](Implementation/reviews/operator-checklist.md).
+
+The Windows-service path from P8-02 still works and is kept as
+["Alternative: Windows service"](#alternative-windows-service) below.
 
 ### First-time setup
 
-1. **Install Tailscale** on the home server and join the family's tailnet
-   (<https://tailscale.com/download>). Note the machine's tailnet hostname, e.g.
-   `pickem.tailnet-1234.ts.net` (`tailscale status` shows it).
-2. **Issue the HTTPS certificate**:
+**Prerequisites on the server**: Docker Engine with the Compose plugin
+(`curl -fsSL https://get.docker.com | sh`, then `docker compose version` must print v2.x) and
+Tailscale (<https://tailscale.com/download>), joined to the family's tailnet. `tailscale status`
+shows the machine's tailnet hostname, e.g. `pickem.tailnet-1234.ts.net`. No .NET SDK, no SQL
+Server install, nothing else.
 
-   ```powershell
-   ./deploy/renew-cert.ps1 -TailnetHost pickem.tailnet-1234.ts.net -CertDir C:\NcaafPickEm\cert
+1. **Create the state directories.** Everything the containers persist lives under
+   `/srv/docker/configs/ncaaf-pickem`. The two uids are not interchangeable: the mssql image runs
+   as 10001, and our own image runs as the `app` user, uid 1654.
+
+   ```bash
+   sudo mkdir -p /srv/docker/configs/ncaaf-pickem/{mssql,keys,logs}
+   sudo chown -R 10001:0    /srv/docker/configs/ncaaf-pickem/mssql
+   sudo chown -R 1654:1654  /srv/docker/configs/ncaaf-pickem/keys /srv/docker/configs/ncaaf-pickem/logs
    ```
 
-   Writes `<host>.crt` / `<host>.key` (PEM) into `-CertDir`. Tailscale certs expire on the order
-   of months; register the monthly renewal task once the service exists (step 5 below).
-3. **Google OAuth**: add the redirect URI `https://<host>.<tailnet>.ts.net/auth/callback/google`
+   Skipping the `mssql` chown makes SQL Server exit immediately with a permission error; skipping
+   the `keys` one makes every restart sign everybody out.
+
+2. **Copy the compose file and the environment file** to a working directory of your choice, e.g.
+   `/srv/docker/ncaaf-pickem/`:
+
+   ```bash
+   sudo mkdir -p /srv/docker/ncaaf-pickem && cd /srv/docker/ncaaf-pickem
+   # from a checkout, or curl the raw files from GitHub
+   cp /path/to/repo/deploy/docker/{compose.yaml,.env.example,backup.sh,restore-verify.sh} .
+   cp .env.example .env && chmod 600 .env && chmod +x backup.sh restore-verify.sh
+   ```
+
+3. **Generate the VAPID pair** and put it in `.env`. Generate it once and never change it —
+   replacing the pair invalidates every stored push subscription:
+
+   ```bash
+   docker run --rm ghcr.io/michael-dunn/ncaaf-pickem:latest generate-vapid
+   ```
+
+   It prints two `Push__Vapid…=` lines; copy the values into `VAPID_PUBLIC` / `VAPID_PRIVATE` and
+   set `VAPID_SUBJECT` to a real `mailto:` address. (`generate-vapid` is a hidden first argument
+   the app handles before it builds the host, so it works as a container argument and never
+   touches configuration, the database, or the network.)
+
+4. **Google OAuth**: add the redirect URI `https://<host>.<tailnet>.ts.net/auth/callback/google`
    and the JavaScript origin `https://<host>.<tailnet>.ts.net` to the OAuth client from "Google
-   OAuth dev setup" above (or a separate production client - either works, they just need this
-   redirect URI registered).
-4. **Configure**: `cp deploy/.env.example deploy/.env` and fill in every value - see the comments
-   in that file for what each key means. `Kestrel__Certificates__Default__Path`/`KeyPath` must
-   point at the cert files from step 2; `App__PublicOrigin` and `ASPNETCORE_URLS`'s port must
-   agree with each other and with the Google redirect URI's host. `deploy/.env` is gitignored;
-   never commit it. `deploy/appsettings.Production.template.json` documents the same keys (plus
-   the ones the app reads from `appsettings.json` instead of the environment, like `Kestrel` and
-   `AllowedHosts`) for reference - it is not read directly; `install-service.ps1` writes `.env`'s
-   keys straight into the service's own environment.
-5. **Generate VAPID keys** (see "Web push (VAPID) keys" above) and put the pair into `deploy/.env`.
-6. **Install the service**:
+   OAuth dev setup" above (or a separate production client — either works, it just needs this
+   redirect URI registered). Put the client id/secret in `.env`.
 
-   ```powershell
-   ./deploy/install-service.ps1
+5. **Fill in the rest of `.env`**: `SA_PASSWORD` (strong; avoid `$`, which Compose reads as a
+   variable reference), `PUBLIC_ORIGIN=https://<host>.<tailnet>.ts.net` with no trailing slash,
+   `CFBD_API_KEY`, and `TZ`. `GHCR_USER`/`GHCR_PAT` are only needed while the image package is
+   private — see "Updating" below. Every key is commented in `deploy/docker/.env.example`.
+
+6. **Start the stack**:
+
+   ```bash
+   docker compose up -d
+   docker compose ps          # db and api should both reach (healthy)
+   docker compose logs -f api
    ```
 
-   Publishes Release (trimmed, Brotli), creates `C:\NcaafPickEm\{app,logs,backups}`, creates the
-   `NcaafPickEm` Windows service pointed at the published exe, writes `.env`'s keys into the
-   service's own registry environment (not the machine-wide environment), sets it to auto-restart
-   on crash and start automatically on boot, starts it, and polls `/health/ready`. Idempotent -
-   re-running it stops the service, republishes over the same folder, and starts it again.
-7. **Register the recurring tasks** (SQL Server Express has no Agent, hence Task Scheduler):
+   The api container waits for SQL Server (up to `Database__StartupTimeoutSeconds`, default 120),
+   applies migrations itself, and only then reports ready. Watch for these three lines:
 
-   ```powershell
-   ./deploy/register-backup-task.ps1
-   ./deploy/register-renew-cert-task.ps1 -TailnetHost pickem.tailnet-1234.ts.net
    ```
-8. **Run the first backup and verify it restores** (see "Backups" below) before calling the setup
-   done.
-9. From a phone joined to the same tailnet, open `https://<host>.<tailnet>.ts.net[:port]/` in
-   Safari, sign in with Google, and Add to Home Screen.
+   Applying 3 pending migration(s): [...]
+   Database schema is now current
+   Job scheduler started; ticking every 60s with a 60-minute catch-up window
+   ...
+   Job scheduler heartbeat for occurrence 2026-…-04:00
+   ```
 
-**Manual pending (operator), recorded in `STATUS.md`'s P8-02 row**: the app reachable from a
-phone on the tailnet over HTTPS, Google login round-tripping on the deployed server, the service
-surviving a reboot, and the first backup file appearing the next morning — none of these can be
-verified by an agent (no home server, no phone, no tailnet access in this environment). See
-`Implementation/reviews/operator-checklist.md` items 3-5.
+   The `-04:00` on the heartbeat is the point of the Debian-based runtime image: the scheduler
+   resolves `America/New_York` by name, so the container needs `tzdata` and ICU.
 
-### Redeploying (a code/config change already on `main`)
+7. **Publish it over Tailscale**:
 
-```powershell
-./deploy/deploy.ps1
-```
+   ```bash
+   tailscale serve --bg --https=443 http://127.0.0.1:5000
+   tailscale serve status
+   ```
 
-Runs `dotnet ef database update`, stops the service, republishes, starts it, and polls
-`/health/ready` for up to 60 s (prints the last 20 log lines on failure). Refuses to run from
-Saturday 10:00 ET through Sunday 03:00 ET - the game window (Feature 10) - unless you pass
-`-Force`. `-WhatIf` prints every step, including whether the Saturday guard would currently block,
-without touching anything.
+   That is the whole TLS story — the tailnet certificate is issued and renewed by Tailscale, with
+   no cron job and no `.pfx` anywhere, and it is trusted only by devices on the same tailnet.
+   `App__BehindProxy=true` in the compose file is what makes the app read the `X-Forwarded-*`
+   headers Serve adds, so the Google `redirect_uri` comes out as `https://<host>…` and the rate
+   limiter sees each member's own address rather than the Docker gateway.
 
-### Tailscale HTTPS
+8. **First-run checks**, in order:
 
-- `tailscale cert <host>.<tailnet>.ts.net` (wrapped by `deploy/renew-cert.ps1`) writes a PEM
-  cert+key pair; Kestrel's `Certificates:Default:Path`/`KeyPath` accept that pair directly (no
-  `.pfx` conversion needed, since .NET 5). One cert covers every HTTPS endpoint Kestrel binds.
-- The cert is only trusted by other devices on the same tailnet - that is the entire security
-  model here; nothing is exposed to the public Internet.
-- **Renewal**: `deploy/renew-cert.ps1` re-runs `tailscale cert` and restarts the service so Kestrel
-  picks up the new files (it only reads them at startup). `deploy/register-renew-cert-task.ps1`
-  schedules this every 4 weeks via Task Scheduler.
-- Google OAuth redirect URI: `https://<host>.<tailnet>.ts.net/auth/callback/google`.
-  `App__PublicOrigin` must match the scheme+host+port members see, since invite links
-  (`InviteResponse.Url`) are built from it.
+   ```bash
+   curl -fsS http://127.0.0.1:5000/health        # {"status":"ok"}
+   curl -fsS http://127.0.0.1:5000/health/ready  # {"status":"ok"} — 503 while migrating
+   docker compose logs api | grep -E "migration|heartbeat"
+   ```
+
+   Then, from a phone joined to the tailnet: open `https://<host>.<tailnet>.ts.net/` in Safari,
+   sign in with Google, and Add to Home Screen.
+
+9. **Schedule the nightly backup** (see "Backups" below) and run `./restore-verify.sh` once by
+   hand before calling the setup done.
+
+**Manual pending (operator), recorded in `STATUS.md`'s P8-05 row**: the app reachable from a
+phone on the tailnet over HTTPS, Google login round-tripping on the deployed server, the stack
+surviving a host reboot, and the first backup file appearing the next morning — none of these can
+be verified by an agent (no home server, no phone, no tailnet access in this environment). See
+`Implementation/reviews/operator-checklist.md`.
+
+### Updating
+
+The image is published to `ghcr.io/michael-dunn/ncaaf-pickem` by
+[`.github/workflows/ghcr-build.yml`](.github/workflows/ghcr-build.yml) on every push to `main`
+and every `v*` tag, tagged `latest`, `sha-<short>`, and semver for tags.
+
+- **Automatic**: the `watchtower` container polls the `latest` tag every 30 minutes and restarts
+  `ncaaf-api` in place when the digest changes. It is scoped to that one container by name, so it
+  never restarts the database and never updates itself.
+- **By hand**: `docker compose pull && docker compose up -d`. Use this when you want to choose the
+  moment.
+- **Roll back**: pin the image to a known-good digest or `sha-<short>` tag in `compose.yaml` and
+  `docker compose up -d`.
+
+**Package visibility.** The repository is public, so the container package can be public too —
+GitHub → Packages → `ncaaf-pickem` → Package settings → Change visibility. Then watchtower pulls
+anonymously and `GHCR_USER`/`GHCR_PAT` can be left empty. If you keep the package private, the PAT
+is a classic token with `read:packages` and nothing else; it is only ever needed on the pull side
+(pushing uses the workflow's own `GITHUB_TOKEN`).
+
+**Saturday rule.** Do not deploy between the first kickoff and the last final on a Saturday
+(Feature 10). Watchtower has no calendar, so before a game day either stop it
+(`docker compose stop watchtower`) or simply do not merge to `main`; the surest version is to
+leave `main` alone from Saturday 10:00 ET to Sunday 03:00 ET, which is the same window
+`deploy/deploy.ps1` refuses to run in.
 
 ### Backups
 
-- `deploy/backup.sql` runs `BACKUP DATABASE ... WITH CHECKSUM, INIT` into
-  `deploy/.env`'s `BACKUP_FOLDER` (no `COMPRESSION`: that option is Standard/Enterprise-only and
-  SQL Server Express rejects it outright - confirmed while validating this script against
-  LocalDB, which reports as Express).
-- `deploy/backup.ps1` runs it (via a resolved copy of `backup.sql`, not `sqlcmd -v` - see the
-  comment in that script for why: this machine's `sqlcmd -v` mis-tokenizes any value containing a
-  drive-letter colon) and prunes `.bak` files older than 30 days.
-- `deploy/register-backup-task.ps1` schedules it daily at 03:45 local time via Task Scheduler
-  (SQL Server Express has no SQL Server Agent).
-- `deploy/restore-verify.ps1` restores the latest `.bak` into a throwaway
-  `<DatabaseName>_RestoreCheck` database, runs `DBCC CHECKDB`, prints `Users`/`Leagues`/`Picks`
-  row counts, then drops the scratch database. Run it once by hand after the first real nightly
-  backup lands, and periodically afterwards - a green `BACKUP DATABASE` exit code is not proof a
-  file is actually restorable.
+`deploy/docker/backup.sh` runs from the host's cron against the db container:
+
+```
+45 3 * * * /srv/docker/ncaaf-pickem/backup.sh >> /var/log/ncaaf-backup.log 2>&1
+```
+
+- It runs `BACKUP DATABASE [NcaafPickEm] … WITH CHECKSUM, INIT` inside the container, writing to
+  `/var/opt/mssql/backups`, which is part of the mssql bind mount — so the host sees the files at
+  `/srv/docker/configs/ncaaf-pickem/mssql/backups/NcaafPickEm_YYYYMMDD.bak`. Copy that directory
+  off the box periodically: a bind mount on the same disk is not a backup.
+- `.bak` files older than 30 days are pruned (inside the container, where they are owned by uid
+  10001).
+- The sa password is never passed in from the host — it is already in the container's own
+  environment, so it never appears in the host's process list or in cron's mail.
+- `deploy/docker/restore-verify.sh` restores the newest `.bak` into a throwaway
+  `NcaafPickEm_RestoreCheck`, runs `DBCC CHECKDB`, prints `Users`/`Leagues`/`Picks` row counts,
+  and drops it again — including when a check fails partway. Run it once after the first real
+  nightly backup lands, and periodically afterwards: a green `BACKUP DATABASE` exit code is not
+  proof a file is actually restorable.
+
+### SQL access from your PC
+
+The db container publishes `127.0.0.1:1433` on the server only. To reach it from a workstation on
+the tailnet, add a TCP proxy:
+
+```bash
+tailscale serve --bg --tcp 1433 tcp://127.0.0.1:1433
+```
+
+Then connect SSMS or Azure Data Studio to `<host>.<tailnet>.ts.net,1433` as `sa` with
+`SA_PASSWORD`, trusting the server certificate. Turn it off again with
+`tailscale serve --tcp 1433 off` when you are done — it is a convenience, not part of the running
+system.
+
+### Local full-stack check
+
+Before touching the server, the same image can be exercised end to end on any machine with
+Docker, entirely offline (fixtures for both providers, the demo league seeded, dev-login instead
+of Google):
+
+```bash
+docker compose -f deploy/docker/compose.dev.yaml up --build -d
+curl -fsS http://127.0.0.1:5000/health/ready
+curl -c jar "http://127.0.0.1:5000/auth/dev-login?user=michael" && curl -b jar http://127.0.0.1:5000/api/me
+docker compose -f deploy/docker/compose.dev.yaml down -v
+```
+
+### Alternative: Windows service
+
+The P8-02 scripts in `deploy/*.ps1` still work and remain the supported path for a Windows home
+server: `install-service.ps1` (publish + create the `NcaafPickEm` service + write `deploy/.env`
+into the service's own registry environment), `deploy.ps1` (Saturday-guarded redeploy with
+`dotnet ef database update` as an explicit step), `renew-cert.ps1` +
+`register-renew-cert-task.ps1` (monthly `tailscale cert` PEM renewal for Kestrel's
+`Certificates:Default:Path`/`KeyPath`), and `backup.ps1` / `restore-verify.ps1` /
+`register-backup-task.ps1` (nightly 03:45 backup, 30-day prune, restore check). `deploy/.env.example`
+and `deploy/appsettings.Production.template.json` document its keys.
+
+Two differences matter if you use it: leave `App__BehindProxy` unset (Kestrel binds HTTPS directly
+with the Tailscale PEM pair, so trusting `X-Forwarded-*` would be a spoofing hole), and leave
+`Database__MigrateOnStartup` false (D-015 — `deploy.ps1` migrates as its own step). The Docker
+path inverts both on purpose (D-159, D-160).
 
 ## 6. Operate
 
@@ -635,12 +762,14 @@ without touching anything.
   league/role mutation, newest first, with the actor, a humanised summary, and a
   relative/absolute timestamp. Linked from the league home page ("Activity") and from each "Needs
   review" row.
-- **Backups**: land nightly at 03:45 local in `BACKUP_FOLDER` (`deploy/.env`), retained 30 days.
-  Confirm the file appears the morning after the first deploy, and periodically run
-  `deploy/restore-verify.ps1` - see "Backups" above.
-- **Saturday rules**: `deploy/deploy.ps1` refuses to run from Saturday 10:00 ET to Sunday 03:00 ET
-  (the SaturdayPoller's own window) unless `-Force` is passed. Do not pass `-Force` on a normal
-  Saturday; it exists for a genuine emergency fix. During that window the `SaturdayPoller`
+- **Backups**: nightly at 03:45 local, retained 30 days. Confirm the file appears the morning
+  after the first deploy, and periodically run the restore check — see "Backups" under "Deploy"
+  above for the Docker paths, or `deploy/restore-verify.ps1` on the Windows path.
+- **Saturday rules**: do not deploy from Saturday 10:00 ET to Sunday 03:00 ET. On Docker that
+  means not merging to `main` (and, if you want certainty, `docker compose stop watchtower`
+  beforehand — watchtower has no calendar). On the Windows path `deploy/deploy.ps1` enforces the
+  same window itself and refuses to run unless `-Force` is passed; do not pass `-Force` on a
+  normal Saturday, it exists for a genuine emergency fix. During that window the `SaturdayPoller`
   `BackgroundService` re-evaluates every minute and polls live scores every 5 minutes (ESPN or
   Fixture) or every 10 minutes (once ESPN has failed 3 times in a row and CFBD is the active
   fallback), applying each snapshot and scoring games as they go Final.
@@ -649,12 +778,19 @@ without touching anything.
   succeeded. A manual refresh (`POST /api/admin/refresh/Scores`) always uses *today's* Eastern
   date, so it will not help catch up a date in the past or future; a provider outage recorded on
   `DataRefreshStatus` resolves itself on the next scheduled poll once the provider recovers.
-- **Logs**: `logs/ncaaf-<date>.log` under the app's content root (`C:\NcaafPickEm\app\logs` with
-  the layout above), daily rolling, 31 files retained. `deploy/deploy.ps1` prints the last 20 lines
-  automatically when a redeploy's health check fails.
-- **Service control**: `Get-Service NcaafPickEm`, `Restart-Service NcaafPickEm`,
-  `Stop-Service NcaafPickEm`. Set to auto-restart on crash and start automatically on boot by
-  `install-service.ps1`.
+- **Logs**: `ncaaf-<date>.log`, daily rolling, 31 files retained. On Docker that is
+  `/srv/docker/configs/ncaaf-pickem/logs/` on the host (mounted at `/app/logs`, set by
+  `Serilog__LogDirectory`); `docker compose logs -f api` shows the same events on the console
+  sink. On Windows it is `logs/` under the app's content root (`C:\NcaafPickEm\app\logs`), and
+  `deploy/deploy.ps1` prints the last 20 lines automatically when a redeploy's health check fails.
+- **Container control**: `docker compose ps`, `docker compose restart api`,
+  `docker compose logs -f api`, `docker compose down`. `restart: unless-stopped` brings the whole
+  stack back after a host reboot, and the api container waits for SQL Server rather than
+  crash-looping while it starts. On Windows the equivalents are `Get-Service NcaafPickEm`,
+  `Restart-Service NcaafPickEm`, `Stop-Service NcaafPickEm`.
+- **Backups (Docker)**: `/srv/docker/configs/ncaaf-pickem/mssql/backups/`, nightly at 03:45 from
+  the host's cron via `deploy/docker/backup.sh`, 30 days retained; verify with
+  `deploy/docker/restore-verify.sh`.
 
 ## 7. Where the plan lives
 
