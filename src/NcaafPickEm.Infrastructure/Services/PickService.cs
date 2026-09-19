@@ -304,11 +304,17 @@ public sealed class PickService
         GameSetGameDto[] activeGames = [.. games.Games.Where(game => !game.IsVoided)];
         HashSet<Guid> activeIds = [.. activeGames.Select(game => game.GameSetGameId!.Value)];
 
-        // A WeekSubmissions row is the record of who was in the league at lock, so it — not the
-        // current roster — decides whose column appears, former members included.
+        // A WeekSubmissions row the lock job settled is the record of who was in the league at
+        // lock, so it — not the current roster — decides whose column appears, former members
+        // included. The status clause is the whole rule (D-135): this service creates a row the
+        // moment a member first touches the week and D-111 leaves it behind when the locker drops
+        // the membership, so "any row at all" would also column a member who picked and then left
+        // before the week locked. Locked/Incomplete are the only two values LockWeekJob writes.
         Dictionary<Guid, SubmissionStatus> statuses = await _database.WeekSubmissions
             .AsNoTracking()
-            .Where(submission => submission.WeekGameSetId == set.Id)
+            .Where(submission => submission.WeekGameSetId == set.Id
+                && (submission.Status == SubmissionStatus.Locked
+                    || submission.Status == SubmissionStatus.Incomplete))
             .ToDictionaryAsync(submission => submission.MembershipId, submission => submission.Status, cancellationToken)
             .ConfigureAwait(false);
 

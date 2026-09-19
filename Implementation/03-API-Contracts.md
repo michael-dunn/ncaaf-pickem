@@ -103,7 +103,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 | PUT | `/api/leagues/{leagueId}/weeks/{week}/picks/me/{gameId}` | Member | `SetPickRequest { TeamId }` -> `MyPicksResponse`; 409 if locked or the week is not current; 400 if team not in game. Re-tapping the picked team is a 200 no-op. |
 | POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/submit` | Member | 409 if any active game unpicked, the week is locked, or the week is not current -> `MyPicksResponse`. Idempotent: a second submit leaves `SubmittedUtc` alone. |
 | POST | `/api/leagues/{leagueId}/weeks/{week}/picks/me/ack-changes` | Member | clears `HasUnseenGameChanges`; 204 (also 204 when the caller has no submission row yet) |
-| GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: MemberPickDto[] { GameSetGameId, TeamId? } } }` |
+| GET | `/api/leagues/{leagueId}/weeks/{week}/picks` | Member | all members' picks; **403 before lock**. Members are the ones the lock job settled (`WeekSubmissions.Status` in Locked/Incomplete, D-135/D-143), so a member who picked and then left before lock has no row. `WeekPicksResponse { Games: GameSetGameDto[], Members: MemberPicksRow[] { MembershipId, DisplayName, Status, Picks: MemberPickDto[] { GameSetGameId, TeamId? } } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/picks/status` | Commish | `MemberStatusRow[] { MembershipId, DisplayName, Status, PickedCount, TotalCount }` |
 
 **P4-01 clarifications** (D-084, D-086, D-087, D-088):
@@ -142,7 +142,7 @@ Record definitions live in `Shared/Contracts/Leaderboard/` (`SeasonLeaderboard`,
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/leaderboard` | Member | `SeasonLeaderboard { ThroughWeek, Rows: SeasonRow[] { Rank, MembershipId, DisplayName, TotalPoints, PointsBehind, WeeklyWins, Trend: Up/Down/Same/None, IsMe } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/leaderboard` | Member | `WeekLeaderboard { Week, IsComplete, Rows: WeekRow[] { Rank, MembershipId, DisplayName, Points, Correct, Total, IsWinner, IsFormer, IsMe } }` |
-| GET | `/api/leagues/{leagueId}/weeks/{week}/grid` | Member | `WeekGrid { Games: GameSetGameDto[] (voided included), Members: GridMember[] { MembershipId, DisplayName, IsFormer } (the WeekSubmissions rows, by name), Cells: GridCell[] { GameSetGameId, MembershipId, TeamId?, Outcome: Pending/Correct/Incorrect/NoPick/Voided } }`; 403 `PicksNotVisible` before lock, the same ProblemDetails title as `GET .../picks` |
+| GET | `/api/leagues/{leagueId}/weeks/{week}/grid` | Member | `WeekGrid { Games: GameSetGameDto[] (voided included), Members: GridMember[] { MembershipId, DisplayName, IsFormer } (the memberships the lock job settled - `WeekSubmissions.Status` in Locked/Incomplete, D-135 - by name), Cells: GridCell[] { GameSetGameId, MembershipId, TeamId?, Outcome: Pending/Correct/Incorrect/NoPick/Voided } }`; 403 `PicksNotVisible` before lock, the same ProblemDetails title as `GET .../picks` |
 
 ## Data admin (Features 09, 12)
 

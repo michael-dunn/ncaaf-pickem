@@ -158,9 +158,12 @@ public sealed class GameRemovedTests : IAsyncLifetime
         using HttpClient member = _app.Factory.CreateMutatingClientAs(scenario.MemberUserId);
         await PickAllAsync(member, scenario);
         await SubmitAsync(member, scenario);
-        WeekSubmission before = await ReadSubmissionAsync(scenario, scenario.MemberMembershipId);
 
         await scenario.MarkLockedAsync(_app.Factory, _app.NowUtc.UtcDateTime);
+
+        // Read the row the lock left behind (Submitted -> Locked): what must not move afterwards is
+        // the locked verdict, not the pre-lock status.
+        WeekSubmission before = await ReadSubmissionAsync(scenario, scenario.MemberMembershipId);
 
         await using AsyncServiceScope scope = _app.Factory.Services
             .GetRequiredService<IServiceScopeFactory>()

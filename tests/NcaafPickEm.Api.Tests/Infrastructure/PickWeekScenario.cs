@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
+using NcaafPickEm.Domain.Picks;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Enums;
@@ -96,6 +97,16 @@ public sealed record PickWeekScenario(
     }
 
     /// <summary>Marks the week locked the way P4-02's job will, without running the job.</summary>
+    /// <remarks>
+    /// As well as <c>LockedUtc</c>, this settles the <c>WeekSubmissions</c> rows that already exist
+    /// for memberships active at lock: <c>Submitted</c> becomes <c>Locked</c> and anything else
+    /// becomes <c>Incomplete</c>, the only two statuses <c>LockWeekJob</c> writes. Everything that
+    /// reads "who was in the league at lock" tests for exactly those two (D-135), so a scenario
+    /// whose members were left <c>InProgress</c> would have no roster at all. Rows belonging to a
+    /// membership that was already removed are left alone (D-111), and - unlike the real job - no
+    /// row is manufactured for a member who never touched the week: pass the real
+    /// <c>LockWeekJob</c> when a test needs that.
+    /// </remarks>
     /// <param name="factory">The app whose database to write to.</param>
     /// <param name="lockedUtc">The instant to record as <c>LockedUtc</c>.</param>
     public async Task MarkLockedAsync(ApiFactory factory, DateTime lockedUtc)
@@ -106,6 +117,23 @@ public sealed record PickWeekScenario(
         {
             WeekGameSet set = await db.WeekGameSets.SingleAsync(candidate => candidate.Id == WeekGameSetId);
             set.LockedUtc = lockedUtc;
+
+            DateTime lockAtUtc = set.LockAtUtc ?? lockedUtc;
+
+            List<WeekSubmission> submissions = await db.WeekSubmissions
+                .Where(submission => submission.WeekGameSetId == set.Id
+                    && submission.Membership!.RemovedUtc == null
+                    && submission.Membership!.JoinedUtc <= lockAtUtc)
+                .ToListAsync();
+
+            foreach (WeekSubmission submission in submissions)
+            {
+                submission.Status = submission.Status == SubmissionStatus.Submitted
+                    ? SubmissionStatus.Locked
+                    : SubmissionStatus.Incomplete;
+                submission.LastChangedUtc = lockedUtc;
+            }
+
             await db.SaveChangesAsync();
         });
     }

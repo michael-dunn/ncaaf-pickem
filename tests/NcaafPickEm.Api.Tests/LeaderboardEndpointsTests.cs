@@ -274,6 +274,39 @@ public sealed class LeaderboardEndpointsTests
     }
 
     [Fact]
+    public async Task GivenAMemberWhoPickedThenLeftBeforeLock_WhenReadingTheGrid_ThenTheyHaveNoColumn()
+    {
+        PickWeekScenario scenario = await PickWeekScenario.CreateAsync(_fixture.PinnedFactory);
+        using HttpClient first = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.MemberUserId);
+        using HttpClient second = _fixture.PinnedFactory.CreateMutatingClientAs(scenario.SecondMemberUserId);
+
+        GameSetGameDto game = scenario.Games[0];
+        await PickAsync(first, scenario, game, game.HomeTeam.TeamId);
+        await PickAsync(second, scenario, game, game.AwayTeam.TeamId);
+
+        // Gone before the lock, so the lock job never settles their row (D-111): "has a
+        // WeekSubmissions row" would still column them, the status rule (D-135) does not.
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+        {
+            Membership leaving = await db.Memberships.SingleAsync(m => m.Id == scenario.SecondMemberMembershipId);
+            leaving.RemovedUtc = ApiTestFixture.PinnedNowUtc.UtcDateTime;
+            await db.SaveChangesAsync();
+        });
+
+        await scenario.MarkLockedAsync(_fixture.PinnedFactory, ApiTestFixture.PinnedNowUtc.UtcDateTime);
+
+        using HttpClient member = _fixture.PinnedFactory.CreateClientAs(scenario.MemberUserId);
+        using HttpResponseMessage response = await member.GetAsync(GridRoute(scenario));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        WeekGrid? body = await response.Content.ReadFromJsonAsync<WeekGrid>();
+
+        body!.Members.Should().ContainSingle(column => column.MembershipId == scenario.MemberMembershipId);
+        body.Members.Should().NotContain(column => column.MembershipId == scenario.SecondMemberMembershipId);
+        body.Cells.Should().OnlyContain(cell => cell.MembershipId == scenario.MemberMembershipId);
+    }
+
+    [Fact]
     public async Task GivenAWeekWhoseSetHasNoGames_WhenListingLeagueWeeks_ThenItIsNotNavigable()
     {
         PickWeekScenario scenario = await PickWeekScenario.CreateAsync(_fixture.PinnedFactory);

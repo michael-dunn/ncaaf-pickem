@@ -6,6 +6,7 @@ using NcaafPickEm.Domain.Picks;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Leaderboard;
+using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Infrastructure.Services;
 
@@ -156,11 +157,17 @@ public sealed class LeaderboardService
                 "Everyone's picks become visible when the week locks.");
         }
 
-        // A WeekSubmissions row is the record of who was in the league at lock, so it - not the
-        // current roster - decides whose column appears, former members included (D-111).
+        // Who was in the league at lock decides whose column appears - not the current roster, so
+        // members removed since are still here, flagged. That means a WeekSubmissions row whose
+        // status is Locked or Incomplete, the only two LockWeekJob writes (D-135): PickService
+        // creates a row the moment a member first touches the week and D-111 leaves it behind when
+        // the locker drops the membership, so "any row at all" would also column a member who left
+        // before the week locked.
         Guid[] membershipIds = await _database.WeekSubmissions
             .AsNoTracking()
-            .Where(submission => submission.WeekGameSetId == set.Id)
+            .Where(submission => submission.WeekGameSetId == set.Id
+                && (submission.Status == SubmissionStatus.Locked
+                    || submission.Status == SubmissionStatus.Incomplete))
             .Select(submission => submission.MembershipId)
             .ToArrayAsync(cancellationToken)
             .ConfigureAwait(false);

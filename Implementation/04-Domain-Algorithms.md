@@ -159,7 +159,7 @@ Trend: compare the member's rank in `SeasonStandingsSnapshots(ThroughWeek = late
 
 Week rows: every membership with a `WeekResults` row for that week, including former members (`IsFormer`). Rank by `Points` with competition ranking. `IsWinner` = Points == max and week `IsComplete`. Weeks not Complete are labeled provisional by the client using `IsComplete`.
 
-Grid: rows = active games ordered by kickoff (voided included, flagged), columns = memberships with a submission row for the week. Cell outcome: `Voided` > `NoPick` (no pick row) > `Pending` (no winner yet) > `Correct` / `Incorrect`. The grid answers 403 (`PicksNotVisible`, the same code `GET .../picks` uses) until `LockedUtc != null`.
+Grid: rows = active games ordered by kickoff (voided included, flagged), columns = the memberships the lock job settled for the week - a `WeekSubmissions` row with `Status` in (`Locked`, `Incomplete`), which is the same roster rule section 6's dashboard uses (D-135, D-143), ordered by display name then `MembershipId`. A member removed *since* lock still has a column, flagged `IsFormer`; one who picked and then left *before* lock has none, and neither does a post-lock joiner. Cell outcome: `Voided` > `NoPick` (no pick row) > `Pending` (no winner yet) > `Correct` / `Incorrect`. The grid answers 403 (`PicksNotVisible`, the same code `GET .../picks` uses) until `LockedUtc != null`.
 
 Navigation: `GET /api/leagues/{leagueId}/weeks` marks a week `HasGameSet` only when it holds at least one active `WeekGameSetGames` row, since a `WeekGameSets` row alone is created by simply touching a week (D-141).
 
