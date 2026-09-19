@@ -95,6 +95,10 @@ public static class DependencyInjection
         // Weekly picks (P4-01). Scoped; takes GameSetService for the shared game projection.
         services.AddScoped<PickService>();
 
+        // Influence dashboard (P6-02). Scoped; takes GameSetService for the same game projection
+        // and the singleton ILiveScoreHealth for the "scores may be stale" flag.
+        services.AddScoped<DashboardService>();
+
         // Leagues and members (P1-01). Scoped: both take AppDbContext.
         services.AddScoped<LeagueService>();
         services.AddScoped<InviteService>();
