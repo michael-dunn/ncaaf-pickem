@@ -51,7 +51,7 @@ namespace NcaafPickEm.Api.Tests.Simulation;
 /// <see cref="SaturdayPoller.PollOnceAsync"/>.
 /// </para>
 /// <para>
-/// Roster (D-200): the Overview's five worked-example names plus a sixth member, Sam, who never
+/// Roster (D-151): the Overview's five worked-example names plus a sixth member, Sam, who never
 /// opens the picks page. The card asks for "one leaves 2 unpicked, one never starts" while the
 /// Overview needs all five named members to have picked both example games, so the sixth member
 /// carries the never-started case. A member with no pick lands in the dashboard's
