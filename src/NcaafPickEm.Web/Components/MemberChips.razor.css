@@ -1,0 +1,30 @@
+.member-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.member-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.member-chip-muted {
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+    font-weight: 500;
+}
+
+.member-chip-former {
+    font-weight: 400;
+    font-size: var(--text-sm);
+    opacity: 0.75;
+}

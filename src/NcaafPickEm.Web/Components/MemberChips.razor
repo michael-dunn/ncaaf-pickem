@@ -1,0 +1,38 @@
+@* Wrapping row of member-name chips: "Opposite picks (N)" / "No pick (N)" /
+   "Picks for <team>" on the dashboard (P6-03). Names never truncate - they wrap onto a new line
+   instead (task card). A former member (active at lock, since removed) gets a subtle "(former)"
+   marker rather than disappearing, since they still counted at lock. *@
+
+@if (Members.Count > 0)
+{
+    <div class="member-chips">
+        @foreach (MemberRef member in Members)
+        {
+            <span class="member-chip @(Muted ? "member-chip-muted" : "")">
+                @member.DisplayName
+                @if (member.IsFormer)
+                {
+                    <span class="member-chip-former">(former)</span>
+                }
+            </span>
+        }
+    </div>
+}
+else if (!string.IsNullOrWhiteSpace(EmptyText))
+{
+    <span class="member-chips-empty muted">@EmptyText</span>
+}
+
+@code {
+    /// <summary>Members to render as chips, in the order the caller wants them shown.</summary>
+    [Parameter, EditorRequired]
+    public IReadOnlyList<MemberRef> Members { get; set; } = [];
+
+    /// <summary>Renders every chip in the muted "No pick" style. Default false.</summary>
+    [Parameter]
+    public bool Muted { get; set; }
+
+    /// <summary>Text shown instead when <see cref="Members"/> is empty. Omit to render nothing.</summary>
+    [Parameter]
+    public string? EmptyText { get; set; }
+}

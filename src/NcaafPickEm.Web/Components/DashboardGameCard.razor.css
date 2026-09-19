@@ -1,0 +1,86 @@
+.dashboard-game-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-border);
+    margin-bottom: var(--space-3);
+}
+
+.dashboard-game-card-won {
+    background: #e3f4ea;
+    border-color: var(--color-success);
+}
+
+.dashboard-game-card-lost {
+    background: var(--color-accent-soft);
+    border-color: var(--color-danger);
+}
+
+.dashboard-game-card-matchup {
+    font-weight: 600;
+    overflow-wrap: break-word;
+}
+
+.dashboard-game-card-team-mine {
+    text-decoration: underline;
+    text-decoration-color: var(--color-brand);
+    text-decoration-thickness: 2px;
+}
+
+.dashboard-game-card-status-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.dashboard-game-card-status {
+    font-size: var(--text-sm);
+    color: var(--color-text-muted);
+}
+
+.dashboard-game-card-chip-row {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+}
+
+.dashboard-game-card-chip-label {
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+/* Local copies of GameRow's small styles - CSS isolation scopes GameRow.razor.css to elements
+   GameRow itself renders, so a sibling component using the same class names needs its own copy
+   (05-Conventions.md; not worth promoting to app.css, a hot-spot file, for four rules). */
+.game-row-rank {
+    color: var(--color-text-muted);
+    font-weight: 700;
+    font-size: var(--text-sm);
+    margin-right: 2px;
+}
+
+.game-row-at {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    margin: 0 var(--space-1);
+}
+
+.point-badge {
+    display: inline-flex;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.point-badge-elevated {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+}
