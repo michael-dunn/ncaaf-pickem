@@ -9,6 +9,7 @@ using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 using NcaafPickEm.Infrastructure.Providers.Models;
 using NcaafPickEm.Infrastructure.Services;
+using NcaafPickEm.Shared.Contracts.Admin;
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Enums;
 
@@ -224,6 +225,58 @@ public sealed class ScheduleChangeTests
             await ApplyAsync(postponed);
             review = await ListNeedsVoidReviewAsync(league.Id);
             review.Should().ContainSingle(r => r.GameId == gameId);
+        }
+        finally
+        {
+            await ResetGameToScheduledAsync(gameId);
+        }
+    }
+
+    [Fact]
+    public async Task GivenALockedWeeksPostponedGame_WhenTheCommissionerOverridesTheResult_ThenItLeavesTheReviewList()
+    {
+        (League league, HttpClient client, Guid gameId) = await SeedLeagueWithGameAsync();
+
+        try
+        {
+            await _fixture.Factory.ExecuteDbAsync(async db =>
+            {
+                WeekGameSet set = await db.WeekGameSets.SingleAsync(s => s.LeagueId == league.Id && s.Week == 7);
+                set.LockedUtc = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            });
+
+            LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
+            LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
+            await ApplyAsync(postponed);
+
+            (await ListNeedsVoidReviewAsync(league.Id)).Should().ContainSingle(r => r.GameId == gameId);
+
+            // The data status page (P2-04) is the surface the card asks for: the row has to show
+            // up there, alongside the Final-but-undecidable games, with its status as the reason.
+            using HttpResponseMessage statusResponse = await client.GetAsync("/api/admin/data-status");
+            statusResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+            DataStatusResponse status = (await statusResponse.Content.ReadFromJsonAsync<DataStatusResponse>())!;
+            status.NeedsReview.Should().Contain(r => r.GameId == gameId
+                && r.LeagueId == league.Id
+                && r.Reason == nameof(GameStatus.Postponed));
+
+            // P5-02 can resolve it either way; overriding the winner is the non-void option, and
+            // must take it off the list just as voiding does.
+            Guid homeTeamId = await _fixture.Factory.QueryDbAsync(db => db.Games
+                .Where(g => g.Id == gameId)
+                .Select(g => g.HomeTeamId)
+                .SingleAsync());
+
+            await _fixture.Factory.ExecuteDbAsync(async db =>
+            {
+                await db.WeekGameSetGames
+                    .Where(r => r.WeekGameSet!.LeagueId == league.Id && r.GameId == gameId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(r => r.ResultOverrideWinnerTeamId, homeTeamId));
+            });
+
+            (await ListNeedsVoidReviewAsync(league.Id)).Should().BeEmpty(
+                "a commissioner who has already picked the winner has made the decision this list asks for");
         }
         finally
         {

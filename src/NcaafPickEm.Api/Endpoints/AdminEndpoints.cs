@@ -53,6 +53,7 @@ public static class AdminEndpoints
         IConfiguration configuration,
         TimeProvider timeProvider,
         ILiveScoreHealth liveScoreHealth,
+        GameSetService gameSetService,
         CancellationToken cancellationToken)
     {
         Dictionary<RefreshDataType, DataRefreshStatus> refreshes = await database.DataRefreshStatuses
@@ -97,6 +98,21 @@ public static class AdminEndpoints
             .ToListAsync(cancellationToken);
 
         List<NeedsReviewGameDto> needsReview = await GetNeedsReviewAsync(database, cancellationToken);
+
+        // P3-04: a game postponed or cancelled *after* its week locked also needs a commissioner
+        // decision (void it, or override the result) and belongs on the same list - that is what
+        // GameNeedsVoidReview is raised for. Feature 02's card asks for the data page to list it.
+        needsReview.AddRange((await gameSetService.ListNeedsVoidReviewAsync(null, cancellationToken))
+            .Select(item => new NeedsReviewGameDto(
+                item.GameId,
+                item.LeagueId,
+                item.LeagueName,
+                item.Week,
+                item.HomeTeam,
+                item.AwayTeam,
+                null,
+                null,
+                item.Status.ToString())));
 
         return TypedResults.Ok(new DataStatusResponse(
             refreshRows,
