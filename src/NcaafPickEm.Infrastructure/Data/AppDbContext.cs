@@ -65,6 +65,7 @@ public class AppDbContext : DbContext
     // Notifications (Feature 11)
     public DbSet<PushSubscription> PushSubscriptions => Set<PushSubscription>();
     public DbSet<NotificationLogEntry> NotificationLog => Set<NotificationLogEntry>();
+    public DbSet<PushRetry> PushRetries => Set<PushRetry>();
 
     // Operations (Features 09, 12, 10)
     public DbSet<ProviderCall> ProviderCalls => Set<ProviderCall>();
