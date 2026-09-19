@@ -134,6 +134,8 @@ Record definitions live in `Shared/Contracts/Dashboard/` (`DashboardResponse`, `
 
 ## Leaderboard (Feature 07)
 
+Record definitions live in `Shared/Contracts/Leaderboard/` (`SeasonLeaderboard`, `SeasonRow`, `WeekLeaderboard`, `WeekRow`, `WeekGrid`, `GridMember`, `GridCell`) with enums `StandingsTrend` and `GridOutcome` in `Shared/Enums`; `SeasonLeaderboard.ThroughWeek` is null before the first scored week. Scoring request/response records live in `Shared/Contracts/Scoring/` (`OverrideResultRequest`, `VoidGameRequest`, `AuditEntry`).
+
 | Method | Route | Scope | Response |
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/leaderboard` | Member | `SeasonLeaderboard { ThroughWeek, Rows: SeasonRow[] { Rank, MembershipId, DisplayName, TotalPoints, PointsBehind, WeeklyWins, Trend: Up/Down/Same/None, IsMe } }` |
