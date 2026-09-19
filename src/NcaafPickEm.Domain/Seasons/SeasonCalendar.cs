@@ -114,6 +114,19 @@ public sealed class SeasonCalendar(TimeProvider timeProvider)
     public CurrentWeek CurrentWeekNow(IReadOnlyList<SeasonWeek> weeks) => CurrentWeekAt(UtcNow, weeks);
 
     /// <summary>
+    /// The range a new league falls back to when the season has no calendar at all: Weeks 1
+    /// through 14, the length of a normal FBS regular season (D-165).
+    /// </summary>
+    /// <remarks>
+    /// Used only by league creation on a season whose calendar has not been ingested yet - the
+    /// state a freshly deployed instance is in for the first minute, before
+    /// <c>ReferenceDataBootstrap</c> lands the real weeks. It is what the create-league page has
+    /// always promised in that state ("Weeks will default to 1..14"), so the page and the API now
+    /// agree instead of the API refusing the request.
+    /// </remarks>
+    public static LeagueWeekRange DefaultLeagueRangeWithoutCalendar { get; } = new(1, 14);
+
+    /// <summary>
     /// The range a new league defaults to: Week 1 (never Week 0) through the final regular-season
     /// week, so conference championship week is excluded (Feature 13).
     /// </summary>

@@ -45,14 +45,20 @@ public static class AdminEndpoints
     {
         ArgumentNullException.ThrowIfNull(builder);
 
-        RouteGroupBuilder admin = builder.MapGroup("/admin")
-            .WithTags("admin")
-            .RequireAnyLeagueCommissioner();
+        RouteGroupBuilder admin = builder.MapGroup("/admin").WithTags("admin");
 
-        admin.MapGet("/data-status", GetDataStatusAsync).WithName("AdminDataStatus");
-        admin.MapPost("/refresh/{dataType}", RefreshAsync).WithName("AdminManualRefresh");
+        // Scoped per route rather than on the group: the two bootstrap routes below also admit
+        // any signed-in caller while the database holds no league at all, which is the only
+        // state in which nobody commissions anything (D-166).
+        admin.MapGet("/data-status", GetDataStatusAsync)
+            .WithName("AdminDataStatus")
+            .RequireAnyLeagueCommissioner(allowWhenNoLeaguesExist: true);
+        admin.MapPost("/refresh/{dataType}", RefreshAsync)
+            .WithName("AdminManualRefresh")
+            .RequireAnyLeagueCommissioner(allowWhenNoLeaguesExist: true);
         admin.MapPost("/unmatched/{id:guid}/resolve", ResolveUnmatchedAsync)
             .WithName("AdminResolveUnmatched")
+            .RequireAnyLeagueCommissioner()
             .AddEndpointFilter<ValidationFilter<ResolveUnmatchedRequest>>();
 
         return builder;
@@ -320,8 +326,9 @@ public static class AdminEndpoints
         Guid userId = httpContext.RequestServices.GetRequiredService<ICurrentUser>().UserId;
 
         // /api/admin/* is not scoped to a {leagueId}, but AuditLog requires one; the caller's
-        // first commissioner league (by JoinedUtc) stands in, since RequireAnyLeagueCommissioner
-        // already guarantees at least one exists (see 03-API-Contracts.md).
+        // first commissioner league (by JoinedUtc) stands in (D-079, 03-API-Contracts.md). It is
+        // absent only in the bootstrap window D-166 opens, where there is no league to audit
+        // against at all and the refresh is simply not audit-logged.
         Membership? membership = await database.Memberships
             .Where(member => member.UserId == userId
                 && member.RemovedUtc == null

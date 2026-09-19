@@ -78,6 +78,45 @@ public sealed class AdminEndpointsTests
     }
 
     [Fact]
+    public async Task GivenADatabaseWithNoLeagues_WhenAnyUserBootstrapsTheReferenceData_ThenItIsAllowed()
+    {
+        // P8-06, D-166: nobody commissions anything until the first league exists, and creating
+        // that league needs the season calendar, so the two bootstrap routes admit any signed-in
+        // caller while the Leagues table is empty. Its own database: the shared one has leagues.
+        await using SqlTestDatabase database = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(database.ConnectionString);
+
+        Domain.Users.User user = await factory.QueryDbAsync(db => TestUsers.CreateUserAsync(db));
+        using HttpClient client = factory.CreateMutatingClientAs(user.Id);
+
+        using HttpResponseMessage status = await client.GetAsync("/api/admin/data-status");
+        status.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        using HttpResponseMessage refresh = await client.PostAsync("/api/admin/refresh/Teams", null);
+        refresh.StatusCode.Should().Be(HttpStatusCode.Accepted);
+
+        // There is no league for the ManualRefresh audit row to belong to, and that must not be
+        // an error (D-079's stand-in league does not exist yet).
+        (await factory.QueryDbAsync(db => db.AuditLog.AnyAsync())).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task GivenALeagueExistsAndTheCallerCommissionsNothing_WhenBootstrappingTheReferenceData_ThenItIs403()
+    {
+        await using SqlTestDatabase database = await SqlTestDatabase.CreateAsync();
+        await using var factory = new ApiFactory(database.ConnectionString);
+
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(factory);
+        using HttpClient client = factory.CreateMutatingClientAs(scenario.MemberUserId);
+
+        using HttpResponseMessage status = await client.GetAsync("/api/admin/data-status");
+        status.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        using HttpResponseMessage refresh = await client.PostAsync("/api/admin/refresh/Teams", null);
+        refresh.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+    }
+
+    [Fact]
     public async Task GivenAnUnknownDataType_WhenRefreshing_ThenItIs400()
     {
         LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);

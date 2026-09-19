@@ -91,6 +91,43 @@ public sealed class LeagueEndpointsTests
     }
 
     [Fact]
+    public async Task GivenASeasonWithNoCalendarAtAll_WhenCreatingALeague_ThenItSucceedsWithTheDefaultWeeks()
+    {
+        // 2031 has no calendar from any source, which is also the state of a freshly deployed
+        // instance before the reference-data bootstrap lands (P8-06, D-165): the create-league
+        // page promises weeks 1..14 there, so the API must not refuse the request.
+        User creator = await CreateUserAsync();
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(creator.Id);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            "/api/leagues", new CreateLeagueRequest("League Before The Calendar", 2031, null, null));
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+
+        LeagueDetail? detail = await response.Content.ReadFromJsonAsync<LeagueDetail>();
+        detail.Should().NotBeNull();
+        detail!.SeasonYear.Should().Be(2031);
+        detail.FirstWeek.Should().Be(1);
+        detail.LastWeek.Should().Be(14);
+        detail.CurrentWeek.Should().Be(1, "with no calendar the league's first week stands in");
+        detail.MyRole.Should().Be(MembershipRole.Commissioner);
+    }
+
+    [Fact]
+    public async Task GivenASeasonWithACalendar_WhenCreatingALeagueOutsideIt_ThenItIsStillRejected()
+    {
+        // The other half of D-165: the fallback applies only when there is nothing to validate
+        // against. 2026 has a calendar, so week 20 is still a bad request.
+        User creator = await CreateUserAsync();
+        using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(creator.Id);
+
+        using HttpResponseMessage response = await client.PostAsJsonAsync(
+            "/api/leagues", new CreateLeagueRequest("Out Of Range", 2026, 1, 20));
+
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task GivenTwoLeagues_WhenListingMine_ThenBothComeBackWithMyRole()
     {
         User user = await CreateUserAsync();

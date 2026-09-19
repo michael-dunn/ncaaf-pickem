@@ -21,6 +21,7 @@ public class ApiFactory : WebApplicationFactory<Program>
     private readonly bool _useTestAuth;
     private readonly TimeProvider? _timeProvider;
     private readonly Action<IServiceCollection>? _configureServices;
+    private readonly IReadOnlyDictionary<string, string>? _settings;
 
     /// <summary>Creates a factory bound to a database created by <see cref="SqlTestDatabase"/>.</summary>
     /// <param name="connectionString">The test database.</param>
@@ -43,16 +44,23 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// then, so replacing a service means <c>RemoveAll&lt;T&gt;()</c> first — a <c>TryAdd</c>
     /// here would lose to the real registration.
     /// </param>
+    /// <param name="settings">
+    /// Configuration overrides applied after this class's own defaults, so a test can boot the
+    /// app with e.g. <c>Providers:ReferenceData=Cfbd</c> (P8-06's bootstrap tests, which then
+    /// replace the CFBD provider itself through <paramref name="configureServices"/>).
+    /// </param>
     public ApiFactory(
         string connectionString,
         bool useTestAuth = true,
         TimeProvider? timeProvider = null,
-        Action<IServiceCollection>? configureServices = null)
+        Action<IServiceCollection>? configureServices = null,
+        IReadOnlyDictionary<string, string>? settings = null)
     {
         _connectionString = connectionString;
         _useTestAuth = useTestAuth;
         _timeProvider = timeProvider;
         _configureServices = configureServices;
+        _settings = settings;
     }
 
     /// <summary>A client that is signed in as <paramref name="userId"/> on every request.</summary>
@@ -123,6 +131,11 @@ public class ApiFactory : WebApplicationFactory<Program>
         // partition and a long suite would trip it (P8-01, D-153). RateLimitTests boots its own
         // host with the limiter on and a tiny window.
         builder.UseSetting(RateLimitingSetup.EnabledKey, "false");
+
+        foreach ((string key, string value) in _settings ?? new Dictionary<string, string>())
+        {
+            builder.UseSetting(key, value);
+        }
 
         if (_useTestAuth)
         {

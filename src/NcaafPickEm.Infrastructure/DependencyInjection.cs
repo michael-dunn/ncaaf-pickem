@@ -201,6 +201,12 @@ public static class DependencyInjection
         // Jobs:Enabled like the cron scheduler, since it is not cron-driven itself.
         services.AddHostedService<SaturdayPoller>();
 
+        // P8-06: on a fresh database the earliest of those crons is next Tuesday, so the first
+        // start fetches the calendar and the current week itself (D-164). No-op unless
+        // Providers:ReferenceData is Cfbd with jobs on, or Providers:BootstrapOnStartup says so.
+        services.TryAddScoped<ReferenceDataBootstrap>();
+        services.AddHostedService<ReferenceDataBootstrapHostedService>();
+
         services.TryAddScoped<FixtureSeeder>();
         services.AddHostedService<FixtureSeederHostedService>();
 
