@@ -1,0 +1,83 @@
+@* One half of a PickGameCard: a tap target for picking a team. Full-width half of its parent, at
+   least 44px tall (05-Conventions.md). Selection is obvious (border + fill); once the game has a
+   result (Outcome != None), a selected button also colors correct/incorrect. Disabled (locked or
+   past week) drops the button role down to a static, non-interactive look but keeps the same
+   markup so a screenshot of a read-only week still shows the pick clearly. *@
+
+<button type="button"
+        class="team-pick-button @StateClass()"
+        disabled="@Disabled"
+        aria-pressed="@IsSelected"
+        @onclick="HandleClick">
+    <span class="team-pick-logo" aria-hidden="true">
+        @if (!string.IsNullOrWhiteSpace(Team.LogoUrl))
+        {
+            <img src="@Team.LogoUrl" alt="" />
+        }
+        else
+        {
+            <span class="team-pick-initials">@Initials(Team.School)</span>
+        }
+    </span>
+    <span class="team-pick-text">
+        @if (Rank is { } rank)
+        {
+            <span class="team-pick-rank">#@rank</span>
+        }
+        <span class="team-pick-school">@Team.School</span>
+    </span>
+</button>
+
+@code {
+    /// <summary>The team this button picks.</summary>
+    [Parameter, EditorRequired]
+    public TeamDto Team { get; set; } = null!;
+
+    /// <summary>AP rank for this week, when ranked.</summary>
+    [Parameter]
+    public int? Rank { get; set; }
+
+    /// <summary>Whether this is the currently picked team.</summary>
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    /// <summary>Disables the tap target (locked week, past week, or a save in flight).</summary>
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>Correct/incorrect coloring once the game has a result. Ignored unless <see cref="IsSelected"/>.</summary>
+    [Parameter]
+    public PickButtonOutcome Outcome { get; set; } = PickButtonOutcome.None;
+
+    /// <summary>Raised when the button is tapped (not raised while <see cref="Disabled"/>).</summary>
+    [Parameter]
+    public EventCallback OnPick { get; set; }
+
+    private Task HandleClick() => Disabled ? Task.CompletedTask : OnPick.InvokeAsync();
+
+    private string StateClass()
+    {
+        if (!IsSelected)
+        {
+            return Disabled ? "team-pick-button-disabled" : string.Empty;
+        }
+
+        return Outcome switch
+        {
+            PickButtonOutcome.Correct => "team-pick-button-selected team-pick-button-correct",
+            PickButtonOutcome.Incorrect => "team-pick-button-selected team-pick-button-incorrect",
+            _ => "team-pick-button-selected",
+        };
+    }
+
+    private static string Initials(string school)
+    {
+        string[] words = school.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        return words.Length switch
+        {
+            0 => "?",
+            1 => words[0][..Math.Min(2, words[0].Length)].ToUpperInvariant(),
+            _ => string.Concat(words[0][0], words[^1][0]).ToUpperInvariant(),
+        };
+    }
+}
