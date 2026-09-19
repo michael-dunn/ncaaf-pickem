@@ -12,6 +12,15 @@ public static class DatabaseDefaults
     public const string MigrateOnStartupKey = "Database:MigrateOnStartup";
 
     /// <summary>
+    /// Configuration key bounding how long startup migration waits for SQL Server to accept
+    /// connections before giving up (P8-05). An mssql container takes 20-60 s to come up.
+    /// </summary>
+    public const string StartupTimeoutSecondsKey = "Database:StartupTimeoutSeconds";
+
+    /// <summary>Default for <see cref="StartupTimeoutSecondsKey"/>.</summary>
+    public const int DefaultStartupTimeoutSeconds = 120;
+
+    /// <summary>
     /// The only SQL Server on a developer machine per <c>AGENT-NOTES.md</c>. Used when
     /// <c>ConnectionStrings__Default</c> and <c>TEST_SQL_CONNECTION</c> are both unset.
     /// </summary>
