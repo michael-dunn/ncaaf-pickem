@@ -148,6 +148,14 @@ Record definitions live in `Shared/Contracts/Leaderboard/` (`SeasonLeaderboard`,
 
 ## Data admin (Features 09, 12)
 
+**Bootstrap exception to the admin scope (P8-06, D-166):** `GET /api/admin/data-status` and
+`POST /api/admin/refresh/{dataType}` also admit *any* signed-in caller while the `Leagues` table
+is empty. Creating the first league is what makes the first commissioner, so on a fresh
+deployment there is otherwise nobody who may fetch the season's reference data by hand. The
+moment one league exists the routes are commissioner-only again, and
+`POST /api/admin/unmatched/{id}/resolve` is commissioner-only always. A manual refresh in that
+window writes no `AuditLog` row, because D-079's stand-in league does not exist yet.
+
 | Method | Route | Scope | Response |
 |---|---|---|---|
 | GET | `/api/admin/data-status` | Commish (any league) | `DataStatusResponse { Refreshes: { DataType, LastSuccessUtc?, LastAttemptUtc?, LastError? }[], CfbdCallsThisMonth, CfbdWarning (>= 800), LiveScoreSource (configured), ActiveLiveScoreSource, ScoresMayBeStale, Unmatched: UnmatchedGameDto[], RecentJobs: JobRunDto[], NeedsReview: NeedsReviewGameDto[] { GameId, LeagueId, LeagueName, Week, HomeTeam, AwayTeam, HomeScore?, AwayScore?, Reason, WeekGameSetId?, GameSetGameId? } }` (P2-04 additive: `ActiveLiveScoreSource`, `ScoresMayBeStale`, `NeedsReview`; `LiveScoreSource` keeps its P0-06 meaning, the *configured* provider — see D-080). `NeedsReview` carries two kinds of row (D-100): a `Final` game with no determinable winner (`Reason` `"Tie"`/`"Missing score"`), and a game inside an **already-locked** week that has since been postponed or cancelled and is not yet voided or result-overridden (`Reason` `"Postponed"`/`"Cancelled"`, scores null). `WeekGameSetId`/`GameSetGameId` are P5-02 additive (D-147), always populated on both kinds of row, so a client can `POST` straight to `.../gameset/games/{GameId}/void` for a one-tap void without a second lookup |

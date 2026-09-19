@@ -113,6 +113,7 @@ interfaces (`IReferenceDataProvider`, `ILiveScoreProvider`) are the only place a
 | `SaturdayReminderOneShot` | one-shot, due at `LockAtUtc - 1h` |
 | `PushRetryJob` | one-shot, +1/+5/+15 min after a failed push, then `Failed` |
 | `SaturdayPoller` (a `BackgroundService`, not cron) | re-evaluates every minute during game day; polls live scores every 5 min (ESPN/Fixture) or 10 min (CFBD fallback) |
+| `ReferenceDataBootstrapHostedService` (once, at startup) | on an empty database only: calendar, teams, then the current week's schedule/rankings/lines, so a fresh deployment does not wait for Tuesday |
 
 ## 3. Run locally
 
@@ -738,6 +739,17 @@ path inverts both on purpose (D-159, D-160).
 
 ## 6. Operate
 
+- **First start on an empty database**: the app fetches the season calendar and the current
+  week's data from CFBD within a minute of starting — calendar, teams, this week's and next
+  week's schedule, rankings and lines, about 7 provider calls, once. Watch
+  `docker compose logs api` for `Reference data bootstrap`. It runs only with
+  `Providers__ReferenceData=Cfbd` and jobs enabled, only when the season has no `SeasonWeeks` or
+  the `Teams` table is empty, and never blocks `/health/ready`; a failure is logged and left to
+  the scheduled refresh jobs. `Providers__BootstrapOnStartup=false` turns it off,
+  `=true` forces it on. Until it lands, the create-league page says the calendar is on its way
+  and a league created in that window gets the default weeks 1..14 (correct it afterwards in
+  league settings). While no league exists at all, any signed-in user may open `/admin/data` and
+  trigger a manual refresh, because nobody commissions anything yet.
 - **Data status page**: `/admin/data` (any commissioner) shows the last refresh attempt/success
   per data type, the CFBD monthly call counter, the live-score source and staleness banner
   (`ScoresMayBeStale`), unmatched/needs-review games, and a recent-jobs table. Use it first when
