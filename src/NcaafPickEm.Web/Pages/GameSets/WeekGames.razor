@@ -2,12 +2,19 @@
 @inject ILeaguesApi LeaguesApi
 @inject IGameSetsApi GameSetsApi
 @inject IPointRulesApi PointRulesApi
+@inject ICorrectionsApi CorrectionsApi
 @inject AppShellState Shell
 
 @*
     This week's games (P3-05). Commissioner-only: the generated list with a remove (x) per game,
     "Add game" search over Saturday FBS candidates, and a tap-to-override point stepper per row.
     Every control is disabled once the week is locked (WeekGameSetResponse.IsLocked).
+
+    P5-05: once the week is locked, a per-game "Correct" menu replaces the remove/edit-points
+    actions: "Set result" (pick the winner, with a reason) and "Void game" (reason only). A
+    voided game shows a "Voided" pill; an overridden game shows "Result set: <winner>". Both
+    actions are commissioner-only and only reachable after lock, matching the server's 409
+    NotLocked/AlreadyVoided rules (03-API-Contracts.md, Feature 06).
 *@
 
 <PageTitle>Week @Week games - NCAAF Pick Em</PageTitle>
@@ -47,7 +54,24 @@ else
             {
                 <GameRow Game="game">
                     <Trailing>
-                        @if (_overridingGameId == game.GameId)
+                        @if (set.IsLocked)
+                        {
+                            @if (game.IsVoided)
+                            {
+                                <span class="locked-pill">Voided</span>
+                            }
+                            else if (game.WinnerTeamId is { } winnerId)
+                            {
+                                <span class="locked-pill">Result set: @WinnerName(game, winnerId)</span>
+                            }
+                            else
+                            {
+                                <button type="button" class="btn btn-secondary" @onclick="() => OpenCorrectMenu(game)">
+                                    Correct
+                                </button>
+                            }
+                        }
+                        else if (_overridingGameId == game.GameId)
                         {
                             <NumberStepper Value="game.PointValue"
                                            Disabled="set.IsLocked"
@@ -98,6 +122,65 @@ else
     }
 </BottomSheet>
 
+<BottomSheet IsOpen="_correctingGame is not null" Title="Correct game" OnClose="CloseCorrectMenu">
+    @if (_correctingGame is { } correcting)
+    {
+        <p class="muted text-sm">@correcting.AwayTeam.School @@ @correcting.HomeTeam.School</p>
+        <div class="row-actions correct-menu-actions">
+            <button type="button" class="btn btn-secondary" @onclick="() => OpenSetResultSheet(correcting)">
+                Set result
+            </button>
+            <button type="button" class="btn btn-danger" @onclick="() => OpenVoidSheet(correcting)">
+                Void game
+            </button>
+        </div>
+    }
+</BottomSheet>
+
+<BottomSheet IsOpen="_settingResultGame is not null" Title="Set result" OnClose="CloseSetResultSheet">
+    @if (_settingResultGame is { } resultGame)
+    {
+        <p class="muted text-sm">Pick the winner of @resultGame.AwayTeam.School @@ @resultGame.HomeTeam.School.</p>
+        <div class="result-team-choices">
+            <TeamPickButton Team="resultGame.AwayTeam" Rank="resultGame.AwayRank"
+                             IsSelected="_resultWinnerId == resultGame.AwayTeam.TeamId"
+                             OnPick="() => _resultWinnerId = resultGame.AwayTeam.TeamId" />
+            <TeamPickButton Team="resultGame.HomeTeam" Rank="resultGame.HomeRank"
+                             IsSelected="_resultWinnerId == resultGame.HomeTeam.TeamId"
+                             OnPick="() => _resultWinnerId = resultGame.HomeTeam.TeamId" />
+        </div>
+        <div class="sheet-field">
+            <label for="result-reason">Reason</label>
+            <input id="result-reason" class="input" maxlength="200" @bind="_resultReason" @bind:event="oninput" placeholder="Why is this being corrected?" />
+        </div>
+        <div class="profile-actions">
+            <button type="button" class="btn btn-primary" disabled="@(!CanConfirmResult() || _correctionBusy)" @onclick="ConfirmSetResultAsync">
+                @(_correctionBusy ? "Saving..." : "Confirm")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CloseSetResultSheet">Cancel</button>
+        </div>
+    }
+</BottomSheet>
+
+<BottomSheet IsOpen="_voidingGame is not null" Title="Void game" OnClose="CloseVoidSheet">
+    @if (_voidingGame is { } voidGame)
+    {
+        <p class="muted text-sm">
+            Voiding @voidGame.AwayTeam.School @@ @voidGame.HomeTeam.School excludes it from scoring for everyone.
+        </p>
+        <div class="sheet-field">
+            <label for="void-reason">Reason</label>
+            <input id="void-reason" class="input" maxlength="200" @bind="_voidReason" @bind:event="oninput" placeholder="Why is this being voided?" />
+        </div>
+        <div class="profile-actions">
+            <button type="button" class="btn btn-danger" disabled="@(!CanConfirmVoid() || _correctionBusy)" @onclick="ConfirmVoidAsync">
+                @(_correctionBusy ? "Voiding..." : "Void")
+            </button>
+            <button type="button" class="btn btn-secondary" @onclick="CloseVoidSheet">Cancel</button>
+        </div>
+    }
+</BottomSheet>
+
 @code {
     /// <summary>League from the route.</summary>
     [Parameter]
@@ -117,6 +200,15 @@ else
     private string _gameSearchText = string.Empty;
     private GameCandidate[] _candidates = [];
     private CancellationTokenSource? _searchDebounce;
+
+    // P5-05: the "Correct" menu (set result / void), reachable only once the week is locked.
+    private GameSetGameDto? _correctingGame;
+    private GameSetGameDto? _settingResultGame;
+    private Guid? _resultWinnerId;
+    private string _resultReason = string.Empty;
+    private GameSetGameDto? _voidingGame;
+    private string _voidReason = string.Empty;
+    private bool _correctionBusy;
 
     protected override async Task OnParametersSetAsync()
     {
@@ -254,4 +346,102 @@ else
             _overridingGameId = null;
         }
     }
+
+    private static string WinnerName(GameSetGameDto game, Guid winnerId) =>
+        winnerId == game.HomeTeam.TeamId ? game.HomeTeam.School : game.AwayTeam.School;
+
+    private void OpenCorrectMenu(GameSetGameDto game) => _correctingGame = game;
+
+    private void CloseCorrectMenu() => _correctingGame = null;
+
+    private void OpenSetResultSheet(GameSetGameDto game)
+    {
+        _correctingGame = null;
+        _settingResultGame = game;
+        _resultWinnerId = null;
+        _resultReason = string.Empty;
+    }
+
+    private void CloseSetResultSheet()
+    {
+        _settingResultGame = null;
+        _resultWinnerId = null;
+        _resultReason = string.Empty;
+    }
+
+    private void OpenVoidSheet(GameSetGameDto game)
+    {
+        _correctingGame = null;
+        _voidingGame = game;
+        _voidReason = string.Empty;
+    }
+
+    private void CloseVoidSheet()
+    {
+        _voidingGame = null;
+        _voidReason = string.Empty;
+    }
+
+    private bool CanConfirmResult() =>
+        _resultWinnerId is not null && _resultReason.Trim().Length is > 0 and <= 200;
+
+    private bool CanConfirmVoid() => _voidReason.Trim().Length is > 0 and <= 200;
+
+    private async Task ConfirmSetResultAsync()
+    {
+        if (_settingResultGame is not { } game || _resultWinnerId is not { } winnerId || !CanConfirmResult())
+        {
+            return;
+        }
+
+        _correctionBusy = true;
+        try
+        {
+            await CorrectionsApi.OverrideResultAsync(LeagueId, Week, game.GameId, winnerId, _resultReason.Trim());
+            _set = await GameSetsApi.GetWeekGameSetAsync(LeagueId, Week);
+            CloseSetResultSheet();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = FriendlyCorrectionMessage(ex);
+        }
+        finally
+        {
+            _correctionBusy = false;
+        }
+    }
+
+    private async Task ConfirmVoidAsync()
+    {
+        if (_voidingGame is not { } game || !CanConfirmVoid())
+        {
+            return;
+        }
+
+        _correctionBusy = true;
+        try
+        {
+            await CorrectionsApi.VoidGameAsync(LeagueId, Week, game.GameId, _voidReason.Trim());
+            _set = await GameSetsApi.GetWeekGameSetAsync(LeagueId, Week);
+            CloseVoidSheet();
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = FriendlyCorrectionMessage(ex);
+        }
+        finally
+        {
+            _correctionBusy = false;
+        }
+    }
+
+    // Translates the ProblemDetails titles named in 03-API-Contracts.md's corrections routes
+    // into messages a commissioner can act on, rather than showing the raw title.
+    private static string FriendlyCorrectionMessage(LeaguesApiException ex) => ex.Message switch
+    {
+        "NotLocked" => "This week isn't locked yet, so it can't be corrected.",
+        "AlreadyVoided" => "This game has already been voided.",
+        "TeamNotInGame" => "That team isn't playing in this game.",
+        _ => ex.Message,
+    };
 }
