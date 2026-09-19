@@ -112,7 +112,7 @@ Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 |---|---|---|---|
 | GET | `/api/leagues/{leagueId}/weeks/{week}/dashboard` | Member | Before lock: `DashboardResponse { IsAvailable=false, LockAtUtc }`. After: `{ IsAvailable=true, PointsSoFar, MaxRemaining, ScoresMayBeStale, Games: DashboardGameDto[], EveryoneAgrees: DashboardGameDto[] }` |
 
-`DashboardGameDto { Game: GameSetGameDto, MyTeamId?, MyOutcome: Pending/Won/Lost/NoPick, OppositeCount, OppositePicks: MemberRef[], NoPick: MemberRef[], SwingPoints }`. Ordering rules in `04-Domain-Algorithms.md` section 6. Client polls every 60 s while any game is not Final.
+`DashboardGameDto { Game: GameSetGameDto, MyTeamId?, MyOutcome: InfluenceOutcome (Pending/Won/Lost/NoPick), OppositeCount, OppositePicks: MemberRef[], NoPick: MemberRef[], HomePickers: MemberRef[], AwayPickers: MemberRef[], SwingPoints }`. `InfluenceOutcome` is in `Shared/Enums` (D-014), written by P6-01. `HomePickers`/`AwayPickers` are how the card shows "picks for both teams" when the viewer has no pick on the game; they are filled either way. Ordering rules in `04-Domain-Algorithms.md` section 6. Client polls every 60 s while any game is not Final.
 
 ## Scoring and corrections (Feature 06)
 
