@@ -26,8 +26,11 @@ namespace NcaafPickEm.Shared.Contracts.Admin;
 /// </param>
 /// <param name="Unmatched">Provider games still waiting to be matched to a <c>Games</c> row.</param>
 /// <param name="NeedsReview">
-/// Final games in an active league set with no determinable winner (a tie or a missing score),
-/// P2-04 additive.
+/// Games in a league set that need a commissioner decision (P2-04 additive): a Final game with
+/// no determinable winner (a tie or a missing score), and - P3-04 - a game inside an
+/// already-locked week that has since been postponed or cancelled and has not yet been voided or
+/// result-overridden. <c>Reason</c> says which ("Tie", "Missing score", "Postponed", "Cancelled");
+/// the scores are null for the schedule-change rows, which never kicked off.
 /// </param>
 /// <param name="RecentJobs">The 50 most recent job runs, newest first.</param>
 public sealed record DataStatusResponse(

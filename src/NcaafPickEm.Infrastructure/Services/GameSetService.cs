@@ -24,7 +24,9 @@ public sealed class GameSetService
 {
     private const string ReasonGenerated = "Generated";
     private const string ReasonRuleRegeneration = "Rule regeneration";
-    private const string ReasonScheduleChange = "Schedule change";
+    // The same string ScheduleChangeHandler writes and restores from: a row removed with this
+    // reason is the only kind that handler ever un-removes, so the two must not drift apart.
+    private const string ReasonScheduleChange = ScheduleChangeHandler.ScheduleChangeReason;
     private const string ReasonManual = "Manual";
 
     private readonly AppDbContext _database;
@@ -526,9 +528,18 @@ public sealed class GameSetService
 
     /// <summary>
     /// Every game inside an already-locked week that has since been postponed or cancelled and
-    /// has not yet been voided (Feature 02/06, P3-04): the "needs a decision" list P2-04's data
+    /// has not yet been resolved (Feature 02/06, P3-04): the "needs a decision" list P2-04's data
     /// page and P5-02's corrections flow both read. Optionally scoped to one league.
     /// </summary>
+    /// <remarks>
+    /// "Resolved" means either of the two outcomes Feature 06's corrections flow (P5-02) can
+    /// write: the row is voided (<see cref="WeekGameSetGame.IsVoided"/>) or the commissioner has
+    /// picked the winner by hand (<see cref="WeekGameSetGame.ResultOverrideWinnerTeamId"/>).
+    /// Either one drops the row off this list, exactly as P2-04's own "needs review" query on the
+    /// data-status page already excludes an overridden game.
+    /// </remarks>
+    /// <param name="leagueId">One league, or null for every league.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     public async Task<NeedsVoidReviewItem[]> ListNeedsVoidReviewAsync(Guid? leagueId, CancellationToken cancellationToken)
     {
         IQueryable<WeekGameSetGame> query = _database.WeekGameSetGames
@@ -538,6 +549,7 @@ public sealed class GameSetService
             .Include(row => row.Game!.AwayTeam)
             .Where(row => row.WeekGameSet!.LockedUtc != null
                 && !row.IsVoided
+                && row.ResultOverrideWinnerTeamId == null
                 && (row.Game!.Status == GameStatus.Postponed || row.Game!.Status == GameStatus.Cancelled));
 
         if (leagueId is Guid id)
@@ -548,6 +560,7 @@ public sealed class GameSetService
         List<WeekGameSetGame> rows = await query
             .OrderBy(row => row.WeekGameSet!.LeagueId)
             .ThenBy(row => row.WeekGameSet!.Week)
+            .ThenBy(row => row.GameId)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 

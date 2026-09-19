@@ -112,7 +112,15 @@ else
                     {
                         <li class="data-status-list-row">
                             <span>
-                                @row.AwayTeam @row.AwayScore - @row.HomeTeam @row.HomeScore
+                                @if (row.HomeScore is null && row.AwayScore is null)
+                                {
+                                    @* P3-04's postponed/cancelled rows never kicked off, so there is no score line. *@
+                                    <text>@row.AwayTeam at @row.HomeTeam</text>
+                                }
+                                else
+                                {
+                                    <text>@row.AwayTeam @row.AwayScore - @row.HomeTeam @row.HomeScore</text>
+                                }
                                 (@row.LeagueName, week @row.Week, @row.Reason)
                             </span>
                             <a class="btn btn-secondary" href="@($"/leagues/{row.LeagueId}/config/week/{row.Week}")">

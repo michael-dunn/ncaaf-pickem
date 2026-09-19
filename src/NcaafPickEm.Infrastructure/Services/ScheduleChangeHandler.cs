@@ -112,6 +112,19 @@ public sealed class ScheduleChangeHandler : IDomainEventHandler<GameScheduleChan
                         domainEvent.OldStatus,
                         domainEvent.NewStatus);
                 }
+                else if (row.IsVoided || row.ResultOverrideWinnerTeamId is not null)
+                {
+                    // Already decided by the commissioner (P5-02 voided it, or picked the winner
+                    // by hand). It is off GameSetService.ListNeedsVoidReviewAsync's list for that
+                    // reason, so asking for the same decision again would be noise.
+                    _logger.LogInformation(
+                        "Game {GameId} in already-locked league {LeagueId} week {Week} changed status again ({OldStatus} -> {NewStatus}) but is already resolved; no review raised.",
+                        row.GameId,
+                        set.LeagueId,
+                        set.Week,
+                        domainEvent.OldStatus,
+                        domainEvent.NewStatus);
+                }
                 else
                 {
                     _collector.Raise(new GameNeedsVoidReview(set.LeagueId, set.Week, set.Id, row.Id, row.GameId, ScheduleChangeReason)
@@ -188,16 +201,19 @@ public sealed class ScheduleChangeHandler : IDomainEventHandler<GameScheduleChan
     private static bool IsDisrupted(GameStatus status) => status is GameStatus.Postponed or GameStatus.Cancelled;
 
     /// <summary>
-    /// Earliest Saturday kickoff among a set's active games (matches
-    /// <c>GameSetService</c>'s own rule); null when it has none. Queried fresh rather than from
-    /// the rows this handler already loaded, since those cover only the one game the event is
-    /// about, not the rest of the set. EF's identity map still returns the in-memory (not yet
-    /// saved) state for whichever row we just changed.
+    /// Earliest kickoff among a set's active (not removed) rows - the same rule
+    /// <c>GameSetService.RecalculateLockAtUtc</c> applies, which is "first kickoff in the set",
+    /// not "first Saturday kickoff" - or null when the set has none left. Queried fresh rather
+    /// than from the rows this handler already loaded, since those cover only the one game the
+    /// event is about, not the rest of the set; the caller saves its own row changes before
+    /// calling this, so the query sees them.
     /// </summary>
+    /// <param name="weekGameSetId">The set to recompute.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
     private async Task<DateTime?> RecalculateLockAtUtcAsync(Guid weekGameSetId, CancellationToken cancellationToken)
     {
         List<DateTime> kickoffs = await _database.WeekGameSetGames
-            .Include(row => row.Game)
+            .AsNoTracking()
             .Where(row => row.WeekGameSetId == weekGameSetId && !row.IsRemoved)
             .Select(row => row.Game!.KickoffUtc)
             .ToListAsync(cancellationToken)
