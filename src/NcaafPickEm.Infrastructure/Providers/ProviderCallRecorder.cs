@@ -1,7 +1,9 @@
 using System.Diagnostics;
 using System.Net;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Kiota.Abstractions;
 using NcaafPickEm.Domain.Operations;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Shared.Enums;
@@ -63,7 +65,7 @@ public sealed class ProviderCallRecorder : IProviderCallRecorder
         }
         catch (Exception ex)
         {
-            int? statusCode = ex is HttpRequestException { StatusCode: HttpStatusCode code } ? (int)code : null;
+            int? statusCode = TryGetStatusCode(ex);
             await WriteAsync(provider, operation, startedUtc, startedTicks, false, statusCode, ex.Message, CancellationToken.None)
                 .ConfigureAwait(false);
             _logger.LogWarning(
@@ -74,6 +76,43 @@ public sealed class ProviderCallRecorder : IProviderCallRecorder
                 Elapsed(startedTicks));
             throw;
         }
+    }
+
+    /// <summary>
+    /// Count of calls to <paramref name="provider"/> recorded so far in the current UTC calendar
+    /// month (P2-02), for the free-tier usage counter on the data status page.
+    /// </summary>
+    public async Task<int> CountThisMonthAsync(ProviderSource provider, CancellationToken cancellationToken = default)
+    {
+        DateTimeOffset now = _timeProvider.GetUtcNow();
+        DateTime monthStartUtc = new(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        string providerName = provider.ToString();
+
+        await using AsyncServiceScope scope = _scopeFactory.CreateAsyncScope();
+        AppDbContext database = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+
+        return await database.ProviderCalls
+            .AsNoTracking()
+            .Where(call => call.Provider == providerName && call.StartedUtc >= monthStartUtc)
+            .CountAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static int? TryGetStatusCode(Exception ex)
+    {
+        if (ex is HttpRequestException { StatusCode: HttpStatusCode code })
+        {
+            return (int)code;
+        }
+
+        // Kiota's ApiException (the CFBD client, P2-02) carries the HTTP status on every
+        // request-shaped failure; 0 is its own "unknown" default.
+        if (ex is ApiException { ResponseStatusCode: not 0 } apiException)
+        {
+            return apiException.ResponseStatusCode;
+        }
+
+        return null;
     }
 
     private static int Elapsed(long startedTicks) =>

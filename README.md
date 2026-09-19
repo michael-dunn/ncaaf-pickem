@@ -130,6 +130,17 @@ Jobs__Enabled = true | false
 No secrets go in the repo. `deploy/appsettings.Production.template.json` documents every key with a
 placeholder for the home server.
 
+### Running against real CFBD data
+
+Reference data (teams, conferences, schedule, rankings, lines) can come from the live
+CollegeFootballData API instead of the fixture set. Set `Providers__ReferenceData=Cfbd` and
+`Cfbd__ApiKey=<your key>` (get a free-tier key at <https://collegefootballdata.com/key>);
+`Providers__LiveScores` is independent and can stay `Fixture` or move to `Espn` on its own. Nothing
+calls CFBD automatically — P2-04's jobs (and, until then, a manual call to
+`ReferenceDataIngestService`) are what actually fetch and upsert data; see
+`Implementation/AGENT-NOTES.md` ("Reference data ingest") for the service names and how ingest
+failures are recorded on `GET /api/admin/data-status`.
+
 ## Google OAuth dev setup
 
 Sign-in is ASP.NET Core cookie authentication plus the Google handler, with no Identity (D-004).
