@@ -177,14 +177,14 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 12 - Data Provider Evaluation
 
-| AC group | Task | Proof |
-|---|---|---|
-| Separate reference and live interfaces | P2-02, P2-03 | Architecture |
-| CFBD via official client and config key | P2-02 | A with recorded fixture |
-| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests` (cadence follows `ILiveScoreHealth.ActiveSource`) |
-| Monthly counter, warning at 800 | P2-04 | A `AdminEndpointsTests` (799 -> no warning, 800 -> warning) |
-| Name matching, unmatched surfaced | P2-03 | D `GameMatcherTests`, UI |
-| Follow-ups: tier confirm, sample payload, alias table | P2-01 | Doc in `Implementation/spikes/` |
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Separate reference and live interfaces | P2-02, P2-03 | Architecture | PASS: `IReferenceDataProvider`/`ILiveScoreProvider` (`Implementation/01-Architecture.md` "Provider isolation") |
+| CFBD via official client and config key | P2-02 | A with recorded fixture | PASS: `CfbdMappingTests` (real P2-01 captures via `FixtureLoader.ReadRealText`); `CfbdLiveTests` (opt-in, real key, `Category=Live`) |
+| ESPN default, CFBD fallback, config switch | P2-03, P2-04 | A `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests` (cadence follows `ILiveScoreHealth.ActiveSource`) | PASS: `LiveScoreSourceSwitchTests`; `SaturdayPollerScheduleTests`; `LiveScoreProviderSelectionTests` |
+| Monthly counter, warning at 800 | P2-04 | A `AdminEndpointsTests` (799 -> no warning, 800 -> warning) | PASS: `AdminEndpointsTests` (799/800 boundary cases) |
+| Name matching, unmatched surfaced | P2-03 | D `GameMatcherTests`, UI | PASS: `GameMatcherTests` (14 methods incl. alias/diacritic/abbreviation/unmatched cases); screenshot `p2-04-data-status-375.png` (unmatched list) |
+| Follow-ups: tier confirm, sample payload, alias table | P2-01 | Doc in `Implementation/spikes/` | PASS: `Implementation/spikes/providers.md` (CFBD Tier 1 confirmed from the live 401 response, §"CFBD live calls: made"; sample payloads captured under `tests/NcaafPickEm.Fixtures/Real/`; verified team-alias draft, 11 rows, `team-aliases-draft.json`) |
 
 ## Feature 13 - Season Calendar
 
