@@ -25,7 +25,7 @@ public static class EndpointMapping
         RouteGroupBuilder api = app.MapGroup("/api")
             .WithTags("api")
             // Every mutating /api call must carry X-Requested-With: NcaafPickEm.
-            .AddEndpointFilter<CsrfEndpointFilter>();
+            .RequireCsrfHeader();
 
         api.MapAdminEndpoints();
         api.MapCorrectionEndpoints();
