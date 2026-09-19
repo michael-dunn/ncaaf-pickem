@@ -122,6 +122,20 @@ public sealed class RegenerateGameSetsJob : IScheduledJob
                         week,
                         violation.Count);
                 }
+                catch (DbUpdateException ex)
+                {
+                    // UQ(LeagueId, Week) on WeekGameSets or UQ(WeekGameSetId, GameId) on
+                    // WeekGameSetGames: another writer (a commissioner's own generate/save, or
+                    // EnsureCurrentWeekSetsJob) got there first. Someone else already did this
+                    // week's work; clear whatever this attempt left half-tracked and move on
+                    // rather than failing the whole run.
+                    _database.ChangeTracker.Clear();
+                    _logger.LogInformation(
+                        ex,
+                        "League {LeagueId} week {Week}: another writer already updated this week; skipping.",
+                        league.Id,
+                        week);
+                }
             }
 
             leaguesProcessed++;

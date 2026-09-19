@@ -33,11 +33,11 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | FCS excluded | P3-01 | D `*.GivenAnFcsOpponent_WhenGenerating_ThenTheGameIsNeverIncluded`, `*.GivenAnFcsHomeTeam_...` |
 | AP only | P3-03 | A: RuleType enum has no other poll |
 | 50-game cap with preview warning | P3-01, P3-03, P3-05 | D `*.GivenFiftyMatchingGames_WhenGenerating_ThenTheCapIsNotExceeded`, `*.GivenMoreThanFiftyMatchingGames_...`, A 409, UI warning |
-| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationTests.PostponedRemoved` |
+| Cancelled/postponed excluded and removed | P3-01, P3-04 | D `*.GivenPostponedAndCancelledGames_WhenGenerating_ThenNeitherIsIncluded`, `*.GivenAManualGameThatWasCancelled_WhenRegenerating_ThenItLeavesTheSetAsIneligible`, A `RegenerationJobTests.GivenAPostponedGame_WhenTheTuesdayJobRuns_ThenItIsRemovedAsAScheduleChange` |
 | Week override leaves default intact | P3-03 | A |
 | Manual remove sticky across regen; manual add included | P3-01 | D `*.GivenAManuallyRemovedGame_WhenRegenerating_ThenItStaysOutOfTheSet`, `*.GivenAManuallyAddedGame_WhenRegenerating_ThenItIsKeptThoughNoRuleMatchesIt`, `*.GivenNarrowedRules_WhenRegenerating_ThenOnlyRuleRowsAreRemovedAndManualRowsSurvive` |
 | Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI |
-| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `RegenerationJobTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
+| Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
 | Member view ordered by kickoff in local time | P3-05 | UI |
 | Tap-only rule editing | P3-05 | UI |
 
@@ -175,4 +175,4 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 | Season range defaults, Week 0 opt-in, regular season only | P0-05, P1-01 | D, A |
 | Before first week / after last week states | P1-02 | UI, A |
 | UTC storage, Eastern logic, local display with zone hint | P0-05, all UI | D, UI |
-| Schedule change before lock removes + notifies; after lock voids | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` |
+| Schedule change before lock removes + notifies; after lock flags for void review (`GameNeedsVoidReview`), P5-02 owns the actual void | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` |

@@ -75,27 +75,42 @@ public sealed class RegenerationJobTests
         before.Games.Should().NotContain(g => g.HomeTeam.School == "Oklahoma" || g.AwayTeam.School == "Oklahoma");
 
         // Oklahoma (cfbdTeamId 900111) was unranked in the fixture's week-7 AP poll; rank it 12th,
-        // simulating what P2-04's rankings-refresh job would have just written.
+        // simulating what P2-04's rankings-refresh job would have just written. The database is
+        // shared for the whole test run (other tests, e.g. GameSetGenerateTests, assert exact
+        // counts against the fixture's original 11-team week-7 poll), so this row is removed
+        // again in a finally block.
         Guid oklahomaTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900111);
-        await _fixture.PinnedFactory.QueryDbAsync(async db =>
+        try
         {
-            db.Rankings.Add(new NcaafPickEm.Domain.Seasons.Ranking
+            await _fixture.PinnedFactory.QueryDbAsync(async db =>
             {
-                SeasonYear = 2026,
-                Week = 7,
-                Poll = NcaafPickEm.Domain.Seasons.Ranking.ApPoll,
-                Rank = 12,
-                TeamId = oklahomaTeamId,
-                FetchedUtc = DateTime.UtcNow,
+                db.Rankings.Add(new NcaafPickEm.Domain.Seasons.Ranking
+                {
+                    SeasonYear = 2026,
+                    Week = 7,
+                    Poll = NcaafPickEm.Domain.Seasons.Ranking.ApPoll,
+                    Rank = 12,
+                    TeamId = oklahomaTeamId,
+                    FetchedUtc = DateTime.UtcNow,
+                });
+                await db.SaveChangesAsync();
+                return true;
             });
-            await db.SaveChangesAsync();
-            return true;
-        });
 
-        await RunJobAsync();
+            await RunJobAsync();
 
-        WeekGameSetResponse after = await GetWeekAsync(client, league.Id, 7);
-        after.Games.Should().Contain(g => g.HomeTeam.School == "Oklahoma" || g.AwayTeam.School == "Oklahoma");
+            WeekGameSetResponse after = await GetWeekAsync(client, league.Id, 7);
+            after.Games.Should().Contain(g => g.HomeTeam.School == "Oklahoma" || g.AwayTeam.School == "Oklahoma");
+        }
+        finally
+        {
+            await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+            {
+                await db.Rankings
+                    .Where(r => r.SeasonYear == 2026 && r.Week == 7 && r.TeamId == oklahomaTeamId)
+                    .ExecuteDeleteAsync();
+            });
+        }
     }
 
     [Fact]
@@ -108,25 +123,38 @@ public sealed class RegenerationJobTests
         WeekGameSetResponse before = await GetWeekAsync(client, league.Id, 7);
         before.Games.Should().Contain(g => g.HomeTeam.School == "Michigan" || g.AwayTeam.School == "Michigan");
 
+        // Game 700001 (Michigan/Texas) is on the shared fixture schedule every other test in the
+        // run also reads; restore it to Scheduled once this test is done.
         Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700001); // Michigan/Texas
-        await _fixture.PinnedFactory.QueryDbAsync(async db =>
+        try
         {
-            await db.Games.Where(g => g.Id == gameId)
-                .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Postponed));
-            return true;
-        });
+            await _fixture.PinnedFactory.QueryDbAsync(async db =>
+            {
+                await db.Games.Where(g => g.Id == gameId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Postponed));
+                return true;
+            });
 
-        await RunJobAsync();
+            await RunJobAsync();
 
-        WeekGameSetResponse after = await GetWeekAsync(client, league.Id, 7);
-        after.Games.Should().NotContain(g => g.HomeTeam.School == "Michigan" || g.AwayTeam.School == "Michigan");
+            WeekGameSetResponse after = await GetWeekAsync(client, league.Id, 7);
+            after.Games.Should().NotContain(g => g.HomeTeam.School == "Michigan" || g.AwayTeam.School == "Michigan");
 
-        WeekGameSetGame row = await _fixture.PinnedFactory.QueryDbAsync(db => db.WeekGameSetGames
-            .AsNoTracking()
-            .Where(r => r.WeekGameSet!.LeagueId == league.Id && r.GameId == gameId)
-            .SingleAsync());
-        row.IsRemoved.Should().BeTrue();
-        row.RemovedReason.Should().Be("Schedule change");
+            WeekGameSetGame row = await _fixture.PinnedFactory.QueryDbAsync(db => db.WeekGameSetGames
+                .AsNoTracking()
+                .Where(r => r.WeekGameSet!.LeagueId == league.Id && r.GameId == gameId)
+                .SingleAsync());
+            row.IsRemoved.Should().BeTrue();
+            row.RemovedReason.Should().Be("Schedule change");
+        }
+        finally
+        {
+            await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+            {
+                await db.Games.Where(g => g.Id == gameId)
+                    .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Scheduled));
+            });
+        }
     }
 
     [Fact]

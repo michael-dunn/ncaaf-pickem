@@ -114,6 +114,18 @@ public sealed class EnsureCurrentWeekSetsJob : IScheduledJob
                     week,
                     violation.Count);
             }
+            catch (DbUpdateException ex)
+            {
+                // UQ(LeagueId, Week) on WeekGameSets: another writer (a commissioner's own
+                // generate/save, or RegenerateGameSetsJob) already created this week's row.
+                // Someone else won; clear whatever this attempt left half-tracked and move on.
+                _database.ChangeTracker.Clear();
+                _logger.LogInformation(
+                    ex,
+                    "League {LeagueId} week {Week}: another writer already created this week's set; skipping.",
+                    league.Id,
+                    week);
+            }
         }
 
         _logger.LogInformation(

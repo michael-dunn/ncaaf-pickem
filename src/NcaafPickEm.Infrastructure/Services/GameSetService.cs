@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using NcaafPickEm.Domain.Events;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.GameSets.Events;
@@ -31,6 +32,7 @@ public sealed class GameSetService
     private readonly DomainEventCollector _collector;
     private readonly IDomainEventDispatcher _dispatcher;
     private readonly ISeasonWeekSource _seasonWeekSource;
+    private readonly ILogger<GameSetService> _logger;
 
     /// <summary>Creates the service.</summary>
     public GameSetService(
@@ -38,13 +40,15 @@ public sealed class GameSetService
         TimeProvider timeProvider,
         DomainEventCollector collector,
         IDomainEventDispatcher dispatcher,
-        ISeasonWeekSource seasonWeekSource)
+        ISeasonWeekSource seasonWeekSource,
+        ILogger<GameSetService> logger)
     {
         _database = database;
         _timeProvider = timeProvider;
         _collector = collector;
         _dispatcher = dispatcher;
         _seasonWeekSource = seasonWeekSource;
+        _logger = logger;
     }
 
     /// <summary>
@@ -140,7 +144,10 @@ public sealed class GameSetService
     /// <exception cref="GameSetRuleViolation">
     /// <see cref="GameSetRuleViolationCode.Locked"/> when the week is already locked, or
     /// <see cref="GameSetRuleViolationCode.ExceedsMax"/> when the rules would select more than
-    /// <see cref="GameSetLimits.MaxGames"/> games. Neither refusal persists anything.
+    /// <see cref="GameSetLimits.MaxGames"/> games. Neither refusal changes any existing row or
+    /// rule - the only thing either can have persisted first is
+    /// <see cref="GetOrCreateWeekSetAsync"/>'s empty <c>WeekGameSets</c> row, on a week that had
+    /// no set at all yet.
     /// </exception>
     public async Task<WeekGameSetResponse> GenerateAsync(Guid leagueId, int week, CancellationToken cancellationToken)
     {
@@ -191,7 +198,6 @@ public sealed class GameSetService
         }
 
         Dictionary<Guid, WeekGameSetGame> existingByGameId = existingRows.ToDictionary(row => row.GameId);
-        Dictionary<Guid, GameInfo> pool = games.ToDictionary(g => g.GameId);
         HashSet<Guid> removedIds = [.. result.Removed];
         HashSet<Guid> removedIneligibleIds = [.. result.RemovedIneligible];
 
@@ -214,6 +220,21 @@ public sealed class GameSetService
             removedEventTargets.Add((row.Id, row.GameId, ReasonScheduleChange));
         }
 
+        // One batched load of the Game+Teams navigation the new rows need for point-value
+        // recalculation below, instead of one query per added row.
+        Guid[] newGameIds = [.. result.Games
+            .Where(generated => !existingByGameId.ContainsKey(generated.GameId))
+            .Select(generated => generated.GameId)];
+
+        Dictionary<Guid, Game> newGamesById = newGameIds.Length == 0
+            ? []
+            : await _database.Games
+                .Include(g => g.HomeTeam)
+                .Include(g => g.AwayTeam)
+                .Where(g => newGameIds.Contains(g.Id))
+                .ToDictionaryAsync(g => g.Id, cancellationToken)
+                .ConfigureAwait(false);
+
         foreach (GeneratedGame generated in result.Games)
         {
             if (existingByGameId.TryGetValue(generated.GameId, out WeekGameSetGame? row))
@@ -229,16 +250,8 @@ public sealed class GameSetService
                 GameId = generated.GameId,
                 Source = generated.Source,
                 IsRemoved = false,
+                Game = newGamesById[generated.GameId],
             };
-
-            // Load the Game+Teams navigation for point-value recalculation below without a
-            // second query per row.
-            GameInfo info = pool[generated.GameId];
-            newRow.Game = await _database.Games
-                .Include(g => g.HomeTeam)
-                .Include(g => g.AwayTeam)
-                .FirstAsync(g => g.Id == info.GameId, cancellationToken)
-                .ConfigureAwait(false);
 
             _database.WeekGameSetGames.Add(newRow);
             existingRows.Add(newRow);
@@ -270,6 +283,13 @@ public sealed class GameSetService
         IReadOnlyList<IDomainEvent> raised = _collector.TakeAll();
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await _dispatcher.DispatchAsync(raised, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "League {LeagueId} week {Week} regenerated: {Added} added, {Removed} removed.",
+            leagueId,
+            week,
+            addedGameSetGameIds.Count,
+            removedEventTargets.Count);
 
         return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
     }
@@ -385,6 +405,13 @@ public sealed class GameSetService
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await _dispatcher.DispatchAsync(raised, cancellationToken).ConfigureAwait(false);
 
+        _logger.LogInformation(
+            "League {LeagueId} week {Week}: game {GameId} manually added ({GameSetGameId}).",
+            leagueId,
+            week,
+            gameId,
+            gameSetGameId);
+
         return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
     }
 
@@ -437,6 +464,13 @@ public sealed class GameSetService
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         await _dispatcher.DispatchAsync(raised, cancellationToken).ConfigureAwait(false);
 
+        _logger.LogInformation(
+            "League {LeagueId} week {Week}: game {GameId} manually removed ({GameSetGameId}).",
+            leagueId,
+            week,
+            gameId,
+            row.Id);
+
         return await GetWeekGameSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false);
     }
 
@@ -462,6 +496,7 @@ public sealed class GameSetService
             .Include(row => row.Game!.AwayTeam)
             .Where(row => row.WeekGameSetId == set.Id && !row.IsRemoved)
             .OrderBy(row => row.Game!.KickoffUtc)
+            .ThenBy(row => row.GameId)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -623,7 +658,7 @@ public sealed class GameSetService
 
     /// <summary>
     /// Full-replaces a week's rule override, or clears it, then - only when <paramref name="week"/>
-    /// is the league's current week (D-069, superseding D-065 for this one route) - immediately
+    /// is the league's current week (D-070, superseding D-065 for this one route) - immediately
     /// regenerates it through <see cref="GenerateAsync"/>, exactly as if the caller had made the
     /// two calls the commissioner UI does. Every other week is still save only, as D-065 says.
     /// 409 when the week is already locked.
@@ -683,7 +718,7 @@ public sealed class GameSetService
     }
 
     /// <summary>
-    /// True when <paramref name="week"/> is the league's current week right now (D-069): the
+    /// True when <paramref name="week"/> is the league's current week right now (D-070): the
     /// week <see cref="SeasonCalendar.CurrentWeekAt"/> reports, clamped to the league's own
     /// <see cref="League.FirstWeek"/>/<see cref="League.LastWeek"/> range exactly like
     /// <c>RegenerateGameSetsJob</c>.

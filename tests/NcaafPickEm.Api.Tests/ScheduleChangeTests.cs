@@ -103,19 +103,26 @@ public sealed class ScheduleChangeTests
     {
         (League league, HttpClient client, Guid gameId) = await SeedLeagueWithGameAsync();
 
-        LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
-        LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
+        try
+        {
+            LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
+            LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
 
-        await ApplyAsync(postponed);
+            await ApplyAsync(postponed);
 
-        WeekGameSetGame row = await RowAsync(league.Id, gameId);
-        row.IsRemoved.Should().BeTrue();
-        row.RemovedReason.Should().Be("Schedule change");
+            WeekGameSetGame row = await RowAsync(league.Id, gameId);
+            row.IsRemoved.Should().BeTrue();
+            row.RemovedReason.Should().Be("Schedule change");
 
-        using HttpResponseMessage response = await client.GetAsync($"/api/leagues/{league.Id}/weeks/7/gameset");
-        WeekGameSetResponse body = (await response.Content.ReadFromJsonAsync<WeekGameSetResponse>())!;
-        body.Games.Should().BeEmpty(); // it was the only game in the set
-        body.LockAtUtc.Should().BeNull();
+            using HttpResponseMessage response = await client.GetAsync($"/api/leagues/{league.Id}/weeks/7/gameset");
+            WeekGameSetResponse body = (await response.Content.ReadFromJsonAsync<WeekGameSetResponse>())!;
+            body.Games.Should().BeEmpty(); // it was the only game in the set
+            body.LockAtUtc.Should().BeNull();
+        }
+        finally
+        {
+            await ResetGameToScheduledAsync(gameId);
+        }
     }
 
     [Fact]
@@ -123,22 +130,29 @@ public sealed class ScheduleChangeTests
     {
         (League league, HttpClient client, Guid gameId) = await SeedLeagueWithGameAsync();
 
-        LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
-        LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
+        try
+        {
+            LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
+            LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
 
-        await ApplyAsync(postponed);
-        (await RowAsync(league.Id, gameId)).IsRemoved.Should().BeTrue();
+            await ApplyAsync(postponed);
+            (await RowAsync(league.Id, gameId)).IsRemoved.Should().BeTrue();
 
-        await ApplyAsync(scheduled);
+            await ApplyAsync(scheduled);
 
-        WeekGameSetGame restored = await RowAsync(league.Id, gameId);
-        restored.IsRemoved.Should().BeFalse();
-        restored.RemovedReason.Should().BeNull();
+            WeekGameSetGame restored = await RowAsync(league.Id, gameId);
+            restored.IsRemoved.Should().BeFalse();
+            restored.RemovedReason.Should().BeNull();
 
-        using HttpResponseMessage response = await client.GetAsync($"/api/leagues/{league.Id}/weeks/7/gameset");
-        WeekGameSetResponse body = (await response.Content.ReadFromJsonAsync<WeekGameSetResponse>())!;
-        body.Games.Should().ContainSingle();
-        body.LockAtUtc.Should().NotBeNull();
+            using HttpResponseMessage response = await client.GetAsync($"/api/leagues/{league.Id}/weeks/7/gameset");
+            WeekGameSetResponse body = (await response.Content.ReadFromJsonAsync<WeekGameSetResponse>())!;
+            body.Games.Should().ContainSingle();
+            body.LockAtUtc.Should().NotBeNull();
+        }
+        finally
+        {
+            await ResetGameToScheduledAsync(gameId);
+        }
     }
 
     [Fact]
@@ -146,30 +160,37 @@ public sealed class ScheduleChangeTests
     {
         (League league, HttpClient client, Guid gameId) = await SeedLeagueWithGameAsync();
 
-        using HttpResponseMessage removeResponse = await client.DeleteAsync(
-            $"/api/leagues/{league.Id}/weeks/7/gameset/games/{gameId}");
-        removeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        try
+        {
+            using HttpResponseMessage removeResponse = await client.DeleteAsync(
+                $"/api/leagues/{league.Id}/weeks/7/gameset/games/{gameId}");
+            removeResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        WeekGameSetGame manuallyRemoved = await RowAsync(league.Id, gameId);
-        manuallyRemoved.RemovedReason.Should().Be("Manual");
+            WeekGameSetGame manuallyRemoved = await RowAsync(league.Id, gameId);
+            manuallyRemoved.RemovedReason.Should().Be("Manual");
 
-        LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
-        LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
-        await ApplyAsync(postponed);
+            LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
+            LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
+            await ApplyAsync(postponed);
 
-        // Postponing an already (manually) removed game touches nothing - the row was not
-        // active to begin with.
-        WeekGameSetGame afterPostponed = await RowAsync(league.Id, gameId);
-        afterPostponed.IsRemoved.Should().BeTrue();
-        afterPostponed.RemovedReason.Should().Be("Manual");
+            // Postponing an already (manually) removed game touches nothing - the row was not
+            // active to begin with.
+            WeekGameSetGame afterPostponed = await RowAsync(league.Id, gameId);
+            afterPostponed.IsRemoved.Should().BeTrue();
+            afterPostponed.RemovedReason.Should().Be("Manual");
 
-        await ApplyAsync(scheduled);
+            await ApplyAsync(scheduled);
 
-        // Coming back to Scheduled must not resurrect a manual removal - only the handler's own
-        // "Schedule change" removals get restored.
-        WeekGameSetGame afterReinstated = await RowAsync(league.Id, gameId);
-        afterReinstated.IsRemoved.Should().BeTrue();
-        afterReinstated.RemovedReason.Should().Be("Manual");
+            // Coming back to Scheduled must not resurrect a manual removal - only the handler's
+            // own "Schedule change" removals get restored.
+            WeekGameSetGame afterReinstated = await RowAsync(league.Id, gameId);
+            afterReinstated.IsRemoved.Should().BeTrue();
+            afterReinstated.RemovedReason.Should().Be("Manual");
+        }
+        finally
+        {
+            await ResetGameToScheduledAsync(gameId);
+        }
     }
 
     [Fact]
@@ -177,29 +198,47 @@ public sealed class ScheduleChangeTests
     {
         (League league, HttpClient client, Guid gameId) = await SeedLeagueWithGameAsync();
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        try
         {
-            WeekGameSet set = await db.WeekGameSets.SingleAsync(s => s.LeagueId == league.Id && s.Week == 7);
-            set.LockedUtc = DateTime.UtcNow;
-            await db.SaveChangesAsync();
-        });
+            await _fixture.Factory.ExecuteDbAsync(async db =>
+            {
+                WeekGameSet set = await db.WeekGameSets.SingleAsync(s => s.LeagueId == league.Id && s.Week == 7);
+                set.LockedUtc = DateTime.UtcNow;
+                await db.SaveChangesAsync();
+            });
 
-        LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
-        LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
-        await ApplyAsync(postponed);
+            LiveScoreUpdate scheduled = await ScheduledUpdateAsync();
+            LiveScoreUpdate postponed = scheduled with { Status = GameStatus.Postponed, RawStatusName = "STATUS_POSTPONED" };
+            await ApplyAsync(postponed);
 
-        WeekGameSetGame row = await RowAsync(league.Id, gameId);
-        row.IsRemoved.Should().BeFalse("a locked week's rows are left exactly as they are - P5-02's void flow owns them from here");
-        row.IsVoided.Should().BeFalse();
+            WeekGameSetGame row = await RowAsync(league.Id, gameId);
+            row.IsRemoved.Should().BeFalse("a locked week's rows are left exactly as they are - P5-02's void flow owns them from here");
+            row.IsVoided.Should().BeFalse();
 
-        NeedsVoidReviewItem[] review = await ListNeedsVoidReviewAsync(league.Id);
-        review.Should().ContainSingle(r => r.GameId == gameId && r.LeagueId == league.Id && r.Week == 7);
+            NeedsVoidReviewItem[] review = await ListNeedsVoidReviewAsync(league.Id);
+            review.Should().ContainSingle(r => r.GameId == gameId && r.LeagueId == league.Id && r.Week == 7);
 
-        // Re-applying the identical postponed payload is a no-op upstream (LiveScoreApplyService
-        // never re-raises GameScheduleChanged for a status that has not changed), so the handler
-        // is never asked to process the same transition twice.
-        await ApplyAsync(postponed);
-        review = await ListNeedsVoidReviewAsync(league.Id);
-        review.Should().ContainSingle(r => r.GameId == gameId);
+            // Re-applying the identical postponed payload is a no-op upstream
+            // (LiveScoreApplyService never re-raises GameScheduleChanged for a status that has
+            // not changed), so the handler is never asked to process the same transition twice.
+            await ApplyAsync(postponed);
+            review = await ListNeedsVoidReviewAsync(league.Id);
+            review.Should().ContainSingle(r => r.GameId == gameId);
+        }
+        finally
+        {
+            await ResetGameToScheduledAsync(gameId);
+        }
     }
+
+    /// <summary>
+    /// Game 700002 is on the shared fixture schedule other test classes also add manually
+    /// (`ManualAddRemoveTests`, `PointRulesEndpointsTests`); every test here that leaves it
+    /// Postponed restores it in a finally block.
+    /// </summary>
+    private Task ResetGameToScheduledAsync(Guid gameId) => _fixture.Factory.ExecuteDbAsync(async db =>
+    {
+        await db.Games.Where(g => g.Id == gameId)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Scheduled));
+    });
 }
