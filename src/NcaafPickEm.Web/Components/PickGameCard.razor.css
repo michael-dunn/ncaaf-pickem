@@ -1,0 +1,85 @@
+.pick-game-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--color-border);
+}
+
+.pick-game-card:last-child {
+    border-bottom: none;
+}
+
+.pick-game-ribbon {
+    position: absolute;
+    top: var(--space-1);
+    right: 0;
+    background: var(--color-accent);
+    color: var(--color-text-inverse);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+}
+
+.pick-game-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+}
+
+.pick-game-saved {
+    color: var(--color-success);
+    font-size: var(--text-sm);
+    font-weight: 700;
+}
+
+.pick-game-teams {
+    display: flex;
+    align-items: stretch;
+    gap: var(--space-2);
+}
+
+.pick-game-at {
+    display: flex;
+    align-items: center;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    flex: 0 0 auto;
+}
+
+.pick-game-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+}
+
+.pick-game-point-badge {
+    display: inline-flex;
+    padding: 2px var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-sm);
+    font-weight: 700;
+    background: var(--color-surface-alt);
+    color: var(--color-text-muted);
+    white-space: nowrap;
+}
+
+.pick-game-point-badge-elevated {
+    background: var(--color-accent-soft);
+    color: var(--color-accent);
+}
+
+.pick-game-error {
+    color: var(--color-danger);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+
+.pick-game-card-new {
+    padding-top: calc(var(--space-3) + 2px);
+}

@@ -1,0 +1,57 @@
+@* Sticky footer for the Picks page (P4-03), pinned above the bottom tab bar and safe-area aware.
+   Four states: Locked (read-only, no action), already Submitted (confirmation, no action),
+   every game picked but not yet submitted (enabled Submit), or still missing picks (disabled
+   "N picks left"). *@
+
+<div class="submit-footer">
+    @if (IsLocked)
+    {
+        <span class="submit-footer-status submit-footer-locked">Locked</span>
+    }
+    else if (IsSubmitted)
+    {
+        <span class="submit-footer-status submit-footer-submitted">Submitted &#10003;</span>
+    }
+    else if (PicksLeft == 0)
+    {
+        <button type="button" class="btn btn-primary submit-footer-btn" disabled="@IsSubmitting" @onclick="HandleSubmit">
+            @(IsSubmitting ? "Submitting..." : "Submit")
+        </button>
+    }
+    else
+    {
+        <button type="button" class="btn btn-secondary submit-footer-btn" disabled>
+            @PicksLeft pick@(PicksLeft == 1 ? "" : "s") left
+        </button>
+    }
+</div>
+
+@code {
+    /// <summary>Picks the caller has made on active games.</summary>
+    [Parameter]
+    public int PickedCount { get; set; }
+
+    /// <summary>Active games in the set.</summary>
+    [Parameter]
+    public int TotalCount { get; set; }
+
+    /// <summary>True once picks are frozen for the week (<c>MyPicksResponse.IsLocked</c>).</summary>
+    [Parameter]
+    public bool IsLocked { get; set; }
+
+    /// <summary>True when the caller has already pressed Submit for the current set of games.</summary>
+    [Parameter]
+    public bool IsSubmitted { get; set; }
+
+    /// <summary>True while a submit request is in flight.</summary>
+    [Parameter]
+    public bool IsSubmitting { get; set; }
+
+    /// <summary>Raised when Submit is tapped.</summary>
+    [Parameter]
+    public EventCallback OnSubmit { get; set; }
+
+    private int PicksLeft => Math.Max(0, TotalCount - PickedCount);
+
+    private Task HandleSubmit() => IsSubmitting ? Task.CompletedTask : OnSubmit.InvokeAsync();
+}

@@ -1,0 +1,38 @@
+@* A collapsed-by-default section with a tap-to-expand header, used for the dashboard's
+   "Everyone agrees (N)" section (P6-03): those games are de-emphasized per the story, not
+   hidden. Header is a real <button> at least 44px tall for a comfortable tap target
+   (05-Conventions.md mobile rules). *@
+
+<div class="collapsible-section">
+    <button type="button" class="collapsible-section-header" @onclick="Toggle" aria-expanded="@_expanded">
+        <span>@Title</span>
+        <span class="collapsible-section-chevron @(_expanded ? "collapsible-section-chevron-open" : "")" aria-hidden="true">&#9656;</span>
+    </button>
+    @if (_expanded)
+    {
+        <div class="collapsible-section-body">
+            @ChildContent
+        </div>
+    }
+</div>
+
+@code {
+    private bool _expanded;
+
+    /// <summary>Header text, e.g. "Everyone agrees (3)".</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>Whether the section starts expanded. Default false (collapsed).</summary>
+    [Parameter]
+    public bool StartExpanded { get; set; }
+
+    /// <summary>Section content, rendered only while expanded.</summary>
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <inheritdoc />
+    protected override void OnInitialized() => _expanded = StartExpanded;
+
+    private void Toggle() => _expanded = !_expanded;
+}

@@ -161,6 +161,11 @@ public sealed class FakeLeaguesApi : ILeaguesApi
     /// <inheritdoc />
     public Task<LeagueWeek[]> GetLeagueWeeksAsync(Guid leagueId, CancellationToken cancellationToken = default)
     {
+        // P5-04 needs richer per-week flags (locked/Complete history, a not-yet-locked future
+        // week) than the Picks page's own nav ever exercises, so this delegates to
+        // FakeLeaderboardApi's week table rather than the simpler "only the current week has a
+        // game set" shape P4-03 first wrote here. Safe for Picks: FakePicksApi decides
+        // read-only/locked from its own store, not from this method's IsLocked/IsComplete flags.
         RequireLeague(leagueId);
         return Task.FromResult(FakeLeaderboardApi.BuildLeagueWeeks());
     }

@@ -32,7 +32,8 @@ public interface ILeaguesApi
 
     /// <summary>
     /// <c>GET /api/leagues/{leagueId}/weeks</c>: every week in the league's First..Last range with
-    /// its navigability flags (P5-04 leaderboard/grid week nav; P5-03 owns the endpoint).
+    /// its navigability flags, for the Picks page's prev/next week navigation (P4-03) and the
+    /// leaderboard Week/Grid pages' week nav (P5-04; P5-03 owns the endpoint).
     /// </summary>
     Task<LeagueWeek[]> GetLeagueWeeksAsync(Guid leagueId, CancellationToken cancellationToken = default);
 

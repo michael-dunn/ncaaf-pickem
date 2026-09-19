@@ -1,0 +1,19 @@
+.stat-card {
+    flex: 1 1 0;
+    min-width: 0;
+    text-align: center;
+    padding: var(--space-3);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface-alt);
+}
+
+.stat-card-value {
+    font-size: var(--text-xl);
+    font-weight: 700;
+    color: var(--color-brand);
+}
+
+.stat-card-label {
+    font-size: var(--text-sm);
+    margin-top: var(--space-1);
+}

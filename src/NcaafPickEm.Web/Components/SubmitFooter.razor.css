@@ -1,0 +1,36 @@
+.submit-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: calc(var(--tab-bar-height) + var(--safe-bottom));
+    z-index: 15;
+    display: flex;
+    justify-content: center;
+    background: var(--color-surface);
+    border-top: 1px solid var(--color-border);
+    padding: var(--space-3) max(var(--space-4), var(--safe-left)) var(--space-3) max(var(--space-4), var(--safe-right));
+    box-shadow: 0 -2px 8px rgba(11, 37, 69, 0.08);
+}
+
+.submit-footer-btn {
+    width: 100%;
+    max-width: 480px;
+}
+
+.submit-footer-status {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: var(--tap-min);
+    width: 100%;
+    max-width: 480px;
+    font-weight: 700;
+}
+
+.submit-footer-locked {
+    color: var(--color-text-muted);
+}
+
+.submit-footer-submitted {
+    color: var(--color-success);
+}

@@ -81,27 +81,28 @@ Legend: **D** = Domain unit test, **A** = API integration test, **UI** = manual 
 |---|---|---|
 | Lock = earliest Saturday kickoff | P3-01, P0-05 | D `LockAtIsEarliestKickoff` |
 | Week locks at that instant: statuses settled, values frozen, `WeekLocked` raised | P4-02 | D `WeekLockerTests`, A `LockWeekJobTests` (due/not due, catch-up, idempotent second run, late joiner, event raised once, scheduler registration) |
-| Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.BeforeLock`, UI |
+| Pre-lock countdown; post-lock available | P6-02, P6-03 | A `DashboardTests.GivenAWeekWithNoGameSet_WhenAMemberAsksForTheDashboard_ThenItIsUnavailableWithNoLockTime`, `.GivenAGeneratedSetPastItsLockInstant_WhenTheJobHasNotRun_ThenTheDashboardIsStillUnavailable`, `.GivenTheOverviewExample_WhenDanceAsksForHerDashboard_ThenItMatchesTheWorkedExample` (post-lock available); UI |
 | Opposite picks definition; No Pick group; viewer excluded; viewer no-pick case | P6-01 | D `InfluenceCalculatorTests.GivenTheWorkedExample_*` (the Overview example, from `influence-example.json`), `.GivenTheViewerPicked_WhenBuildingTheDashboard_ThenTheyAreInNoneOfTheirOwnLists`, `.GivenAMemberWithNoPick_*`, `.GivenTheViewerDidNotPick_WhenBuildingTheDashboard_ThenItStaysInGamesWithBothTeamsLists` |
 | Only members active at lock are listed (former in, post-lock joiner out); voided games excluded | P6-01 | D `InfluenceCalculatorTests.GivenAFormerMemberWhoWasActiveAtLock_*`, `.GivenAMemberWhoJoinedAfterLock_*`, `.GivenAVoidedGame_*` |
 | Ordering and tie-breaks; Everyone-agrees collapsed | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenGamesWithDifferentOpposition_*`, `.GivenTwoGamesAlikeInEveryOrderingKey_*`, `.GivenAGameEverybodyAgreesOn_*`; UI |
 | Game status display; Won/Lost marking | P6-01, P6-03 | D `InfluenceCalculatorTests.GivenAFinalScore_*`, `.GivenAResultOverride_*`, `.GivenAFinalTie_*`, `.GivenAGameInProgress_*`, `WinnerResolverTests`; UI |
 | Points so far and max remaining | P6-01 | D `InfluenceCalculatorTests.GivenAWeekPartlyPlayed_WhenBuildingTheHeader_ThenPointsSoFarAndMaxRemainingAreSummed` |
 | Card layout, names wrap, live refresh without reload | P6-03 | UI |
-| No view-as-other, no league-wide split | P6-02 | A: endpoint has no member param |
+| No view-as-other, no league-wide split | P6-02 | A `DashboardTests.GivenAnExtraQueryParameter_WhenAMemberAsksForTheDashboard_ThenItIs400`, `.GivenAMemberWhoJoinedAfterLock_WhenTheyAskForTheirOwnDashboard_ThenTheySeeNoPickEverywhere`, `.GivenAFormerMemberWhoPickedBeforeLeaving_WhenTheWeekLocks_ThenTheyStillAppearFlagged`, `.GivenAStaleLiveScoreSource_*`, `.GivenAFinalGameWithAWinner_*`, `.GivenTheAuthMatrix_WhenAskingForTheDashboard_ThenOnlyAMemberMaySeeIt` |
 
 ## Feature 06 - Scoring
 
 | AC group | Task | Proof |
 |---|---|---|
-| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests` |
-| Idempotent; not-final unscored | P5-01 | D `RescoreIsIdempotent`, `NotFinalUnscored` |
-| Weekly total; Complete flag | P5-01 | D |
-| Post-midnight delayed game counts | P5-01, P2-03 | D with fixture snapshot 6 |
+| Correct pick earns locked value; wrong/none earns 0 | P5-01 | D `WeekScorerTests.GivenAMemberPickedTheWinner...`, `...PickedTheLoser...`, `...DidNotPick...` |
+| Idempotent; not-final unscored | P5-01 | D `WeekScorerTests.GivenTheSameWeek_WhenScoredTwice...`, `...GivenAGameThatIsNotFinal...`; A `ScoringSnapshotWalkTests` (two extra rescores change nothing) |
+| Weekly total; Complete flag | P5-01 | D `WeekScorerTests.GivenSeveralGames_WhenScoring_ThenTheWeeklyTotalIsTheSum...`, `...GivenEveryActiveGameFinalWithAWinner...`, `...GivenOneGameStillToPlay...` |
+| Post-midnight delayed game counts | P5-01, P2-03 | D `WeekScorerTests.GivenTheFixturesPostMidnightFinish...` (read out of snapshot 6); A `ScoringSnapshotWalkTests` (snapshot 6 adds the late game's points to week 7) |
+| Nightly recompute keeps results true | P5-01 | A `ScoringServiceTests.GivenALockedWeekNobodyScored...`, `...GivenASetWhoseResultsDisagreeWithIt...` |
 | No tiebreakers | P5-03 | D `StandingsCalculatorTests.TiesShareRank` |
-| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D, UI data page |
-| Void removes from scoring, shows Voided | P5-02, P5-04 | A `VoidTests`, UI grid |
-| Override recalculates; audit logged and visible | P5-02, P5-05 | A `OverrideTests`, UI audit |
+| Tie/no winner flagged, 0 to all | P5-01, P2-04 | D `WeekScorerTests.GivenAFinalTie...`, `...GivenAFinalGameMissingAScore...`; A `ScoringSnapshotWalkTests` (tie on the data-status needs-review list, week stays open) |
+| Void removes from scoring, shows Voided | P5-01, P5-02, P5-04 | D `WeekScorerTests.GivenAVoidedGame...` (x2); A `ScoringServiceTests.GivenAGameIsVoided...`, `...GivenTheTieIsVoided...`; A `VoidTests`, UI grid |
+| Override recalculates; audit logged and visible | P5-01, P5-02, P5-05 | D `WeekScorerTests.GivenATieAnOverrideHasSettled...`; A `ScoringSnapshotWalkTests` (real `ResultOverridden` closes the week); A `OverrideTests`, UI audit |
 | 5-minute checks; score only on Final | P2-04, P2-03 | D `SaturdayPollerScheduleTests`, D `GameMatcherTests.FinalOnlyOnFinal` |
 
 ## Feature 07 - Leaderboard

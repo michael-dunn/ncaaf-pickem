@@ -129,13 +129,19 @@ Owner: `Scoring/WeekScorer`. Tests: `WeekScorerTests`.
 
 Trigger: `GameWentFinal`, `ResultOverridden`, `GameVoided`, and a nightly full recompute for safety.
 
-`ScoreWeek(set, picks, memberships)` recomputes `WeekResults` for every membership that was active at lock (has a `WeekSubmissions` row) from scratch, then upserts. Because it is a full recompute from source rows, it is idempotent.
+The scorer is pure and takes flattened records, not entities (P5-01, D-128): `WeekScorer.Score(WeekScoringRequest { Games: ScoringGame[], Members: ScoringMember[], Picks: ScoringPick[] })` in, `WeekScoreResult { Members: MemberWeekScore[], IsWeekComplete, NeedsReviewGameSetGameIds }` out, where `MemberWeekScore` is `{ MembershipId, Points, CorrectCount, ActiveGameCount }`. There is no clock and no week number in the request: a week is scored from its rows alone, so a full recompute from source rows is idempotent by construction (D-006).
 
-Per member: for each active game with a determinable winner - `Scoring/WinnerResolver.Resolve` / `HasDeterminableWinner`, the shared rule P6-01 built and section 6 also uses (D-098); never re-derive it here - `Points += PointValue` and `CorrectCount++` if pick == winner. Voided games contribute nothing and are excluded from `ActiveGameCount`. `IsWeekComplete` = every active game is Final with a winner (or voided). When a week first becomes Complete, write `SeasonStandingsSnapshots` for `ThroughWeek = week` (section 8) and emit nothing else.
+`Games` is the whole set, removed and voided rows included, and `Members` is every `WeekSubmissions` row for the set whatever its status - the scorer filters both itself. A membership is scored exactly when its row reads `Locked` or `Incomplete`, the two the lock job writes, which is already the whole of "active at lock" (D-111): it includes a member removed since, whose pre-lock row is deliberately left in place, and excludes one who joined after.
 
-Ties/no winner: game stays unscored (0 to everyone) and appears in the data status page under "needs review" until overridden or voided.
+Per member: for each active game with a determinable winner - `Scoring/WinnerResolver.Resolve` / `HasDeterminableWinner`, the shared rule P6-01 built and section 6 also uses (D-098); never re-derive it here - `Points += PointValue` and `CorrectCount++` if pick == winner. `PointValue` is `WeekGameSetGames.ResolvedPointValue`, frozen at lock. Voided games contribute nothing and are excluded from `ActiveGameCount`. `IsWeekComplete` = every active game is Final with a winner (or voided); a week whose every row has been voided is complete, with everybody on zero out of zero (D-133).
 
-Delayed games: scored whenever they go Final; week number is the provider's, so post-midnight finishes land correctly.
+`Infrastructure/Services/ScoringService` is the application half: `RescoreWeekAsync(weekGameSetId)` loads the rows, runs the scorer, upserts `WeekResults` (PK `MembershipId`+`WeekGameSetId`), stamps `WeekGameSets.IsComplete`, and - only on the transition from not-complete to complete, only after `SaveChangesAsync` - calls `Infrastructure/Scoring/IStandingsSnapshotWriter.WriteSnapshotAsync(leagueId, throughWeek: week)` to write `SeasonStandingsSnapshots` (section 8, D-129). `RescoreGameAsync(gameId)` fans one game out to every locked set that still carries it actively. Nothing else is emitted.
+
+Ties/no winner: game stays unscored (0 to everyone), comes back in `NeedsReviewGameSetGameIds`, and appears in the data status page under "needs review" until overridden or voided. It also holds `IsWeekComplete` false, so an unresolved tie is what stops the week closing and the season snapshot being written.
+
+Delayed games: scored whenever they go Final. `GameWentFinal` carries the provider's week, but the handler never reads it - it asks which `WeekGameSets` actually hold the game - so a Saturday game finishing after midnight Eastern lands in the week it kicked off in whatever the clock has rolled into.
+
+Nightly safety net: `Infrastructure/Jobs/NightlyRescoreJob` (`30 4 * * *` Eastern) recomputes every locked week that is not complete, plus any set whose `IsComplete` disagrees with its own `WeekResults.IsWeekComplete` (D-134). It exists because a handler that throws is logged and skipped rather than retried (D-046), so the event pipeline alone is not enough to keep `WeekResults` true.
 
 Overrides and voids are allowed only after lock. Both write `AuditLog` and trigger a rescore. Voided games render as "Voided" in grids and history.
 

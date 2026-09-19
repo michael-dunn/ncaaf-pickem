@@ -219,6 +219,6 @@ public sealed class LeaguesApi(HttpClient httpClient) : ILeaguesApi
             ?? problem?.Detail
             ?? $"Request failed with status {(int)response.StatusCode}.";
 
-        throw new LeaguesApiException((int)response.StatusCode, message, problem?.Errors);
+        throw new LeaguesApiException((int)response.StatusCode, message, problem?.Errors, problem?.Count);
     }
 }

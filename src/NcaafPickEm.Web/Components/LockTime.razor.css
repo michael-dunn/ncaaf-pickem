@@ -8,3 +8,10 @@
 .lock-time-local {
     font-weight: 600;
 }
+
+.lock-time-countdown {
+    margin-top: var(--space-2);
+    font-size: var(--text-lg);
+    font-weight: 700;
+    color: var(--color-brand);
+}

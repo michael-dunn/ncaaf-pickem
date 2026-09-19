@@ -1,0 +1,94 @@
+@* One game on the influence dashboard (Feature 05, P6-03). Matchup line follows GameRow's shape
+   (rank + school, stacked with the status line below) but highlights the viewer's own pick and
+   tints the whole card once the game is Final, so "did I win this one" reads at a glance.
+   Opposite-picks / no-pick chips wrap onto their own lines via MemberChips - member names never
+   truncate (task card). *@
+
+<div class="dashboard-game-card @TintClass">
+    <div class="dashboard-game-card-matchup">
+        <span class="dashboard-game-card-team @(IsMyTeam(Dto.Game.AwayTeam.TeamId) ? "dashboard-game-card-team-mine" : "")">
+            @if (Dto.Game.AwayRank is { } awayRank)
+            {
+                <span class="game-row-rank">#@awayRank</span>
+            }
+            @Dto.Game.AwayTeam.School
+        </span>
+        <span class="game-row-at">@@</span>
+        <span class="dashboard-game-card-team @(IsMyTeam(Dto.Game.HomeTeam.TeamId) ? "dashboard-game-card-team-mine" : "")">
+            @if (Dto.Game.HomeRank is { } homeRank)
+            {
+                <span class="game-row-rank">#@homeRank</span>
+            }
+            @Dto.Game.HomeTeam.School
+        </span>
+    </div>
+
+    <div class="dashboard-game-card-status-row">
+        <div class="dashboard-game-card-status">
+            @switch (Dto.Game.Status)
+            {
+                case GameStatus.Final:
+                    <span>Final @Dto.Game.AwayScore-@Dto.Game.HomeScore</span>
+                    break;
+                case GameStatus.InProgress:
+                    @if (Dto.Game.Period is { } period && !string.IsNullOrWhiteSpace(Dto.Game.Clock))
+                    {
+                        <span>Q@(period) @Dto.Game.Clock &middot; @Dto.Game.AwayScore-@Dto.Game.HomeScore</span>
+                    }
+                    else
+                    {
+                        <span>Live &middot; @Dto.Game.AwayScore-@Dto.Game.HomeScore</span>
+                    }
+                    break;
+                default:
+                    <KickoffTime Utc="Dto.Game.KickoffUtc" />
+                    break;
+            }
+        </div>
+        <span class="point-badge @(Dto.Game.IsPointValueElevated ? "point-badge-elevated" : "")">
+            @Dto.Game.PointValue pt@(Dto.Game.PointValue == 1 ? "" : "s")
+        </span>
+    </div>
+
+    @if (Dto.MyOutcome == InfluenceOutcome.NoPick)
+    {
+        <div class="dashboard-game-card-chip-row">
+            <div class="dashboard-game-card-chip-label">Picks for @Dto.Game.AwayTeam.School</div>
+            <MemberChips Members="Dto.AwayPickers" EmptyText="No picks" />
+        </div>
+        <div class="dashboard-game-card-chip-row">
+            <div class="dashboard-game-card-chip-label">Picks for @Dto.Game.HomeTeam.School</div>
+            <MemberChips Members="Dto.HomePickers" EmptyText="No picks" />
+        </div>
+    }
+    else
+    {
+        <div class="dashboard-game-card-chip-row">
+            <div class="dashboard-game-card-chip-label">Opposite picks (@Dto.OppositeCount)</div>
+            <MemberChips Members="Dto.OppositePicks" EmptyText="None" />
+        </div>
+    }
+
+    @if (Dto.NoPick.Length > 0)
+    {
+        <div class="dashboard-game-card-chip-row">
+            <div class="dashboard-game-card-chip-label">No pick (@Dto.NoPick.Length)</div>
+            <MemberChips Members="Dto.NoPick" Muted="true" />
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>The game to render.</summary>
+    [Parameter, EditorRequired]
+    public DashboardGameDto Dto { get; set; } = null!;
+
+    private bool IsMyTeam(Guid teamId) => Dto.MyTeamId == teamId;
+
+    private string TintClass => Dto.MyOutcome switch
+    {
+        InfluenceOutcome.Won => "dashboard-game-card-won",
+        InfluenceOutcome.Lost => "dashboard-game-card-lost",
+        _ => "",
+    };
+}

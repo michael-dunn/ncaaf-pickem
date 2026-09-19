@@ -1,0 +1,17 @@
+.dashboard-prelock-card {
+    text-align: center;
+}
+
+.dashboard-prelock-note {
+    margin-top: var(--space-3);
+}
+
+.dashboard-stats-card {
+    display: flex;
+    gap: var(--space-3);
+}
+
+.dashboard-updated {
+    font-size: var(--text-sm);
+    margin: var(--space-2) 0 var(--space-3);
+}

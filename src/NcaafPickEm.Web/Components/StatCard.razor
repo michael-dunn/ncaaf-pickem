@@ -1,0 +1,17 @@
+@* A single labeled number, used for the dashboard's "Points so far" / "Max remaining" header
+   pair (P6-03). Two of these side by side, not a table - so they wrap cleanly at 375px. *@
+
+<div class="stat-card">
+    <div class="stat-card-value">@Value</div>
+    <div class="stat-card-label muted">@Label</div>
+</div>
+
+@code {
+    /// <summary>Short label under the number, e.g. "Points so far".</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    /// <summary>The number itself.</summary>
+    [Parameter]
+    public int Value { get; set; }
+}
