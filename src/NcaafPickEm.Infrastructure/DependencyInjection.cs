@@ -162,6 +162,11 @@ public static class DependencyInjection
         services.AddDomainEventHandler<ResultOverridden, ResultOverriddenScoringHandler>();
         services.AddDomainEventHandler<GameVoided, GameVoidedScoringHandler>();
         services.AddScheduledJob<NightlyRescoreJob>();
+        // Commissioner corrections (P5-02, Feature 06): override-result/void write the row and
+        // AuditLog and raise the two events registered just above; this handler only quiets the
+        // dispatcher's "no handler" log for GameNeedsVoidReview (P3-04's event).
+        services.AddScoped<CorrectionService>();
+        services.AddDomainEventHandler<GameNeedsVoidReview, GameNeedsVoidReviewHandler>();
 
         // Every outbound provider call is recorded in ProviderCalls (Features 09 and 12).
         services.TryAddSingleton<IProviderCallRecorder, ProviderCallRecorder>();
