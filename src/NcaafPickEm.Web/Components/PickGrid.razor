@@ -1,0 +1,99 @@
+@* Week grid (P5-04): games as pinned-first-column rows, members as columns, cells colored by
+   GridOutcome. The outer div is the ONLY overflow-x:auto ancestor - no ancestor between it and
+   the sticky cells adds its own 'overflow', or the sticky pin breaks. Both the game column and
+   the header row use position:sticky with a -webkit-sticky fallback for iOS Safari. *@
+
+<div class="pick-grid-scroll">
+    <table class="pick-grid">
+        <thead>
+            <tr>
+                <th class="pick-grid-corner pick-grid-pinned">Game</th>
+                @foreach (GridMember member in Grid.Members)
+                {
+                    <th
+                        scope="col"
+                        class="pick-grid-member"
+                        @onclick="() => ToggleExpand(member.MembershipId)">
+                        <span class="pick-grid-member-name @(_expandedMemberId == member.MembershipId ? "pick-grid-member-name-expanded" : "")">
+                            @member.DisplayName
+                        </span>
+                        @if (member.IsFormer)
+                        {
+                            <span class="pick-grid-former">(former)</span>
+                        }
+                    </th>
+                }
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (GameSetGameDto game in Grid.Games)
+            {
+                <tr class="@(game.IsVoided ? "pick-grid-row-voided" : "")">
+                    <th scope="row" class="pick-grid-game pick-grid-pinned">
+                        <div class="pick-grid-matchup">@game.AwayTeam.Abbreviation @@ @game.HomeTeam.Abbreviation</div>
+                        <div class="pick-grid-result text-sm muted">@ResultText(game)</div>
+                    </th>
+                    @foreach (GridMember member in Grid.Members)
+                    {
+                        GridCell? cell = FindCell(game, member);
+                        <td class="pick-grid-cell @OutcomeClass(cell?.Outcome)">
+                            @CellText(game, cell)
+                        </td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@code {
+    /// <summary>The week's games, members, and pick cells.</summary>
+    [Parameter, EditorRequired]
+    public WeekGrid Grid { get; set; } = null!;
+
+    private Guid? _expandedMemberId;
+
+    private void ToggleExpand(Guid membershipId) =>
+        _expandedMemberId = _expandedMemberId == membershipId ? null : membershipId;
+
+    private GridCell? FindCell(GameSetGameDto game, GridMember member) =>
+        Array.Find(Grid.Cells, c => c.GameSetGameId == game.GameSetGameId && c.MembershipId == member.MembershipId);
+
+    private static string ResultText(GameSetGameDto game)
+    {
+        if (game.IsVoided)
+        {
+            return "Voided";
+        }
+
+        return game.Status switch
+        {
+            GameStatus.Final => $"Final {game.AwayScore}-{game.HomeScore}",
+            GameStatus.InProgress => "In progress",
+            GameStatus.Postponed => "Postponed",
+            GameStatus.Cancelled => "Cancelled",
+            _ => game.KickoffUtc.ToLocalTime().ToString("ddd h:mm tt"),
+        };
+    }
+
+    private static string OutcomeClass(GridOutcome? outcome) => outcome switch
+    {
+        GridOutcome.Correct => "pick-grid-cell-correct",
+        GridOutcome.Incorrect => "pick-grid-cell-incorrect",
+        GridOutcome.NoPick => "pick-grid-cell-nopick",
+        GridOutcome.Voided => "pick-grid-cell-voided",
+        _ => "pick-grid-cell-pending",
+    };
+
+    private static string CellText(GameSetGameDto game, GridCell? cell)
+    {
+        if (cell?.TeamId is not { } teamId)
+        {
+            return "–";
+        }
+
+        return teamId == game.HomeTeam.TeamId
+            ? game.HomeTeam.Abbreviation ?? game.HomeTeam.School
+            : game.AwayTeam.Abbreviation ?? game.AwayTeam.School;
+    }
+}

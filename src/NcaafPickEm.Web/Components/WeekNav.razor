@@ -1,0 +1,52 @@
+@* Week navigation for the leaderboard Week and Grid pages (P5-04): prev/next chips limited to
+   weeks with a generated game set (LeagueWeek.HasGameSet), plus a jump to the season's current
+   week. Only weeks that have had a game set generated are navigable (07-Leaderboard.txt). *@
+
+<nav class="week-nav" aria-label="Week navigation">
+    <button
+        type="button"
+        class="week-nav-chip"
+        disabled="@(!CanGoTo(Week - 1))"
+        aria-label="Previous week"
+        @onclick="() => Go(Week - 1)">
+        &lsaquo; Wk @(Week - 1)
+    </button>
+
+    <span class="week-nav-current">Week @Week</span>
+
+    <button
+        type="button"
+        class="week-nav-chip"
+        disabled="@(!CanGoTo(Week + 1))"
+        aria-label="Next week"
+        @onclick="() => Go(Week + 1)">
+        Wk @(Week + 1) &rsaquo;
+    </button>
+
+    @if (CurrentSeasonWeek is { } currentWeek && currentWeek != Week)
+    {
+        <button type="button" class="btn btn-secondary week-nav-jump" @onclick="() => Go(currentWeek)">
+            Current
+        </button>
+    }
+</nav>
+
+@code {
+    /// <summary>The week currently being viewed.</summary>
+    [Parameter, EditorRequired]
+    public int Week { get; set; }
+
+    /// <summary>Every week in the league's range, from <c>GET /api/leagues/{leagueId}/weeks</c>.</summary>
+    [Parameter, EditorRequired]
+    public LeagueWeek[] Weeks { get; set; } = [];
+
+    /// <summary>Raised with the target week when a chip is tapped.</summary>
+    [Parameter, EditorRequired]
+    public EventCallback<int> OnNavigate { get; set; }
+
+    private int? CurrentSeasonWeek => Weeks.FirstOrDefault(w => w.IsCurrent)?.Week;
+
+    private bool CanGoTo(int week) => Weeks.Any(w => w.Week == week && w.HasGameSet);
+
+    private Task Go(int week) => OnNavigate.InvokeAsync(week);
+}
