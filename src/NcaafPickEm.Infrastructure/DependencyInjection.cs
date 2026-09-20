@@ -293,6 +293,8 @@ public static class DependencyInjection
         services.AddHttpClient<EspnLiveScoreProvider>(client =>
         {
             client.BaseAddress = new Uri(EspnLiveScoreProvider.DefaultBaseAddress);
+            client.DefaultRequestHeaders.UserAgent.ParseAdd(EspnLiveScoreProvider.UserAgent);
+            client.DefaultRequestHeaders.Accept.ParseAdd("application/json");
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 

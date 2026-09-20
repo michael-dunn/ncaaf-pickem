@@ -21,6 +21,13 @@ public sealed class EspnLiveScoreProvider : ILiveScoreProvider
     public const string HttpClientName = "Espn";
 
     /// <summary>Base address of the public scoreboard API.</summary>
+    /// <summary>
+    /// Sent on every ESPN request. ESPN's CDN answers 403 to requests with no User-Agent (the
+    /// .NET HttpClient default), which showed up on the first deployment as a poller that never
+    /// received a score. A plain product token is accepted.
+    /// </summary>
+    public const string UserAgent = "NcaafPickEm/1.0 (+https://github.com/michael-dunn/ncaaf-pickem)";
+
     public const string DefaultBaseAddress =
         "https://site.api.espn.com/apis/site/v2/sports/football/college-football/";
 
