@@ -252,7 +252,7 @@ public sealed class FixtureSeeder
         {
             string subject = $"fixture:{name.ToLowerInvariant()}";
             User? user = await _database.Users
-                .FirstOrDefaultAsync(u => u.GoogleSubject == subject, cancellationToken)
+                .FirstOrDefaultAsync(u => u.ExternalSubject == subject, cancellationToken)
                 .ConfigureAwait(false);
 
             if (user is null)
@@ -260,7 +260,7 @@ public sealed class FixtureSeeder
                 user = new User
                 {
                     Id = Guid.CreateVersion7(),
-                    GoogleSubject = subject,
+                    ExternalSubject = subject,
                     Email = $"{name.ToLowerInvariant()}@fixture.local",
                     DisplayName = name,
                     CreatedUtc = nowUtc,

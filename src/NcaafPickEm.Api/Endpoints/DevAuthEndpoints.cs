@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Auth;
@@ -13,7 +14,7 @@ namespace NcaafPickEm.Api.Endpoints;
 /// </summary>
 /// <remarks>
 /// Mapped only in Development (<see cref="EndpointMapping"/>). Looks up
-/// <c>Users.GoogleSubject = "fixture:{user}"</c> — the same rows <c>FixtureSeeder</c> creates when
+/// <c>Users.ExternalSubject = "fixture:{user}"</c> — the same rows <c>FixtureSeeder</c> creates when
 /// <c>Seed:DemoLeague</c> is true — and issues the identical cookie principal
 /// <see cref="ExternalSignInService.CreatePrincipal"/> builds for a real Google sign-in, so every
 /// downstream authorization check behaves the same either way.
@@ -49,7 +50,7 @@ public static class DevAuthEndpoints
         string subject = $"fixture:{user.Trim().ToLowerInvariant()}";
 
         User? account = await database.Users
-            .FirstOrDefaultAsync(candidate => candidate.GoogleSubject == subject, cancellationToken);
+            .FirstOrDefaultAsync(candidate => candidate.ExternalSubject == subject, cancellationToken);
 
         if (account is null)
         {
@@ -60,8 +61,8 @@ public static class DevAuthEndpoints
         }
 
         await httpContext.SignInAsync(
-            Microsoft.AspNetCore.Authentication.Cookies.CookieAuthenticationDefaults.AuthenticationScheme,
-            ExternalSignInService.CreatePrincipal(account),
+            CookieAuthenticationDefaults.AuthenticationScheme,
+            ExternalSignInService.CreatePrincipal(account, CookieAuthenticationDefaults.AuthenticationScheme),
             new AuthenticationProperties { IsPersistent = true });
 
         return TypedResults.Redirect(ReturnUrl.Sanitize(returnUrl));

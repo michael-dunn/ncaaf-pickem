@@ -20,6 +20,28 @@ public static class AuthDefaults
     /// <summary>Route the Google handler owns. Must match the OAuth client's redirect URI.</summary>
     public const string GoogleCallbackPath = "/auth/callback/google";
 
+    /// <summary>
+    /// Identity header <c>tailscale serve</c> injects: the tailnet login of the calling device's
+    /// user (an email for Google and Microsoft accounts, <c>name@github</c> for a GitHub one).
+    /// Trusted exactly as it arrives; the tailnet is the security boundary (Phase 9, Q4).
+    /// </summary>
+    public const string TailscaleLoginHeader = "Tailscale-User-Login";
+
+    /// <summary>
+    /// Identity header carrying the tailnet user's profile name. Optional, and RFC 2047 encoded
+    /// when it is not plain ASCII (see <see cref="Rfc2047"/>).
+    /// </summary>
+    public const string TailscaleNameHeader = "Tailscale-User-Name";
+
+    /// <summary>Scheme name of <see cref="TailscaleAuthenticationHandler"/>.</summary>
+    public const string TailscaleScheme = "Tailscale";
+
+    /// <summary>
+    /// The default scheme: a policy scheme that forwards to <see cref="TailscaleScheme"/> when
+    /// <see cref="TailscaleLoginHeader"/> is present and non-empty, and to the cookie otherwise.
+    /// </summary>
+    public const string SelectorScheme = "AppAuth";
+
     /// <summary>Where a caller lands after signing in when no usable <c>returnUrl</c> was given.</summary>
     public const string DefaultReturnUrl = "/";
 
