@@ -54,6 +54,16 @@ Deliverables
 Done when
 - `GameAddedTests` (Submitted member reverts, NotStarted unchanged, flag set), `GameRemovedTests` (pick retained, status unchanged, flag set for members with a pick on it).
 
+## P4-05 Spread on the picks page
+Tier: Fable. Depends on: P4-01, P4-02, P4-03. Added 2026-09-21 at the owner's request, after Phase 10.
+
+Deliverables
+- `GameSetGameDto.Spread?` (home-relative, D-181): newest `GameLines` row while the week is open, `SpreadAtLock` once locked, null when no line.
+- `SpreadDisplay` in `Shared/Contracts/GameSets` and a line beside the kickoff on every `PickGameCard`.
+
+Done when
+- `SpreadDisplayTests`, `PicksSpreadTests` (newest line on `GET .../picks/me`), and `LockWeekJobTests` (a late line is stored but a locked week still shows the frozen one) pass.
+
 ---
 
 ## Phase exit criteria
