@@ -8,7 +8,7 @@ first Saturday kickoff; at lock an influence dashboard shows each member which g
 against the rest of the league, with live scores. Games are scored automatically as they go final,
 and weekly and season leaderboards update; web push reminds people to submit. A new member joins
 by typing a six-digit code into the "Join by code" box on the home page, or by tapping an invite
-link. The stack is .NET on a home server behind Tailscale, SQL Server, Google sign-in,
+link. The stack is .NET on a home server behind Tailscale, SQL Server, Tailscale identity headers,
 CollegeFootballData for reference data and ESPN for live scores.
 
 - Requirements: [`WorkItems/`](WorkItems) (13 feature stories — these are the spec).
@@ -28,7 +28,7 @@ CollegeFootballData for reference data and ESPN for live scores.
 | HTTP API | ASP.NET Core minimal APIs, grouped with `MapGroup` per feature, `TypedResults` | Feature 10 asks for minimal endpoints. |
 | Frontend | Blazor WebAssembly PWA, hosted by the API project (one deployable) | C# end to end, shared DTOs, PWA manifest + service worker. |
 | Persistence | EF Core 10 + SQL Server, code-first migrations | SQL Server exists on the host. Migrations are agent-friendly. |
-| Auth | ASP.NET Core cookie auth + `Microsoft.AspNetCore.Authentication.Google`, no Identity | Feature 08 Option A. |
+| Auth | Tailscale Serve identity headers; per-request, no session | Phase 9: header trust is deliberate, the tailnet is the boundary. |
 | Background jobs | One `BackgroundService` scheduler using Cronos for cron expressions, plus a dedicated adaptive Saturday poller | Feature 10: jobs run in-process. No Hangfire/Quartz. |
 | Time | `TimeZoneInfo.FindSystemTimeZoneById("America/New_York")`, all storage UTC | Feature 13. |
 | Web push | `WebPush` NuGet (web-push-libs), VAPID keys from config | Feature 11. |
@@ -76,14 +76,14 @@ Phone (home-screen PWA)
                                   |
                                   `--HTTP--> 127.0.0.1:5000 -> ncaaf-api container :8080
                                                   |-- /            Blazor WASM static files
-                                                  |-- /api/*       minimal endpoints (cookie auth)
-                                                  |-- /auth/*      Google OAuth in/out
+                                                  |-- /api/*       minimal endpoints (Tailscale header identity)
+                                                  |-- /auth/dev-login  Development/Testing only
                                                   |-- Scheduler    cron jobs (refresh, lock, reminders)
                                                   |-- SaturdayPoller  adaptive 5-min score polling
-                                                  |-- /app/keys    data-protection key ring (volume)
+                                                  |-- /app/keys    data-protection key ring (volume; dev-login cookie only)
                                                   |-- /app/logs    Serilog rolling file (volume)
                                                   `-- ncaaf-db container (SQL Server 2022) :1433
-                                        outbound: CFBD API, ESPN scoreboard, Google OAuth, push services
+                                        outbound: CFBD API, ESPN scoreboard, push services
 ```
 
 ### Provider hybrid
@@ -161,7 +161,7 @@ live-score snapshots from kickoff to all-Final) lives under
 `tests/NcaafPickEm.Fixtures/Data/Week7_2026/`, loaded automatically at startup into an empty
 database whenever `Providers:ReferenceData` is `Fixture`.
 
-To get a signed-in demo league without a Google account, add:
+To get a signed-in demo league without a real tailnet, add:
 
 ```bash
 Providers__ReferenceData=Fixture Providers__LiveScores=Fixture Seed__DemoLeague=true \
@@ -176,7 +176,7 @@ dotnet run --project src/NcaafPickEm.Api --launch-profile https
 
 This seeds the "Family League" demo league (members Michael, Alyson, Dance, Alex, Daniel; Michael
 is Commissioner). Then visit <https://localhost:7092/auth/dev-login?user=michael> (or `alyson`,
-`dance`, `alex`, `daniel`) to sign in as that member — no OAuth client needed. Seeding and
+`dance`, `alex`, `daniel`) to sign in as that member — no tailnet needed. Seeding and
 dev-login are both Development/Testing only and never run in Production.
 
 Step through the live-score timeline (kickoff through all-Final, snapshots 1-6) with:
@@ -204,7 +204,6 @@ list lives in `Implementation/01-Architecture.md`:
 
 ```
 ConnectionStrings__Default
-Google__ClientId, Google__ClientSecret
 Cfbd__ApiKey
 Providers__LiveScores = Espn | Cfbd | Fixture
 Providers__ReferenceData = Cfbd | Fixture
@@ -259,7 +258,8 @@ not something an agent in this environment can automate:
 
 1. Set a real VAPID key pair on the server (`generate-vapid`, above) and confirm
    `GET /api/push/vapid-public-key` does not answer 503.
-2. On the iPhone, open the deployed app's URL in Safari and sign in with Google.
+2. On the iPhone, joined to the tailnet, open the deployed app's URL in Safari — you land
+   signed in as your Tailscale account, no login screen.
 3. Tap the **Share** icon in Safari's toolbar, then **Add to Home Screen**.
 4. Open the app from its new Home Screen icon, not from Safari — this is what makes
    `navigator.standalone` true and unlocks the Notifications section on `/me` (otherwise it shows
@@ -273,48 +273,34 @@ not something an agent in this environment can automate:
 
 Record the result in `Implementation/STATUS.md`'s P7-02 row.
 
-### Google OAuth dev setup
+### Signing in locally
 
-Sign-in is ASP.NET Core cookie authentication plus the Google handler, with no Identity (D-004).
-The app boots and every test passes **without** an OAuth client — the handler falls back to
-placeholder credentials, and API tests replace Google's backchannel entirely. You only need the
-steps below to click through a real Google login on your own machine.
+Identity comes from the `Tailscale-User-Login` header that `tailscale serve` injects on every
+request (Phase 9, D-174). The handler is always on — there is no config flag to turn it on or
+off — so there are two ways to get a signed-in session without a real tailnet:
 
-1. Open the [Google Cloud console](https://console.cloud.google.com/), create (or pick) a project.
-2. **APIs & Services -> OAuth consent screen**: user type *External*, fill in the app name and your
-   own email, and add yourself under *Test users*. It can stay in *Testing*; publishing is not
-   needed for a handful of family accounts.
-3. **APIs & Services -> Credentials -> Create credentials -> OAuth client ID**, type
-   *Web application*. Add the authorized redirect URI exactly:
-
-   ```
-   https://localhost:7092/auth/callback/google
-   ```
-
-   For the home server, add its Tailscale HTTPS hostname too:
-   `https://<tailnet-host>/auth/callback/google`. Google requires HTTPS for anything but
-   `localhost`, which is why the server needs a Tailscale-issued certificate.
-4. Put the client ID and secret in user secrets — never in a file in the repo:
+1. **`GET /auth/dev-login?user=michael`** (or `alyson`, `dance`, `alex`, `daniel`) with
+   `Providers__ReferenceData=Fixture` and `Seed__DemoLeague=true` set (see "Run with fixtures"
+   above). This signs you in as that fixture member through the cookie scheme — the only scheme
+   `/auth/dev-login` ever writes to — and is Development/Testing only; it is never mapped in
+   Production.
+2. **Send the headers yourself.** Since the Tailscale handler reads `Tailscale-User-Login` /
+   `Tailscale-User-Name` on every request with no gating, a plain `curl` call or a
+   header-modifying browser extension is a real, working sign-in:
 
    ```bash
-   dotnet user-secrets --project src/NcaafPickEm.Api set "Google:ClientId"     "<client-id>"
-   dotnet user-secrets --project src/NcaafPickEm.Api set "Google:ClientSecret" "<client-secret>"
+   curl -H "Tailscale-User-Login: michael@example.com" -H "Tailscale-User-Name: Michael" \
+     https://localhost:7092/api/me
    ```
 
-   (`appsettings.Development.json` works too and is gitignored; `Google__ClientId` /
-   `Google__ClientSecret` environment variables work in production.)
-5. Run with the `https` profile and visit <https://localhost:7092/login>:
+   The first such request creates the `Users` row (`ExternalSubject` = the login verbatim,
+   `Email` = the login, initial `DisplayName` from the RFC 2047-decoded name header); every later
+   request with the same login matches the same user. There is no cookie and no session — every
+   request is authenticated independently, and a missing or empty header is anonymous (401 under
+   `/api`, the informational `/login` page elsewhere), never an error.
 
-   ```bash
-   dotnet run --project src/NcaafPickEm.Api
-   ```
-
-   "Sign in with Google" does a full-page redirect to Google and comes back to
-   `/auth/callback/google`, which upserts `Users` by Google subject, issues the `ncaaf.auth` cookie
-   and redirects to `returnUrl`. `GET /api/me` then returns your account.
-
-The cookie is `HttpOnly`, `Secure`, `SameSite=Lax`, named `ncaaf.auth`, with a 90-day sliding
-expiration (Feature 08). `POST /auth/logout` clears it.
+On the deployed server this same header is injected by `tailscale serve` itself, so a tailnet
+member simply opens the app and is signed in with no login screen at all.
 
 ### Calling the API
 
@@ -387,11 +373,14 @@ dotnet test
 
   API tests run with `Jobs__Enabled=false` and `Providers__*=Fixture`.
 
-No test ever talks to Google. `TestAuthHandler` registers a `TestAuth` scheme that signs a request
-in as whatever user id the `X-Test-User` header names — use `ApiFactory.CreateClientAs(userId)` (or
-`CreateMutatingClientAs`, which adds the CSRF header) after seeding rows with `TestUsers`. The
-Google pipeline itself is covered by `AuthTests`, which swaps in `FakeGoogleBackchannel` and drives
-the real challenge/callback round trip offline.
+No test ever talks to Tailscale or a real tailnet. `TestAuthHandler` registers a `TestAuth` scheme
+that signs a request in as whatever user id the `X-Test-User` header names — use
+`ApiFactory.CreateClientAs(userId)` (or `CreateMutatingClientAs`, which adds the CSRF header) after
+seeding rows with `TestUsers`; this is the default scheme for every test except the ones below. The
+real header-identity handler is covered by `TailscaleAuthTests`, which drives it with real
+`Tailscale-User-Login` / `Tailscale-User-Name` headers over `ApiTestFixture.CookieFactory` (no
+`TestAuth` override), the same policy-scheme selection the app uses in Development/Testing and
+Production alike.
 
 Every league-scoped endpoint group must have an authorization-matrix test. The harness is one call:
 
@@ -557,8 +546,10 @@ Server install, nothing else.
    sudo chown -R 1654:1654  /srv/docker/configs/ncaaf-pickem/keys /srv/docker/configs/ncaaf-pickem/logs
    ```
 
-   Skipping the `mssql` chown makes SQL Server exit immediately with a permission error; skipping
-   the `keys` one makes every restart sign everybody out.
+   Skipping the `mssql` chown makes SQL Server exit immediately with a permission error. The
+   `keys` volume no longer protects anyone's real session — Tailscale header identity is
+   per-request and has no cookie — but skipping it still breaks the Development-only dev-login
+   cookie across a restart, so keep the chown.
 
 2. **Copy the compose file and the environment file** to a working directory of your choice, e.g.
    `/srv/docker/ncaaf-pickem/`:
@@ -582,17 +573,12 @@ Server install, nothing else.
    the app handles before it builds the host, so it works as a container argument and never
    touches configuration, the database, or the network.)
 
-4. **Google OAuth**: add the redirect URI `https://<host>.<tailnet>.ts.net/auth/callback/google`
-   and the JavaScript origin `https://<host>.<tailnet>.ts.net` to the OAuth client from "Google
-   OAuth dev setup" above (or a separate production client — either works, it just needs this
-   redirect URI registered). Put the client id/secret in `.env`.
-
-5. **Fill in the rest of `.env`**: `SA_PASSWORD` (strong; avoid `$`, which Compose reads as a
+4. **Fill in the rest of `.env`**: `SA_PASSWORD` (strong; avoid `$`, which Compose reads as a
    variable reference), `PUBLIC_ORIGIN=https://<host>.<tailnet>.ts.net` with no trailing slash,
    `CFBD_API_KEY`, and `TZ`. `GHCR_USER`/`GHCR_PAT` are only needed while the image package is
    private — see "Updating" below. Every key is commented in `deploy/docker/.env.example`.
 
-6. **Start the stack**:
+5. **Start the stack**:
 
    ```bash
    docker compose up -d
@@ -614,7 +600,7 @@ Server install, nothing else.
    The `-04:00` on the heartbeat is the point of the Debian-based runtime image: the scheduler
    resolves `America/New_York` by name, so the container needs `tzdata` and ICU.
 
-7. **Publish it over Tailscale**:
+6. **Publish it over Tailscale**:
 
    ```bash
    tailscale serve --bg --https=443 http://127.0.0.1:5000
@@ -624,10 +610,12 @@ Server install, nothing else.
    That is the whole TLS story — the tailnet certificate is issued and renewed by Tailscale, with
    no cron job and no `.pfx` anywhere, and it is trusted only by devices on the same tailnet.
    `App__BehindProxy=true` in the compose file is what makes the app read the `X-Forwarded-*`
-   headers Serve adds, so the Google `redirect_uri` comes out as `https://<host>…` and the rate
-   limiter sees each member's own address rather than the Docker gateway.
+   headers Serve adds, so the rate limiter sees each member's own address rather than the Docker
+   gateway, and request-built invite links come out as `https://<host>…`. Serve is also what
+   injects the `Tailscale-User-Login`/`Tailscale-User-Name` headers the app signs people in from
+   (Phase 9) — there is no separate identity-provider step here.
 
-8. **First-run checks**, in order:
+7. **First-run checks**, in order:
 
    ```bash
    curl -fsS http://127.0.0.1:5000/health        # {"status":"ok"}
@@ -635,14 +623,14 @@ Server install, nothing else.
    docker compose logs api | grep -E "migration|heartbeat"
    ```
 
-   Then, from a phone joined to the tailnet: open `https://<host>.<tailnet>.ts.net/` in Safari,
-   sign in with Google, and Add to Home Screen.
+   Then, from a phone joined to the tailnet: open `https://<host>.<tailnet>.ts.net/` in Safari —
+   you land signed in as your Tailscale account, no login screen — and Add to Home Screen.
 
-9. **Schedule the nightly backup** (see "Backups" below) and run `./restore-verify.sh` once by
+8. **Schedule the nightly backup** (see "Backups" below) and run `./restore-verify.sh` once by
    hand before calling the setup done.
 
 **Manual pending (operator), recorded in `STATUS.md`'s P8-05 row**: the app reachable from a
-phone on the tailnet over HTTPS, Google login round-tripping on the deployed server, the stack
+phone on the tailnet over HTTPS, opening signed in with no login prompt, the stack
 surviving a host reboot, and the first backup file appearing the next morning — none of these can
 be verified by an agent (no home server, no phone, no tailnet access in this environment). See
 `Implementation/reviews/operator-checklist.md`.
@@ -712,7 +700,7 @@ system.
 
 Before touching the server, the same image can be exercised end to end on any machine with
 Docker, entirely offline (fixtures for both providers, the demo league seeded, dev-login instead
-of Google):
+of a real tailnet):
 
 ```bash
 docker compose -f deploy/docker/compose.dev.yaml up --build -d

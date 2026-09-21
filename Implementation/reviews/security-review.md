@@ -467,3 +467,105 @@ No finding was left both unresolved and unlogged.
 | `ReminderJobTests.cs` | +3 cases | §9 |
 
 `dotnet test`: **821 passed, 0 failed** (306 Domain, 515 Api) on the branch alone; **822** after merging `main` @ 969c461 (P5-05, P8-03), which adds one simulation test and no endpoint.
+
+---
+
+## 2026-09-20 - Phase 9 addendum
+
+Phase 9 (P9-01..P9-05) removed the Windows deployment path and Google sign-in, and replaced cookie
+authentication with per-request identity read from the `Tailscale-User-Login` header that
+`tailscale serve` injects. This addendum records the security posture of that change; it does not
+retract anything above — the findings and their resolutions in §1-§11 stood on their own merits at
+the time, and several of them are now moot for reasons noted at the end of this section.
+
+**Header trust is deliberate, not an oversight (Phase-9-Tailscale-Auth.md, Q4).** The
+`TailscaleAuthenticationHandler` reads `Tailscale-User-Login`/`Tailscale-User-Name` on every
+request and authenticates whatever the header says, with no signature, no shared secret, and no
+config flag to turn the behaviour off. A `curl -H "Tailscale-User-Login: x"` against any reachable
+instance of the app signs in as `x`. This was the owner's explicit instruction: the app is a
+family-scale tool on a private tailnet, and spoofing the header is an accepted non-risk for this
+deployment (Q3/Q4 answers in the Phase 9 plan).
+
+**The boundary is the network path, not the application.** Two things together make the header
+trustworthy in practice:
+
+1. **The container never has a public port.** `deploy/docker/compose.yaml` publishes the API only
+   on a loopback-only address on the host (`127.0.0.1:5000`, or `127.0.0.1:5001` on
+   `dunn-home-server`'s actual deployment) - nothing on the box's real network interface, let alone
+   the Internet, can reach it directly.
+2. **Only `tailscale serve` can reach that port, and only `tailscale serve` writes the headers.**
+   `tailscale serve` terminates TLS on the host and is the sole process that forwards to the
+   loopback port; it is also the sole source of `Tailscale-User-Login`/`Tailscale-User-Name` in
+   this deployment, and it writes them only for traffic that arrived over the tailnet's own
+   encrypted mesh from an authenticated tailnet device. A **tagged device** (a machine identity,
+   not a user identity) and **Funnel** traffic (Tailscale's opt-in public-exposure feature, not
+   used here) both carry no identity headers at all, so they land as anonymous - 401 under `/api`,
+   the informational `/login` page elsewhere - never as a spoofed user. There is no code path in
+   this app that a request from outside the tailnet, or from a tagged device, can reach with a
+   forged header, because there is no network path that reaches the app at all except through
+   Serve.
+
+So "header spoofing" is only a live concern for someone who already has a working presence on the
+family's own tailnet - at which point the whole trust model (Q4's owner-stated risk acceptance)
+already treats them as trusted, the same way a printer on the family Wi-Fi is trusted. This is
+strictly a smaller trust surface than the cookie model it replaces: a stolen 90-day cookie worked
+from anywhere on the Internet; a forged header requires tailnet membership.
+
+**Invite codes: guessability restated for the new format (P9-05, D-179).** The six-digit code
+(`RandomNumberGenerator.GetInt32(1_000_000)`, leading zeros allowed, `0-9` only) is a 1,000,000-value
+space. Behind the existing 20-per-minute-per-IP `invites` rate-limit policy
+(`RateLimitingSetup.cs`), guessing one specific active code by brute force takes on the order of
+1,000,000 / 20 ≈ 50,000 minutes ≈ **~35 days** of continuous guessing against one IP, and the
+caller must already be a signed-in tailnet member to reach `GET/POST /api/invites/{code}*` at all
+(both routes require `Authenticated`, per the §1 route inventory - unauthenticated is 401 before
+the rate limiter or the code lookup ever run). This is a smaller keyspace than the 8-character,
+31-symbol alphabet the original §5 arithmetic was built around, and it is accepted for the same
+reason Q4 accepts header trust: the tailnet is the boundary, a real invite is redeemed once by a
+real family member, and nobody is running a 35-day guessing script against their own family league.
+
+**Routes removed.** `GET /auth/login/google`, `GET /auth/callback/google` (the Google handler's own
+`CallbackPath`, never a mapped endpoint to begin with), and, per Q3, `POST /auth/logout` are gone.
+`Endpoints/AuthEndpoints.cs` itself is deleted (P9-03) since it mapped only those two routes minus
+the callback. `/auth/dev-login` is the only route left under `/auth`, Development/Testing only, and
+still carries the `auth` rate-limit policy.
+
+**What the CSRF filter still protects, and why it stays.** Under header identity there is no
+cookie-based session in Production, so classic CSRF (a foreign page inducing a browser to replay
+credentials it holds) has no cookie to ride on for a real deployment - a request without the
+`Tailscale-User-Login` header set by Serve is simply anonymous, whoever sent it. The filter is kept
+anyway because (1) `/auth/dev-login` still writes a cookie, in Development/Testing, and a
+CSRF-style request against a developer's own dev-login session is exactly the scenario the filter
+still defends; (2) the filter is one line at the group level and costs nothing to keep; and (3) it
+is a second, independent gate that also happens to reject anything that is not the app's own
+`HttpClient` (via `X-Requested-With: NcaafPickEm`), which is a mildly useful bit of friction against
+casual cross-origin scripting even with no cookie in play. `CsrfEndpointFilter` itself, its
+structural coverage (`RouteInventoryTests`), and its HTTP-level coverage
+(`GeneratedAuthMatrixTests`, `CsrfTests`) are unchanged by Phase 9.
+
+**What is now moot in §1-§4 above, and why it is left in place rather than deleted (append-only,
+per `05-Conventions.md`/Phase-9 plan's "append-only docs stay append-only"):**
+
+- §1's route-inventory row `GET | /auth/callback/google | ...` and `GET | /auth/login/google | ...`
+  no longer exist; the route is deleted, not merely reclassified. The inventory text above is a
+  historical snapshot of the P8-01 branch, not a live listing - `RouteInventoryTests`/
+  `ApiContractRoutes` (re-run on every build) are the live source of truth and no longer reference
+  either route.
+- §3's cookie-flags discussion ("From the wire, after a real Google sign-in through the shipped
+  pipeline") describes a pipeline that no longer exists. The cookie itself (`ncaaf.auth`, same
+  flags: `HttpOnly`, `Secure`, `SameSite=Lax`) survives only for `/auth/dev-login` in
+  Development/Testing; `CookieSecurityTests` now proves those flags over a dev-login sign-in rather
+  than a Google callback.
+- §3's `returnUrl`/`ReturnUrl.Sanitize` discussion still applies as written - `Auth/ReturnUrl.cs`
+  was kept (P9-03) because dev-login still uses it, and the control-character finding and its fix
+  are unaffected by anything in Phase 9.
+- §5's rate-limiting arithmetic for invite codes is restated above for the new six-digit format;
+  the `auth` policy's own 30/minute figure is unchanged (dev-login is the only remaining route under
+  it).
+- The Google dependency itself (`Microsoft.AspNetCore.Authentication.Google`) is removed from
+  `Directory.Packages.props` and the Api project, so §6's dependency audit has one fewer package to
+  track; nothing else in that section changes.
+
+No new finding is logged against Phase 9's design: the header-trust model is a stated, deliberate
+tradeoff (Q3/Q4) rather than a defect, and the network boundary described above is what makes it
+sound. `dotnet build -c Release` 0 warnings and `dotnet test tests/NcaafPickEm.Domain.Tests` 310/310
+were re-confirmed as part of P9-04 (docs only; no `.cs` file changed by this addendum).
