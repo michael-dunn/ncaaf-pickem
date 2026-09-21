@@ -56,7 +56,9 @@ Dependency direction: `Web -> Shared`; `Api -> Infrastructure -> Domain`; `Api -
 
 One process (`NcaafPickEm.Api`) on the home server. It serves the Blazor app's static files, the JSON API under `/api`, the auth endpoints under `/auth`, and hosts the job scheduler; SQL Server sits beside it.
 
-**Primary target: Docker on a headless Linux host (P8-05, D-158).** The process runs in a container listening on plain HTTP on a loopback-only published port; `tailscale serve` terminates TLS on the host with a certificate Tailscale issues and renews for the machine's tailnet hostname, and forwards to it. SQL Server 2022 is a second container. `deploy/docker/compose.yaml` is the whole stack; a third container, `watchtower`, pulls a new image from GHCR and restarts the API container in place. Because the app then sees every request as coming from the Docker gateway over `http`, `App__BehindProxy=true` turns on `X-Forwarded-*` handling (D-160), `DataProtection__KeysPath` puts the cookie key ring on a volume so a redeploy does not sign everyone out (D-161), and `Database__MigrateOnStartup=true` makes the container migrate itself, since there is no separate deploy step (D-159).
+**Primary target: Docker on a headless Linux host (P8-05, D-158).** The process runs in a container listening on plain HTTP on a loopback-only published port; `tailscale serve` terminates TLS on the host with a certificate Tailscale issues and renews for the machine's tailnet hostname, and forwards to it.
+
+**`tailscale serve` also injects the identity headers the app signs people in from (P9-02, D-174).** Every forwarded request from a tailnet user carries `Tailscale-User-Login` and `Tailscale-User-Name`; the app's default scheme is a policy scheme that forwards to a `TailscaleAuthenticationHandler` whenever the login header is present, upserting `Users` by it and authenticating that one request. There is no session: the boundary is the loopback-only port publish plus the tailnet, and the header is trusted exactly as it arrives (Phase 9, Q4). A request without the header - a tagged device, a health probe, anything that did not come through Serve - is anonymous. SQL Server 2022 is a second container. `deploy/docker/compose.yaml` is the whole stack; a third container, `watchtower`, pulls a new image from GHCR and restarts the API container in place. Because the app then sees every request as coming from the Docker gateway over `http`, `App__BehindProxy=true` turns on `X-Forwarded-*` handling (D-160), `DataProtection__KeysPath` puts the cookie key ring on a volume so a redeploy does not sign everyone out (D-161), and `Database__MigrateOnStartup=true` makes the container migrate itself, since there is no separate deploy step (D-159).
 
 ```
 Phone (home-screen PWA)
@@ -65,8 +67,8 @@ Phone (home-screen PWA)
                                   |
                                   `--HTTP--> 127.0.0.1:5000 -> ncaaf-api container :8080
                                                   |-- /            Blazor WASM static files
-                                                  |-- /api/*       minimal endpoints (cookie auth)
-                                                  |-- /auth/*      Google OAuth in/out
+                                                  |-- /api/*       minimal endpoints (header identity)
+                                                  |-- /auth/*      Google OAuth in/out (removed in P9-03)
                                                   |-- Scheduler    cron jobs (refresh, lock, reminders)
                                                   |-- SaturdayPoller  adaptive 5-min score polling
                                                   |-- /app/keys    data-protection key ring (volume)
