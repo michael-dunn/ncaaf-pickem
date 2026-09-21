@@ -22,6 +22,9 @@ Done when
 - Report in `Implementation/reviews/security-review.md` with each check and its evidence; suite green.
 
 ## P8-02 Home server deployment
+
+> Superseded by Phase 9 (P9-01): the Windows-service path was removed 2026-09-20.
+
 Tier: Sonnet (orchestrator supervises credentials). Depends on: P0-01, P7-01.
 
 Deliverables in `deploy/`
