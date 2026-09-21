@@ -58,6 +58,8 @@ public static class GameSetGameDtoMapper
     /// <param name="source">Rule or Manual.</param>
     /// <param name="isVoided">Excluded from scoring after lock (Feature 06).</param>
     /// <param name="resultOverrideWinnerTeamId">Commissioner's winner correction, when set.</param>
+    /// <param name="spread">Home-relative spread to show (newest line, or the frozen
+    /// <c>SpreadAtLock</c> once locked); null when the game has no line.</param>
     public static GameSetGameDto Map(
         Guid? gameSetGameId,
         Game game,
@@ -67,7 +69,8 @@ public static class GameSetGameDtoMapper
         int leagueDefaultPointValue,
         GameSetGameSource source,
         bool isVoided,
-        Guid? resultOverrideWinnerTeamId)
+        Guid? resultOverrideWinnerTeamId,
+        decimal? spread)
     {
         ArgumentNullException.ThrowIfNull(game);
         ArgumentNullException.ThrowIfNull(game.HomeTeam);
@@ -98,6 +101,7 @@ public static class GameSetGameDtoMapper
             game.Period,
             game.Clock,
             isVoided,
-            winnerTeamId);
+            winnerTeamId,
+            spread);
     }
 }

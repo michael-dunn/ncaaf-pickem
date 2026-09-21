@@ -157,6 +157,11 @@ public sealed class PointRuleService
         Dictionary<Guid, int> ranks = await BuildRankLookupAsync(league.SeasonYear, week, cancellationToken)
             .ConfigureAwait(false);
 
+        // The week is not frozen (guarded above), so the newest line is the one to show.
+        Dictionary<Guid, decimal> spreads = await PointValueRecalculator
+            .LoadLatestSpreadsAsync(_database, [row.GameId], cancellationToken)
+            .ConfigureAwait(false);
+
         return GameSetGameDtoMapper.Map(
             row.Id,
             row.Game!,
@@ -166,7 +171,8 @@ public sealed class PointRuleService
             league.DefaultPointValue,
             row.Source,
             row.IsVoided,
-            row.ResultOverrideWinnerTeamId);
+            row.ResultOverrideWinnerTeamId,
+            spreads.TryGetValue(row.GameId, out decimal spread) ? spread : null);
     }
 
     /// <summary>

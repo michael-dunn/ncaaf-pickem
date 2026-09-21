@@ -296,7 +296,8 @@ public sealed class FakeDashboardApi : IDashboardApi
                 Period: Period,
                 Clock: Clock,
                 IsVoided: false,
-                WinnerTeamId: WinnerTeamId);
+                WinnerTeamId: WinnerTeamId,
+                Spread: null);
 
             Guid? myTeamId = Picks.TryGetValue(viewerId, out Guid picked) ? picked : null;
 

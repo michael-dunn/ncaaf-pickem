@@ -522,6 +522,15 @@ public sealed class GameSetService
         Dictionary<Guid, int> ranks = await BuildRankLookupAsync(league.SeasonYear, week, cancellationToken)
             .ConfigureAwait(false);
 
+        // The spread a member sees is the one their point values answer to: the newest line while
+        // the week is open, and the frozen SpreadAtLock once the lock job has run (D-181). A line
+        // that arrives after lock is still stored, but never shown against a locked week.
+        Dictionary<Guid, decimal> currentSpreads = set.IsLocked
+            ? []
+            : await PointValueRecalculator
+                .LoadLatestSpreadsAsync(_database, [.. rows.Select(row => row.GameId)], cancellationToken)
+                .ConfigureAwait(false);
+
         GameSetGameDto[] dtos = [.. rows.Select(row => GameSetGameDtoMapper.Map(
             row.Id,
             row.Game!,
@@ -531,7 +540,10 @@ public sealed class GameSetService
             league.DefaultPointValue,
             row.Source,
             row.IsVoided,
-            row.ResultOverrideWinnerTeamId))];
+            row.ResultOverrideWinnerTeamId,
+            set.IsLocked
+                ? row.SpreadAtLock
+                : currentSpreads.TryGetValue(row.GameId, out decimal spread) ? spread : null))];
 
         DateTimeOffset? lockAtUtc = set.LockAtUtc is DateTime lockAt ? new DateTimeOffset(lockAt, TimeSpan.Zero) : null;
         string? lockDisplay = lockAtUtc is DateTimeOffset value ? SeasonCalendar.EasternDisplay(value) : null;
@@ -1081,7 +1093,8 @@ public sealed class GameSetService
                 league.DefaultPointValue,
                 generated.Source,
                 isVoided: false,
-                resultOverrideWinnerTeamId: null);
+                resultOverrideWinnerTeamId: null,
+                spread);
         }
 
         return results;

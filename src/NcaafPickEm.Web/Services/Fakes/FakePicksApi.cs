@@ -80,19 +80,19 @@ public sealed class FakePicksApi(FakeGameSetStore store) : IPicksApi
     {
         TeamDto Find(string abbr) => _store.Teams.First(t => t.Abbreviation == abbr);
 
-        GameSetGameDto Final(TeamDto home, int? homeRank, TeamDto away, int? awayRank, int homeScore, int awayScore, string kickoffUtc)
+        GameSetGameDto Final(TeamDto home, int? homeRank, TeamDto away, int? awayRank, int homeScore, int awayScore, string kickoffUtc, decimal? spread)
         {
             Guid gameId = Guid.NewGuid();
             Guid winnerTeamId = homeScore > awayScore ? home.TeamId : away.TeamId;
             return new GameSetGameDto(
                 gameId, gameId, home, away, homeRank, awayRank, DateTimeOffset.Parse(kickoffUtc),
                 PointValue: 10, IsPointValueElevated: false, GameSetGameSource.Rule, GameStatus.Final,
-                homeScore, awayScore, Period: null, Clock: null, IsVoided: false, winnerTeamId);
+                homeScore, awayScore, Period: null, Clock: null, IsVoided: false, winnerTeamId, spread);
         }
 
-        GameSetGameDto michiganTexas = Final(Find("MICH"), 8, Find("TEX"), 5, 24, 17, "2026-10-10T19:30:00Z");
-        GameSetGameDto bamaAuburn = Final(Find("ALA"), 11, Find("AUB"), null, 20, 27, "2026-10-10T19:30:00Z");
-        GameSetGameDto georgiaKentucky = Final(Find("UGA"), 2, Find("UK"), null, 35, 10, "2026-10-10T16:00:00Z");
+        GameSetGameDto michiganTexas = Final(Find("MICH"), 8, Find("TEX"), 5, 24, 17, "2026-10-10T19:30:00Z", spread: -6.5m);
+        GameSetGameDto bamaAuburn = Final(Find("ALA"), 11, Find("AUB"), null, 20, 27, "2026-10-10T19:30:00Z", spread: -3m);
+        GameSetGameDto georgiaKentucky = Final(Find("UGA"), 2, Find("UK"), null, 35, 10, "2026-10-10T16:00:00Z", spread: -17.5m);
 
         MyPickGameDto[] games =
         [
