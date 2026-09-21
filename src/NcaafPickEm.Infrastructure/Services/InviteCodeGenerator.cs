@@ -1,29 +1,18 @@
+using System.Globalization;
 using System.Security.Cryptography;
 
 namespace NcaafPickEm.Infrastructure.Services;
 
 /// <summary>
-/// Generates short, URL-safe invite codes that are easy to read aloud or retype from a text
-/// message (Feature 01).
+/// Generates six-digit invite codes that are easy to read aloud, retype from a text message, or
+/// type on a phone keypad (Feature 01, P9-05).
 /// </summary>
 public static class InviteCodeGenerator
 {
     /// <summary>Length of a generated code.</summary>
-    public const int Length = 8;
+    public const int Length = 6;
 
-    // No 0/O or 1/l/I: characters that are easy to confuse when hand-typing a code from a text
-    // message. Upper-case only, so a code is never mistyped over case.
-    private const string Alphabet = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
-
-    /// <summary>Creates one cryptographically random <see cref="Length"/>-character code.</summary>
-    public static string Generate()
-    {
-        Span<char> buffer = stackalloc char[Length];
-        for (int i = 0; i < Length; i++)
-        {
-            buffer[i] = Alphabet[RandomNumberGenerator.GetInt32(Alphabet.Length)];
-        }
-
-        return new string(buffer);
-    }
+    /// <summary>Creates one cryptographically random <see cref="Length"/>-digit code, leading zeros allowed.</summary>
+    public static string Generate() =>
+        RandomNumberGenerator.GetInt32(1_000_000).ToString("D6", CultureInfo.InvariantCulture);
 }

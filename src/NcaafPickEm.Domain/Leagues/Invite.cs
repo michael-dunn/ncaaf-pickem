@@ -1,8 +1,8 @@
 namespace NcaafPickEm.Domain.Leagues;
 
 /// <summary>
-/// A shareable join code for a league (Feature 01). Codes are short and URL-safe so they can be
-/// sent by text message.
+/// A shareable join code for a league (Feature 01). Codes are six digits (P9-05) so they are easy
+/// to read aloud, retype from a text message, or type on a phone keypad.
 /// </summary>
 public sealed class Invite
 {

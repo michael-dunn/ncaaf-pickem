@@ -4,9 +4,11 @@
 @inject NavigationManager Navigation
 
 @*
-    Join (P1-02). Preview card and Join button; renders State-specific copy for every
-    InviteState. A 401 here is handled by UnauthorizedRedirectHandler, which sends the caller to
-    /login?returnUrl=/join/{code} and back.
+    Join (P1-02). Preview card and Join button for a link opened from a text message; the
+    six-digit code (P9-05) also joins straight from the home page's join-by-code box, which does
+    not use this page. State-specific copy comes from the shared InviteStateMessage component
+    (P9-05), with a "Back to home" link on every non-Valid state. A 401 here is handled by
+    UnauthorizedRedirectHandler, which sends the caller to /login?returnUrl=/join/{code} and back.
 *@
 
 <PageTitle>Join a league - NCAAF Pick Em</PageTitle>
@@ -33,20 +35,14 @@ else if (_preview is { } preview)
                 break;
 
             case InviteState.AlreadyMember:
-                <p>You're already a member of this league.</p>
+                <InviteStateMessage State="preview.State" />
                 <a class="btn btn-primary" href="@ExistingLeagueHref">Go to league</a>
+                <a class="btn btn-secondary" href="/">Back to home</a>
                 break;
 
-            case InviteState.Expired:
-                <p>This invite link has expired. Ask the commissioner for a new link.</p>
-                break;
-
-            case InviteState.Revoked:
-                <p>This invite link is no longer valid. Ask the commissioner for a new link.</p>
-                break;
-
-            case InviteState.Full:
-                <p>This league is full. Ask the commissioner for a new link once there's room.</p>
+            default:
+                <InviteStateMessage State="preview.State" />
+                <a class="btn btn-secondary" href="/">Back to home</a>
                 break;
         }
     </div>

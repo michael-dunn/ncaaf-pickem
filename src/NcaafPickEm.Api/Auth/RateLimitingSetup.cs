@@ -13,8 +13,10 @@ namespace NcaafPickEm.Api.Auth;
 /// Testing only; nothing is mapped under <c>/auth</c> in Production) or guess invite codes.
 /// The windows are deliberately generous: a real person redeems one invite, while a
 /// code-guessing script needs orders of magnitude more attempts than this allows. Invite codes
-/// are 8 characters from a 31-character alphabet, so 20 guesses a minute is nowhere near a
-/// keyspace search.
+/// are six digits (P9-05), a 1,000,000-code space; at 20 guesses a minute per IP, guessing one
+/// specific active code takes on the order of 1,000,000 / 20 minutes ≈ 35 days of continuous
+/// guessing, and the caller has to already be a signed-in tailnet member to reach the route at
+/// all (D-179) - the tailnet is the boundary, not the code length.
 /// </remarks>
 public static class RateLimitingSetup
 {

@@ -195,7 +195,7 @@ public sealed class InviteAcceptTests
         User caller = await _fixture.PinnedFactory.QueryDbAsync(database => TestUsers.CreateUserAsync(database));
         using HttpClient client = _fixture.PinnedFactory.CreateClientAs(caller.Id);
 
-        using HttpResponseMessage response = await client.GetAsync("/api/invites/NOSUCHCD");
+        using HttpResponseMessage response = await client.GetAsync("/api/invites/999999");
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -206,7 +206,7 @@ public sealed class InviteAcceptTests
         User caller = await _fixture.PinnedFactory.QueryDbAsync(database => TestUsers.CreateUserAsync(database));
         using HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(caller.Id);
 
-        using HttpResponseMessage response = await client.PostAsync("/api/invites/NOSUCHCD/accept", null);
+        using HttpResponseMessage response = await client.PostAsync("/api/invites/999999/accept", null);
 
         response.StatusCode.Should().Be(HttpStatusCode.NotFound);
     }
@@ -241,5 +241,36 @@ public sealed class InviteAcceptTests
             database.Memberships.AsNoTracking().AnyAsync(
                 m => m.LeagueId == scenario.LeagueId && m.UserId == joiner.Id));
         joined.Should().BeFalse("a full league must not add the caller");
+    }
+
+    [Fact]
+    public async Task GivenACodeWithALeadingZero_WhenPreviewedThenAccepted_ThenTheLeadingZeroSurvivesEndToEnd()
+    {
+        (LeagueScenario scenario, InviteResponse invite) = await CreateLeagueWithInviteAsync();
+
+        // Force a leading-zero code onto the seeded invite (P9-05): six digits, leading zeros
+        // allowed, and the route must carry the string through intact rather than parsing and
+        // reformatting it as a number.
+        const string LeadingZeroCode = "000123";
+        await _fixture.PinnedFactory.ExecuteDbAsync(async database =>
+        {
+            Invite tracked = await database.Invites.SingleAsync(i => i.Id == invite.InviteId);
+            tracked.Code = LeadingZeroCode;
+            await database.SaveChangesAsync();
+        });
+
+        User joiner = await _fixture.PinnedFactory.QueryDbAsync(database => TestUsers.CreateUserAsync(database));
+        using HttpClient previewClient = _fixture.PinnedFactory.CreateClientAs(joiner.Id);
+
+        InvitePreview? preview = await previewClient.GetFromJsonAsync<InvitePreview>($"/api/invites/{LeadingZeroCode}");
+        preview.Should().NotBeNull();
+        preview!.State.Should().Be(InviteState.Valid);
+
+        using HttpClient acceptClient = _fixture.PinnedFactory.CreateMutatingClientAs(joiner.Id);
+        using HttpResponseMessage response = await acceptClient.PostAsync($"/api/invites/{LeadingZeroCode}/accept", null);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        LeagueDetail? detail = await response.Content.ReadFromJsonAsync<LeagueDetail>();
+        detail!.LeagueId.Should().Be(scenario.LeagueId);
     }
 }

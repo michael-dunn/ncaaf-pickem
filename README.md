@@ -6,9 +6,10 @@ A mobile-first PWA for a family college-football pick-em league. Commissioners c
 that select Saturday FBS games each week and assign point values; members tap winners before the
 first Saturday kickoff; at lock an influence dashboard shows each member which games matter most
 against the rest of the league, with live scores. Games are scored automatically as they go final,
-and weekly and season leaderboards update; web push reminds people to submit. The stack is .NET on
-a home server behind Tailscale, SQL Server, Google sign-in, CollegeFootballData for reference data
-and ESPN for live scores.
+and weekly and season leaderboards update; web push reminds people to submit. A new member joins
+by typing a six-digit code into the "Join by code" box on the home page, or by tapping an invite
+link. The stack is .NET on a home server behind Tailscale, SQL Server, Google sign-in,
+CollegeFootballData for reference data and ESPN for live scores.
 
 - Requirements: [`WorkItems/`](WorkItems) (13 feature stories — these are the spec).
 - Implementation plan: [`Implementation/`](Implementation) — start at

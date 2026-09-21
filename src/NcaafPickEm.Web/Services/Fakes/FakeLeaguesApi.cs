@@ -81,7 +81,7 @@ public sealed class FakeLeaguesApi : ILeaguesApi
         _invites.Add(new FakeInvite
         {
             InviteId = Guid.Parse("00000000-0000-0000-0000-000000000010"),
-            Code = "FAMILY7",
+            Code = "000123",
             ExpiresUtc = DateTimeOffset.UtcNow.AddDays(14),
             Uses = 0,
             MaxUses = 50,
@@ -252,7 +252,7 @@ public sealed class FakeLeaguesApi : ILeaguesApi
         var invite = new FakeInvite
         {
             InviteId = Guid.NewGuid(),
-            Code = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant(),
+            Code = Random.Shared.Next(0, 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture),
             ExpiresUtc = DateTimeOffset.UtcNow.AddDays(14),
             Uses = 0,
             MaxUses = 50,
