@@ -1,0 +1,397 @@
+@page "/admin/dev"
+@using System.Globalization
+@using NcaafPickEm.Shared.Contracts.Dev
+@inject IDevToolsApi DevTools
+@inject AppShellState Shell
+
+@*
+    Dev tools (P10-01): move the server clock and walk the seeded demo league through a week -
+    generate the set, fill picks, lock, poll a fixture score snapshot, reset - from a phone-sized
+    page instead of curl. Every control calls a Development/Testing-only route under
+    /api/admin/fixture; against a Production server they all 404 and the page says so.
+*@
+
+<PageTitle>Dev tools - NCAAF Pick Em</PageTitle>
+
+<h1>Dev tools</h1>
+
+@if (_unavailable)
+{
+    <div class="card">
+        <p>Dev tools are only available on a Development server.</p>
+        <p class="muted text-sm">
+            Run the Api with <code>ASPNETCORE_ENVIRONMENT=Development</code>, the Fixture providers and
+            <code>Seed__DemoLeague=true</code>.
+        </p>
+    </div>
+}
+else
+{
+    <ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+    @if (_clock is null)
+    {
+        <LoadingSkeleton Rows="4" />
+    }
+    else
+    {
+        <div class="card dev-card">
+            <div class="dev-card-header">
+                <h2>Server clock</h2>
+                @if (_clock.IsFrozen)
+                {
+                    <span class="dev-badge dev-badge-frozen">Frozen</span>
+                }
+                else if (_clock.IsShifted)
+                {
+                    <span class="dev-badge dev-badge-shifted">Shifted</span>
+                }
+                else
+                {
+                    <span class="dev-badge">Real time</span>
+                }
+            </div>
+
+            <p class="dev-now">@_clock.NowEasternDisplay</p>
+            <p class="muted text-sm">
+                App: @_clock.NowUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) UTC
+                &middot; Real: @_clock.RealNowUtc.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture) UTC
+            </p>
+            <p class="text-sm">
+                Offset <strong>@FormatOffset(_clock.Offset)</strong>
+                @if (_clock.CurrentWeek is int week)
+                {
+                    <text>&middot; calendar week <strong>@week</strong> (@_clock.SeasonState)</text>
+                }
+            </p>
+
+            <h3>Jump to</h3>
+            <div class="dev-button-row">
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => SetClockAsync(FixtureWednesday)">Wed of fixture week</button>
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => SetClockAsync(FixtureFridayEvening)">Fri, 90 min before lock</button>
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => SetClockAsync(FixtureSaturdayNoon)">Sat noon ET</button>
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => SetClockAsync(FixtureSaturdayNight)">Sat 10 PM ET</button>
+            </div>
+
+            <h3>Move by</h3>
+            <div class="dev-button-row">
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => AdvanceAsync(TimeSpan.FromHours(-1))">-1 h</button>
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => AdvanceAsync(TimeSpan.FromMinutes(10))">+10 min</button>
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => AdvanceAsync(TimeSpan.FromHours(1))">+1 h</button>
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => AdvanceAsync(TimeSpan.FromDays(1))">+1 day</button>
+            </div>
+
+            <h3>Exact instant</h3>
+            <div class="dev-inline-form">
+                <input type="datetime-local" class="input" step="60" @bind="_customLocal" aria-label="Local date and time" />
+                <button type="button" class="btn btn-primary" disabled="@(_busy || _customLocal is null)" @onclick="SetCustomAsync">Set</button>
+            </div>
+            <p class="muted text-sm">Entered in this device's time zone.</p>
+
+            <div class="dev-button-row">
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="ToggleFreezeAsync">
+                    @(_clock.IsFrozen ? "Let it run" : "Freeze")
+                </button>
+                <button type="button" class="btn btn-danger" disabled="@(_busy || !_clock.IsShifted)" @onclick="ResetClockAsync">Back to real time</button>
+            </div>
+        </div>
+
+        <div class="card dev-card">
+            <div class="dev-card-header">
+                <h2>Demo week</h2>
+                <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="ReloadAsync">Refresh</button>
+            </div>
+
+            @if (_demo is null)
+            {
+                <p>No demo league is seeded.</p>
+                <p class="muted text-sm">
+                    Set <code>Seed__DemoLeague=true</code> with the Fixture providers and restart the Api.
+                </p>
+            }
+            else
+            {
+                <p class="text-sm">
+                    <strong>@_demo.LeagueName</strong> &middot; week <strong>@_demo.CurrentWeek</strong> (@_demo.SeasonState)
+                    &middot; snapshot <strong>@_demo.Snapshot</strong> of 6
+                </p>
+
+                @if (!_demo.HasFixtureGames)
+                {
+                    <p class="dev-warning">
+                        The fixture data has no games in week @_demo.CurrentWeek. Jump the clock into the fixture
+                        week first, then generate.
+                    </p>
+                }
+
+                @if (_demo.Set is DemoWeekSetDto set)
+                {
+                    <ul class="dev-facts">
+                        <li>@set.ActiveGameCount active of @set.GameCount game(s) &middot; @set.FinalCount final, @set.InProgressCount in progress</li>
+                        <li>Lock at @(set.LockAtEasternDisplay ?? "-")</li>
+                        <li>
+                            @if (set.LockedUtc is not null)
+                            {
+                                <text>Locked (job ran)</text>
+                            }
+                            else if (set.IsFrozenNow)
+                            {
+                                <text>Frozen: lock time passed, job not yet run</text>
+                            }
+                            else
+                            {
+                                <text>Open for picks</text>
+                            }
+                            @if (set.IsComplete)
+                            {
+                                <text> &middot; week complete and scored</text>
+                            }
+                        </li>
+                    </ul>
+                }
+                else
+                {
+                    <p class="muted text-sm">No game set yet for this week.</p>
+                }
+
+                <h3>Step the week</h3>
+                <div class="dev-button-row">
+                    <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="GenerateAsync">1. Generate set</button>
+                    <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="() => FillPicksAsync(false)">2. Fill others' picks</button>
+                    <button type="button" class="btn btn-secondary" disabled="@_busy" @onclick="() => FillPicksAsync(true)">Fill everyone's picks</button>
+                    <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="LockAsync">3. Lock now</button>
+                </div>
+
+                <h3>4. Scores</h3>
+                <div class="dev-inline-form">
+                    <select class="input" @bind="_snapshotDraft" aria-label="Fixture snapshot">
+                        <option value="1">1 - pre-kickoff</option>
+                        <option value="2">2 - early games live</option>
+                        <option value="3">3 - afternoon</option>
+                        <option value="4">4 - early finals</option>
+                        <option value="5">5 - evening</option>
+                        <option value="6">6 - all final</option>
+                    </select>
+                    <button type="button" class="btn btn-primary" disabled="@_busy" @onclick="PollAsync">Poll</button>
+                </div>
+                <p class="muted text-sm">
+                    Applies that snapshot's scores now. With jobs on, the Saturday poller also polls on its own
+                    once the clock is inside the Saturday window.
+                </p>
+
+                <h3>Members</h3>
+                <div class="dev-table-scroll">
+                    <table class="dev-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Status</th>
+                                <th>Picks</th>
+                                <th>Pts</th>
+                                <th>Correct</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (DemoMemberDto member in _demo.Members)
+                            {
+                                <tr>
+                                    <td>@member.Name@(member.Role == "Commissioner" ? " *" : string.Empty)</td>
+                                    <td>@member.Status</td>
+                                    <td>@member.PickedCount</td>
+                                    <td>@(member.Points?.ToString(CultureInfo.InvariantCulture) ?? "-")</td>
+                                    <td>@(member.CorrectCount?.ToString(CultureInfo.InvariantCulture) ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="dev-button-row">
+                    <button type="button" class="btn btn-danger" disabled="@_busy" @onclick="() => _confirmReset = true">Reset demo week</button>
+                </div>
+            }
+        </div>
+
+        @if (_notes.Count > 0)
+        {
+            <div class="card dev-card">
+                <h2>Last action</h2>
+                <ul class="dev-notes">
+                    @foreach (string note in _notes)
+                    {
+                        <li>@note</li>
+                    }
+                </ul>
+            </div>
+        }
+    }
+}
+
+<ConfirmSheet IsOpen="_confirmReset"
+              Title="Reset the demo league's week data?"
+              Body="Deletes every game set, pick, submission, result and standings row the Family League owns, puts the fixture games back to Scheduled, and rewinds the snapshot to 1. Members and rules stay."
+              ConfirmLabel="Reset"
+              IsDestructive="true"
+              OnConfirm="ResetDemoAsync"
+              OnCancel="() => _confirmReset = false" />
+
+@code {
+    // Fixture week 7, 2026: Sunday Oct 11 through Saturday Oct 17 (Eastern). First kickoff, and
+    // therefore the Top-25 set's lock, is Friday Oct 16 at 23:30 UTC (7:30 PM ET).
+    private static readonly DateTimeOffset FixtureWednesday = new(2026, 10, 14, 16, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset FixtureFridayEvening = new(2026, 10, 16, 22, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset FixtureSaturdayNoon = new(2026, 10, 17, 16, 0, 0, TimeSpan.Zero);
+    private static readonly DateTimeOffset FixtureSaturdayNight = new(2026, 10, 18, 2, 0, 0, TimeSpan.Zero);
+
+    private DevClockResponse? _clock;
+    private DemoWeekResponse? _demo;
+    private List<string> _notes = [];
+    private string? _error;
+    private bool _unavailable;
+    private bool _busy;
+    private bool _confirmReset;
+    private DateTime? _customLocal;
+    private string _snapshotDraft = "1";
+
+    protected override async Task OnInitializedAsync()
+    {
+        Shell.ClearLeague();
+        Shell.SetTitle("Dev tools");
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        await RunAsync(async () =>
+        {
+            _clock = await DevTools.GetClockAsync();
+            await ReloadDemoAsync();
+        });
+    }
+
+    private async Task ReloadDemoAsync()
+    {
+        try
+        {
+            _demo = await DevTools.GetDemoWeekAsync();
+            _snapshotDraft = _demo.Snapshot.ToString(CultureInfo.InvariantCulture);
+        }
+        catch (LeaguesApiException ex) when (ex.StatusCode == 404)
+        {
+            // The clock route answered, so this is "no demo league", not "not Development".
+            _demo = null;
+        }
+    }
+
+    private Task SetClockAsync(DateTimeOffset nowUtc) =>
+        ApplyClockAsync(new DevClockRequest(NowUtc: nowUtc));
+
+    private Task AdvanceAsync(TimeSpan by) =>
+        ApplyClockAsync(new DevClockRequest(Advance: by));
+
+    private Task ToggleFreezeAsync() =>
+        ApplyClockAsync(new DevClockRequest(Frozen: !(_clock?.IsFrozen ?? false)));
+
+    private async Task SetCustomAsync()
+    {
+        if (_customLocal is not DateTime local)
+        {
+            _error = "Enter a date and time.";
+            return;
+        }
+
+        // The input is the device's local time; the browser zone is what .NET sees as Local here.
+        DateTimeOffset nowUtc = new DateTimeOffset(DateTime.SpecifyKind(local, DateTimeKind.Local)).ToUniversalTime();
+        await ApplyClockAsync(new DevClockRequest(NowUtc: nowUtc));
+    }
+
+    private async Task ApplyClockAsync(DevClockRequest request)
+    {
+        await RunAsync(async () =>
+        {
+            _clock = await DevTools.SetClockAsync(request);
+            await ReloadDemoAsync();
+        });
+    }
+
+    private async Task ResetClockAsync()
+    {
+        await RunAsync(async () =>
+        {
+            _clock = await DevTools.ResetClockAsync();
+            await ReloadDemoAsync();
+        });
+    }
+
+    private Task GenerateAsync() => ApplyDemoAsync(() => DevTools.GenerateDemoWeekAsync());
+
+    private Task FillPicksAsync(bool includeMe) => ApplyDemoAsync(() => DevTools.FillDemoPicksAsync(includeMe));
+
+    private Task LockAsync() => ApplyDemoAsync(() => DevTools.LockDemoWeekAsync());
+
+    private Task PollAsync()
+    {
+        int? snapshot = int.TryParse(_snapshotDraft, NumberStyles.Integer, CultureInfo.InvariantCulture, out int parsed)
+            ? parsed
+            : null;
+        return ApplyDemoAsync(() => DevTools.PollDemoWeekAsync(snapshot));
+    }
+
+    private async Task ResetDemoAsync()
+    {
+        _confirmReset = false;
+        await ApplyDemoAsync(() => DevTools.ResetDemoWeekAsync());
+    }
+
+    private async Task ApplyDemoAsync(Func<Task<DemoWeekResponse>> action)
+    {
+        await RunAsync(async () =>
+        {
+            _demo = await action();
+            _notes = [.. _demo.Notes];
+            _snapshotDraft = _demo.Snapshot.ToString(CultureInfo.InvariantCulture);
+
+            // A demo step can move nothing on the clock, but the clock card shows the calendar
+            // week, so keep the two cards telling the same story.
+            _clock = await DevTools.GetClockAsync();
+        });
+    }
+
+    private async Task RunAsync(Func<Task> action)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            await action();
+            _unavailable = false;
+        }
+        catch (LeaguesApiException ex) when (ex.StatusCode == 404 && _clock is null)
+        {
+            // The clock route itself is missing: a Production server. Nothing here can work.
+            _unavailable = true;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private static string FormatOffset(TimeSpan offset)
+    {
+        if (offset.Duration() < TimeSpan.FromSeconds(1))
+        {
+            return "none";
+        }
+
+        string sign = offset < TimeSpan.Zero ? "-" : "+";
+        TimeSpan size = offset.Duration();
+        return size.TotalDays >= 1
+            ? $"{sign}{(int)size.TotalDays}d {size.Hours}h {size.Minutes}m"
+            : $"{sign}{(int)size.TotalHours}h {size.Minutes}m";
+    }
+}
