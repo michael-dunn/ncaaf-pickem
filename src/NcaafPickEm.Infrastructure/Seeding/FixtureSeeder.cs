@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Users;
@@ -304,10 +305,23 @@ public sealed class FixtureSeeder
             });
         }
 
+        // P10-01: one default rule (Top 25), so the week's set generates on its own when the
+        // clock enters the fixture week - EnsureCurrentWeekSetsJob, RegenerateGameSetsJob and the
+        // demo "generate" control all skip a league with no rules. The same rule SimulateCommand
+        // used to add on the fly; the commissioner can still change it on the config page.
+        _database.GameSetRules.Add(new GameSetRule
+        {
+            Id = Guid.CreateVersion7(),
+            LeagueId = league.Id,
+            Week = null,
+            RuleType = GameSetRuleType.Top25,
+            SortOrder = 0,
+        });
+
         await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         _logger.LogInformation(
-            "Seeded demo league {LeagueName} with {MemberCount} members",
+            "Seeded demo league {LeagueName} with {MemberCount} members and a default Top 25 rule",
             DemoLeagueName,
             users.Count);
     }

@@ -47,6 +47,10 @@ public static class EndpointMapping
         {
             app.MapDevAuthEndpoints();
             api.MapFixtureAdminEndpoints();
+
+            // P10-01: move the server clock and drive the demo league through a week by hand.
+            api.MapDevClockEndpoints();
+            api.MapDemoWeekEndpoints();
         }
 
         return app;
