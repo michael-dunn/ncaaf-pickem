@@ -1,3 +1,4 @@
+using System.Globalization;
 using CollegeFootballData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -25,6 +26,7 @@ using NcaafPickEm.Infrastructure.Push;
 using NcaafPickEm.Infrastructure.Scoring;
 using NcaafPickEm.Infrastructure.Seeding;
 using NcaafPickEm.Infrastructure.Services;
+using NcaafPickEm.Infrastructure.Time;
 
 namespace NcaafPickEm.Infrastructure;
 
@@ -58,8 +60,22 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(environment);
 
         // TimeProvider is the only clock the codebase may use (05-Conventions.md).
-        // TryAdd so tests can register a FakeTimeProvider before calling this.
-        services.TryAddSingleton(TimeProvider.System);
+        // TryAdd so tests (and the simulate command) can register their own clock before calling
+        // this. Development and Testing get the movable DevTimeProvider (P10-01, D-180), optionally
+        // pre-shifted by Clock:NowUtc / Clock:Frozen; Production always reads real time.
+        if (IsDevelopmentOrTesting(environment))
+        {
+            services.TryAddSingleton(sp => CreateDevClock(sp, configuration));
+            services.TryAddSingleton<TimeProvider>(sp => sp.GetRequiredService<DevTimeProvider>());
+
+            // Drives the demo league through a week by hand (generate, fill picks, lock, poll,
+            // reset) behind /api/admin/fixture/demo. Development and Testing only, like the routes.
+            services.TryAddScoped<DemoWeekService>();
+        }
+        else
+        {
+            services.TryAddSingleton(TimeProvider.System);
+        }
 
         // An unset connection string has to reach UseSqlServer as null, not "": empty throws at
         // registration, whereas null lets the app boot and /health/ready report the problem.
@@ -332,5 +348,55 @@ public static class DependencyInjection
                 $"Providers:LiveScores '{providerName}' is not a recognized provider. " +
                 "Use 'Fixture', 'Espn' or 'Cfbd'."),
         };
+    }
+
+    private static bool IsDevelopmentOrTesting(IHostEnvironment environment) =>
+        environment.IsDevelopment() || environment.IsEnvironment("Testing");
+
+    /// <summary>
+    /// The dev clock, pre-shifted from configuration: <c>Clock:NowUtc</c> (any ISO 8601 instant)
+    /// makes the app boot believing it is that moment, and <c>Clock:Frozen=true</c> stops it
+    /// there. Both are optional; with neither the clock reads real time until
+    /// <c>PUT /api/admin/fixture/clock</c> moves it.
+    /// </summary>
+    private static DevTimeProvider CreateDevClock(IServiceProvider services, IConfiguration configuration)
+    {
+        var clock = new DevTimeProvider();
+        ILogger logger = services.GetRequiredService<ILoggerFactory>().CreateLogger<DevTimeProvider>();
+
+        string? configuredNow = configuration["Clock:NowUtc"];
+        if (!string.IsNullOrWhiteSpace(configuredNow))
+        {
+            if (DateTimeOffset.TryParse(
+                    configuredNow,
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                    out DateTimeOffset nowUtc))
+            {
+                clock.SetNow(nowUtc);
+            }
+            else
+            {
+                logger.LogWarning(
+                    "Clock:NowUtc '{ConfiguredNow}' is not an ISO 8601 instant; the dev clock starts at real time",
+                    configuredNow);
+            }
+        }
+
+        if (configuration.GetValue<bool>("Clock:Frozen"))
+        {
+            clock.Freeze();
+        }
+
+        if (clock.IsShifted)
+        {
+            logger.LogWarning(
+                "Dev clock is shifted: the app believes it is {AppNowUtc:o} (real {RealNowUtc:o}, frozen={Frozen})",
+                clock.GetUtcNow(),
+                clock.RealUtcNow,
+                clock.IsFrozen);
+        }
+
+        return clock;
     }
 }

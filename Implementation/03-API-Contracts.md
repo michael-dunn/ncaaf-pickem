@@ -30,6 +30,8 @@ There is no sign-in route and no sign-out route (P9-03, Q3): identity arrives on
 
 `/auth/*` is not covered by the CSRF header rule — the whole `/api` group is. Nothing mutating is mapped outside `/api` any more.
 
+Development and Testing also map a set of fixture tools under `/api/admin/fixture` (`Authenticated`, CSRF-covered like the rest of `/api`, never in Production): `GET`/`POST /admin/fixture/snapshot[/{n}]` (P2-05, the live-score timeline), `GET`/`PUT`/`DELETE /admin/fixture/clock` (P10-01, D-180: the server clock - `PUT` takes `{nowUtc?, advance?, frozen?}` and answers with the instant, offset and the calendar week it falls in; 409 when the registered clock is not the dev clock), and `GET /admin/fixture/demo` plus `POST /admin/fixture/demo/{generate|picks?includeMe=|lock|poll?snapshot=|reset}` (P10-01: drive the seeded demo league through the clock's current week; every route answers the same `DemoWeekResponse`; 404 when `Seed:DemoLeague` never ran). They are affordances, not contracted endpoints, so they are not listed in the route tables below.
+
 `MeResponse.Leagues` is `[]` until **P1-01** wires up league summaries; `LeagueSummary` is already defined in `Shared/Contracts/Leagues` with `MyCurrentWeekStatus` nullable (null when the current week has no game set yet).
 
 ## Leagues and members (Feature 01)

@@ -189,6 +189,53 @@ curl https://localhost:7092/api/admin/fixture/snapshot --cookie cookies.txt
 (sign in through `/auth/dev-login` first so the cookie jar has a session; these two routes
 require `Authenticated` like the rest of `/api`).
 
+### Moving the clock and driving a week (Dev tools)
+
+The fixture data has games in exactly one week (Week 7, 2026: October 11-17), and picks are only
+accepted for the calendar's *current* week, so on any other date the picks page 409s
+`WeekNotCurrent`. Instead of waiting for October, move the server's clock. In Development the app's
+`TimeProvider` is a `DevTimeProvider` (P10-01, D-180): real time plus an offset, or one frozen
+instant. Only `GetUtcNow` is shifted; the scheduler and Saturday poller keep ticking at real speed
+and read the shifted time on each tick.
+
+The quickest route is the **Dev tools** page in the app (More -> Dev tools, or `/admin/dev`): jump
+the clock into the fixture week, then step the demo league through generate -> fill picks -> lock
+-> poll a score snapshot, with a member table showing status and points. The same controls exist
+as routes (all `Authenticated`, Development and Testing only, never mapped in Production):
+
+```bash
+# Where is the clock, and which calendar week is that?
+curl -b cookies.txt https://localhost:7092/api/admin/fixture/clock
+# Move to Wednesday of the fixture week (keeps running from there); {"advance":"1.00:00:00"} moves by a day; {"frozen":true} stops it
+curl -b cookies.txt -X PUT -H "X-Requested-With: NcaafPickEm" -H "Content-Type: application/json" \
+  -d '{"nowUtc":"2026-10-14T16:00:00Z"}' https://localhost:7092/api/admin/fixture/clock
+# Back to real time
+curl -b cookies.txt -X DELETE -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/clock
+
+# The demo league's week: set state, lock, members' status and points
+curl -b cookies.txt https://localhost:7092/api/admin/fixture/demo
+# Step it: generate the set, fill every other member's picks (add ?includeMe=true for yours too),
+# lock now, apply score snapshot 6 (all Final), or wipe the week and start over
+curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/generate
+curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/picks
+curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/lock
+curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" "https://localhost:7092/api/admin/fixture/demo/poll?snapshot=6"
+curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/reset
+```
+
+A typical loop: set the clock to Wednesday Oct 14, generate, make your own picks in the app as
+`michael` while the others are filled for you, advance the clock past the first kickoff (the lock
+job runs within a minute with jobs on, or press "Lock now"), then step snapshots 1-6 while
+advancing through Saturday and watch results and the leaderboard fill in. Reset when done.
+
+To boot already inside the fixture week, set `Clock__NowUtc=2026-10-14T16:00:00Z` (and optionally
+`Clock__Frozen=true`) in the environment or `appsettings.Development.json`. Both are ignored
+outside Development and Testing. The demo league also seeds with a default Top 25 rule now, so
+`EnsureCurrentWeekSetsJob` generates the week's set on its own once the clock enters the week.
+
+Caveat: the client's lock countdown and "last updated" labels use the browser's real clock and will
+look odd while the server is shifted.
+
 ### Local configuration
 
 `src/NcaafPickEm.Api/appsettings.Development.json` is **gitignored**. Copy the committed template

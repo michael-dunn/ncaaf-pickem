@@ -1,0 +1,105 @@
+.dev-card h3 {
+    margin: var(--space-4) 0 var(--space-2);
+    font-size: var(--text-sm);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+}
+
+.dev-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.dev-card-header h2 {
+    margin: 0;
+}
+
+.dev-now {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin: var(--space-2) 0 0;
+}
+
+.dev-badge {
+    display: inline-block;
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--color-text-muted);
+}
+
+.dev-badge-shifted {
+    border-color: var(--color-warning);
+    color: var(--color-warning);
+}
+
+.dev-badge-frozen {
+    border-color: var(--color-brand);
+    color: var(--color-brand);
+}
+
+.dev-button-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.dev-button-row .btn {
+    flex: 1 1 calc(50% - 0.25rem);
+}
+
+.dev-inline-form {
+    display: flex;
+    gap: 0.5rem;
+    align-items: stretch;
+}
+
+.dev-inline-form .input {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.dev-warning {
+    color: var(--color-danger);
+}
+
+.dev-facts,
+.dev-notes {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: var(--text-sm);
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.dev-notes {
+    list-style: none;
+    padding-left: 0;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    word-break: break-word;
+}
+
+.dev-table-scroll {
+    overflow-x: auto;
+}
+
+.dev-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-sm);
+}
+
+.dev-table th,
+.dev-table td {
+    text-align: left;
+    padding: 0.4rem 0.5rem;
+    white-space: nowrap;
+    border-bottom: 1px solid var(--color-border);
+}
