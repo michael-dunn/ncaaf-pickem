@@ -65,6 +65,7 @@ Phase 8  Hardening, deploy, season simulation, traceability sign-off
 | 6 Influence Dashboard | 05 | `Phases/Phase-6-Dashboard.md` |
 | 7 Notifications & PWA | 11, 10 | `Phases/Phase-7-Notifications-PWA.md` |
 | 8 Hardening & Deploy | 10, all | `Phases/Phase-8-Hardening-Deploy.md` |
+| 10 Dev tooling (movable clock, demo-week controls) | 02, 04, 06 (testability) | `Phases/Phase-10-Dev-Tooling.md` |
 
 Phases 1, 2, and 3a run in parallel once Phase 0 is done. Everything from Phase 3b onward depends on Phase 2's dev fixtures (P2-05) so that UI and endpoint work never waits on live provider data.
 

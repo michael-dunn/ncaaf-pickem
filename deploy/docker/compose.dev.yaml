@@ -59,6 +59,10 @@ services:
       - Providers__ReferenceData=Fixture
       - Providers__LiveScores=Fixture
       - Seed__DemoLeague=true
+      # P10-01: uncomment to boot already inside the fixture week (Wednesday Oct 14, 2026), or move the
+      # clock later from /admin/dev or PUT /api/admin/fixture/clock. Development only.
+      # - Clock__NowUtc=2026-10-14T16:00:00Z
+      # - Clock__Frozen=false
       # On, so `docker compose logs api` shows the heartbeat and proves the in-process scheduler
       # really runs inside the container. Safe because every provider above is a fixture: no
       # scheduled job can reach CFBD, ESPN, or a push endpoint from here.
