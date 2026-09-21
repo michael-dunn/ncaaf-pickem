@@ -46,7 +46,7 @@ tests/
   NcaafPickEm.Api.Tests/       Endpoint + DB integration tests with WebApplicationFactory.
   NcaafPickEm.Fixtures/        JSON fixtures: sample CFBD/ESPN payloads, a full sample week.
 deploy/
-  install-service.ps1  backup.sql  deploy.ps1  appsettings.Production.template.json
+  docker/
 Implementation/  WorkItems/
 ```
 
@@ -57,8 +57,6 @@ Dependency direction: `Web -> Shared`; `Api -> Infrastructure -> Domain`; `Api -
 One process (`NcaafPickEm.Api`) on the home server. It serves the Blazor app's static files, the JSON API under `/api`, the auth endpoints under `/auth`, and hosts the job scheduler; SQL Server sits beside it.
 
 **Primary target: Docker on a headless Linux host (P8-05, D-158).** The process runs in a container listening on plain HTTP on a loopback-only published port; `tailscale serve` terminates TLS on the host with a certificate Tailscale issues and renews for the machine's tailnet hostname, and forwards to it. SQL Server 2022 is a second container. `deploy/docker/compose.yaml` is the whole stack; a third container, `watchtower`, pulls a new image from GHCR and restarts the API container in place. Because the app then sees every request as coming from the Docker gateway over `http`, `App__BehindProxy=true` turns on `X-Forwarded-*` handling (D-160), `DataProtection__KeysPath` puts the cookie key ring on a volume so a redeploy does not sign everyone out (D-161), and `Database__MigrateOnStartup=true` makes the container migrate itself, since there is no separate deploy step (D-159).
-
-**Alternative: Windows service (P8-02, D-101..D-105).** The same process installed by `deploy/install-service.ps1`, binding HTTPS directly with a `tailscale cert` PEM pair through `Kestrel:Certificates:Default`. It must leave `App__BehindProxy` and `Database__MigrateOnStartup` alone: it is not behind a proxy, and `deploy/deploy.ps1` migrates as its own step.
 
 ```
 Phone (home-screen PWA)
@@ -111,7 +109,7 @@ Jobs__Enabled = true | false   (false in tests)
 RateLimiting__Enabled, RateLimiting__AuthPermitPerMinute, RateLimiting__InvitePermitPerMinute (D-153)
 ```
 
-Container deployment only (P8-05); every one is a documented no-op when unset, so the Windows-service path is unaffected:
+Container deployment only (P8-05); every one is a documented no-op when unset:
 
 ```
 App__BehindProxy = true | false          (default false; X-Forwarded-For/Proto/Host, D-160)
@@ -121,4 +119,4 @@ Database__MigrateOnStartup = true        (D-015 default stays false; the compose
 Database__StartupTimeoutSeconds = 120    (how long startup waits for SQL Server, D-159)
 ```
 
-No secrets in the repo. `deploy/appsettings.Production.template.json` documents every key with a placeholder value; `deploy/.env.example` (Windows service) and `deploy/docker/.env.example` (Docker) carry the same list in the form each deployment actually reads.
+No secrets in the repo. `deploy/docker/.env.example` documents every key with a placeholder value, in the form the container deployment actually reads.

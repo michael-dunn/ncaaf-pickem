@@ -7,7 +7,9 @@ using NcaafPickEm.Infrastructure.Push;
 using Serilog;
 
 // Hidden maintenance command (P7-01): print a fresh VAPID key pair and exit without touching
-// configuration, the database, or the network. deploy/generate-vapid.ps1 wraps this.
+// configuration, the database, or the network. Run with
+// `dotnet run --project src/NcaafPickEm.Api -- generate-vapid` (or `docker run --rm <image>
+// generate-vapid`).
 if (args is [VapidKeyGenerator.CommandName, ..])
 {
     VapidKeyGenerator.WriteNewKeyPair(Console.Out);
@@ -30,11 +32,6 @@ try
     Log.Information("Starting NcaafPickEm.Api");
 
     WebApplicationBuilder builder = WebApplication.CreateBuilder(args);
-
-    // P8-02: registers proper Windows Service Control Manager integration (start pending/running
-    // status, graceful stop) when launched by the SCM (deploy/install-service.ps1). A no-op
-    // everywhere else (dotnet run, tests, Docker) - it detects the hosting context itself.
-    builder.Host.UseWindowsService();
 
     builder.Host.UseSerilog(SerilogConfiguration.Configure);
 

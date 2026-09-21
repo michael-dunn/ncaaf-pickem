@@ -232,16 +232,19 @@ Web push needs a VAPID key pair. The app **boots fine without one** — `GET /ap
 answers 503 and notifications are logged as Failed — so only set these when you want push to work.
 
 ```powershell
-./deploy/generate-vapid.ps1                 # Push__* environment-variable lines
-./deploy/generate-vapid.ps1 -Format Json    # a "Push" block for appsettings
-./deploy/generate-vapid.ps1 -Format UserSecret
+dotnet run --project src/NcaafPickEm.Api -- generate-vapid
 ```
 
-The script wraps the Api's hidden `generate-vapid` argument
-(`dotnet run --project src/NcaafPickEm.Api -- generate-vapid`), which prints a pair and exits
-without touching the database or opening a port. Nothing is written to disk: paste the values into
-`appsettings.Development.json`, user secrets, or the service's environment. `Push__Subject` must be
-a real `mailto:` or `https:` contact — push services reject anything else.
+or, against a running container image:
+
+```bash
+docker run --rm <image> generate-vapid
+```
+
+This is the Api's hidden `generate-vapid` argument, which prints a pair and exits without touching
+the database or opening a port. Nothing is written to disk: paste the values into
+`appsettings.Development.json`, user secrets, or the container's environment. `Push__Subject` must
+be a real `mailto:` or `https:` contact — push services reject anything else.
 
 **Keep the pair.** Replacing it invalidates every stored subscription, and every member has to turn
 notifications on again. Never commit the private key.
@@ -253,7 +256,7 @@ On iPhone/iPad, push only works from an app added to the Home Screen and opened 
 (WorkItems/11-Notifications.txt). This has to be checked on a physical device — an operator step,
 not something an agent in this environment can automate:
 
-1. Set a real VAPID key pair on the server (`deploy/generate-vapid.ps1`, above) and confirm
+1. Set a real VAPID key pair on the server (`generate-vapid`, above) and confirm
    `GET /api/push/vapid-public-key` does not answer 503.
 2. On the iPhone, open the deployed app's URL in Safari and sign in with Google.
 3. Tap the **Share** icon in Safari's toolbar, then **Add to Home Screen**.
@@ -535,9 +538,6 @@ Everything the server needs is in [`deploy/docker/`](deploy/docker): `compose.ya
 verification listed in order, is
 [`Implementation/reviews/operator-checklist.md`](Implementation/reviews/operator-checklist.md).
 
-The Windows-service path from P8-02 still works and is kept as
-["Alternative: Windows service"](#alternative-windows-service) below.
-
 ### First-time setup
 
 **Prerequisites on the server**: Docker Engine with the Compose plugin
@@ -669,8 +669,7 @@ is a classic token with `read:packages` and nothing else; it is only ever needed
 **Saturday rule.** Do not deploy between the first kickoff and the last final on a Saturday
 (Feature 10). Watchtower has no calendar, so before a game day either stop it
 (`docker compose stop watchtower`) or simply do not merge to `main`; the surest version is to
-leave `main` alone from Saturday 10:00 ET to Sunday 03:00 ET, which is the same window
-`deploy/deploy.ps1` refuses to run in.
+leave `main` alone from Saturday 10:00 ET to Sunday 03:00 ET.
 
 ### Backups
 
@@ -721,22 +720,6 @@ curl -c jar "http://127.0.0.1:5000/auth/dev-login?user=michael" && curl -b jar h
 docker compose -f deploy/docker/compose.dev.yaml down -v
 ```
 
-### Alternative: Windows service
-
-The P8-02 scripts in `deploy/*.ps1` still work and remain the supported path for a Windows home
-server: `install-service.ps1` (publish + create the `NcaafPickEm` service + write `deploy/.env`
-into the service's own registry environment), `deploy.ps1` (Saturday-guarded redeploy with
-`dotnet ef database update` as an explicit step), `renew-cert.ps1` +
-`register-renew-cert-task.ps1` (monthly `tailscale cert` PEM renewal for Kestrel's
-`Certificates:Default:Path`/`KeyPath`), and `backup.ps1` / `restore-verify.ps1` /
-`register-backup-task.ps1` (nightly 03:45 backup, 30-day prune, restore check). `deploy/.env.example`
-and `deploy/appsettings.Production.template.json` document its keys.
-
-Two differences matter if you use it: leave `App__BehindProxy` unset (Kestrel binds HTTPS directly
-with the Tailscale PEM pair, so trusting `X-Forwarded-*` would be a spoofing hole), and leave
-`Database__MigrateOnStartup` false (D-015 — `deploy.ps1` migrates as its own step). The Docker
-path inverts both on purpose (D-159, D-160).
-
 ## 6. Operate
 
 - **First start on an empty database**: the app fetches the season calendar and the current
@@ -776,30 +759,26 @@ path inverts both on purpose (D-159, D-160).
   review" row.
 - **Backups**: nightly at 03:45 local, retained 30 days. Confirm the file appears the morning
   after the first deploy, and periodically run the restore check — see "Backups" under "Deploy"
-  above for the Docker paths, or `deploy/restore-verify.ps1` on the Windows path.
-- **Saturday rules**: do not deploy from Saturday 10:00 ET to Sunday 03:00 ET. On Docker that
-  means not merging to `main` (and, if you want certainty, `docker compose stop watchtower`
-  beforehand — watchtower has no calendar). On the Windows path `deploy/deploy.ps1` enforces the
-  same window itself and refuses to run unless `-Force` is passed; do not pass `-Force` on a
-  normal Saturday, it exists for a genuine emergency fix. During that window the `SaturdayPoller`
-  `BackgroundService` re-evaluates every minute and polls live scores every 5 minutes (ESPN or
-  Fixture) or every 10 minutes (once ESPN has failed 3 times in a row and CFBD is the active
-  fallback), applying each snapshot and scoring games as they go Final.
+  above.
+- **Saturday rules**: do not deploy from Saturday 10:00 ET to Sunday 03:00 ET — that means not
+  merging to `main` (and, if you want certainty, `docker compose stop watchtower` beforehand,
+  since watchtower has no calendar). During that window the `SaturdayPoller` `BackgroundService`
+  re-evaluates every minute and polls live scores every 5 minutes (ESPN or Fixture) or every 10
+  minutes (once ESPN has failed 3 times in a row and CFBD is the active fallback), applying each
+  snapshot and scoring games as they go Final.
 - **If scores look stale**: check `/admin/data` first — the staleness banner and
   `ActiveLiveScoreSource` say whether ESPN or the CFBD fallback is active and when it last
   succeeded. A manual refresh (`POST /api/admin/refresh/Scores`) always uses *today's* Eastern
   date, so it will not help catch up a date in the past or future; a provider outage recorded on
   `DataRefreshStatus` resolves itself on the next scheduled poll once the provider recovers.
-- **Logs**: `ncaaf-<date>.log`, daily rolling, 31 files retained. On Docker that is
+- **Logs**: `ncaaf-<date>.log`, daily rolling, 31 files retained, at
   `/srv/docker/configs/ncaaf-pickem/logs/` on the host (mounted at `/app/logs`, set by
   `Serilog__LogDirectory`); `docker compose logs -f api` shows the same events on the console
-  sink. On Windows it is `logs/` under the app's content root (`C:\NcaafPickEm\app\logs`), and
-  `deploy/deploy.ps1` prints the last 20 lines automatically when a redeploy's health check fails.
+  sink.
 - **Container control**: `docker compose ps`, `docker compose restart api`,
   `docker compose logs -f api`, `docker compose down`. `restart: unless-stopped` brings the whole
   stack back after a host reboot, and the api container waits for SQL Server rather than
-  crash-looping while it starts. On Windows the equivalents are `Get-Service NcaafPickEm`,
-  `Restart-Service NcaafPickEm`, `Stop-Service NcaafPickEm`.
+  crash-looping while it starts.
 - **Backups (Docker)**: `/srv/docker/configs/ncaaf-pickem/mssql/backups/`, nightly at 03:45 from
   the host's cron via `deploy/docker/backup.sh`, 30 days retained; verify with
   `deploy/docker/restore-verify.sh`.

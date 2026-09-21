@@ -10,7 +10,8 @@ from the iPhone's screenshot button - do not crop).
 
 ## Before you start (on the server, not the phone)
 
-1. Deploy as usual (`deploy/deploy.ps1`) and confirm `https://<host>/health/ready` is healthy.
+1. Deploy as usual on the server (`docker compose pull api && docker compose up -d api`) and
+   confirm `https://<host>/health/ready` is healthy.
 2. Point a **separate** simulation database at the app, or accept that this run leaves a demo
    league in the real one. The CLI below never touches the real league unless you name it.
 3. Prepare the fixture week and give yourself a clean starting point:
