@@ -245,7 +245,8 @@ public sealed class FakeLeaderboardApi : ILeaderboardApi
                 Period: null,
                 Clock: null,
                 IsVoided: false,
-                WinnerTeamId: winnerId);
+                WinnerTeamId: winnerId,
+                Spread: null);
 
             for (int m = 0; m < members.Length; m++)
             {
@@ -347,7 +348,8 @@ public sealed class FakeLeaderboardApi : ILeaderboardApi
                 Period: status == GameStatus.InProgress ? (byte)3 : null,
                 Clock: status == GameStatus.InProgress ? "8:14" : null,
                 IsVoided: voided,
-                WinnerTeamId: winnerId);
+                WinnerTeamId: winnerId,
+                Spread: null);
 
             for (int m = 0; m < members.Length; m++)
             {

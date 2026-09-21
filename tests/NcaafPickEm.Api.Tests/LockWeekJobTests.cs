@@ -163,6 +163,14 @@ public sealed class LockWeekJobTests : IAsyncLifetime
             after.SpreadAtLock.Should().Be(before.SpreadAtLock);
             after.ResolvedPointValue.Should().Be(before.ResolvedPointValue);
             after.ResolvedPointValue.Should().NotBe(99);
+
+            // And the picks page shows the frozen line, not the late one (D-181): what a member
+            // sees after lock is the spread their point values were resolved against.
+            using HttpClient member = _factory.CreateMutatingClientAs(scenario.MemberUserId);
+            using HttpResponseMessage picks = await member.GetAsync($"{scenario.PicksRoute}/me");
+            picks.StatusCode.Should().Be(HttpStatusCode.OK);
+            MyPicksResponse? page = await picks.Content.ReadFromJsonAsync<MyPicksResponse>();
+            page!.Games.Single(g => g.Game.GameId == michiganTexas).Game.Spread.Should().Be(-7.5m);
         }
         finally
         {

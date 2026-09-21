@@ -21,6 +21,12 @@ namespace NcaafPickEm.Shared.Contracts.GameSets;
 /// <param name="Clock">Live clock, when in progress.</param>
 /// <param name="IsVoided">Excluded from scoring after lock (Feature 06).</param>
 /// <param name="WinnerTeamId">Override winner, else the higher score when Final; null while pending or tied.</param>
+/// <param name="Spread">
+/// The point spread, home minus away: negative means the home team is favored, 0 is a pick 'em,
+/// null means no line is known. Before lock it is the newest <c>GameLines</c> row; once the week
+/// has locked it is the frozen <c>SpreadAtLock</c>, so members see the line their point values were
+/// resolved against. Format it with <see cref="SpreadDisplay"/>.
+/// </param>
 public sealed record GameSetGameDto(
     Guid? GameSetGameId,
     Guid GameId,
@@ -38,4 +44,5 @@ public sealed record GameSetGameDto(
     byte? Period,
     string? Clock,
     bool IsVoided,
-    Guid? WinnerTeamId);
+    Guid? WinnerTeamId,
+    decimal? Spread);

@@ -85,7 +85,7 @@ defaults are unchanged (Q9/Q10).
 | GET | `/api/reference/conferences` | Auth | `ConferenceDto[]` FBS only |
 | GET | `/api/reference/teams?search=` | Auth | `TeamDto[]` FBS only |
 
-`GameSetGameDto { GameSetGameId, GameId, HomeTeam: TeamDto, AwayTeam: TeamDto, HomeRank?, AwayRank?, KickoffUtc, PointValue, IsPointValueElevated, Source, Status, HomeScore?, AwayScore?, Period?, Clock?, IsVoided, WinnerTeamId? }`
+`GameSetGameDto { GameSetGameId, GameId, HomeTeam: TeamDto, AwayTeam: TeamDto, HomeRank?, AwayRank?, KickoffUtc, PointValue, IsPointValueElevated, Source, Status, HomeScore?, AwayScore?, Period?, Clock?, IsVoided, WinnerTeamId?, Spread? }`
 
 `TeamDto { TeamId, School, Abbreviation?, ConferenceId?, LogoUrl? }`, `ConferenceDto { ConferenceId, Name, Abbreviation }`, `GameCandidate { GameId, HomeTeam, AwayTeam, HomeRank?, AwayRank?, KickoffUtc, IsConferenceGame }`. `GameSetPreview` also carries `UsedFallbackRankings`. `GameSetGameId` is null in previews. Record definitions live in `Shared/Contracts/{GameSets,Points,Reference}`.
 
@@ -120,6 +120,7 @@ defaults are unchanged (Q9/Q10).
 
 **P4-01 clarifications** (D-084, D-086, D-087, D-088):
 - `MyPickGameDto` **composes** the game rather than flattening it: `MyPickGameDto { Game: GameSetGameDto, MyTeamId?, IsNewSinceSubmit }`, the same shape `DashboardGameDto` uses. `Games` lists every non-removed game ordered by kickoff; a voided game is still listed (`Game.IsVoided`) but counts towards neither `PickedCount` nor `TotalCount`.
+- `GameSetGameDto.Spread?` (D-181) is the game's point spread, home minus away (negative = home favored, D-013): the newest `GameLines` row while the week is open, the frozen `SpreadAtLock` once the lock job has run, and null when the game has no line. Every game-bearing endpoint carries it; the picks page renders it through `Shared/Contracts/GameSets/SpreadDisplay` as the favorite and its line (`MICH -7.5`, `TEX -3`, `Pick 'em`).
 - `MyPicksResponse.IsLocked` is "picks are frozen now" — `LockedUtc != null` **or** `now >= LockAtUtc` — which is deliberately broader than `WeekGameSetResponse.IsLocked` ("the lock job has run"). The server refuses picks from `LockAtUtc` onwards whether or not P4-02's job has run.
 - `{gameId}` on the set-pick route is the `Games.Id`, matching the conventions and the game-set routes; the response carries both ids per game.
 - 409/40x titles (the `ProblemDetails` `title` is the code name): `WeekNotCurrent` 409 (a week in range that is not the current week, past or future — set-pick and submit only), `Locked` 409, `GameNotActive` 409 (removed or voided), `IncompletePicks` 409 with `"count"` = how many games still need a pick, `NoGamesInSet` 409 (submit on an empty set), `GameNotInSet` 404, `TeamNotInGame` 400, `PicksNotVisible` 403. A week outside `FirstWeek..LastWeek` is still 404 `WeekOutOfRange` (D-064), checked first.

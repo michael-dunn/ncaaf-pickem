@@ -30,6 +30,28 @@
     gap: var(--space-2);
 }
 
+.pick-game-meta {
+    display: flex;
+    align-items: baseline;
+    gap: var(--space-2);
+    flex-wrap: wrap;
+    min-width: 0;
+}
+
+.pick-game-line {
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.pick-game-line-label {
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    opacity: 0.8;
+    margin-right: 2px;
+}
+
 .pick-game-saved {
     color: var(--color-success);
     font-size: var(--text-sm);

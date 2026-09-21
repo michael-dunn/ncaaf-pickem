@@ -10,7 +10,15 @@
     }
 
     <div class="pick-game-top">
-        <KickoffTime Utc="Game.KickoffUtc" />
+        <span class="pick-game-meta">
+            <KickoffTime Utc="Game.KickoffUtc" />
+            @if (SpreadDisplay.Format(Game.Spread, Game.HomeTeam, Game.AwayTeam) is { } line)
+            {
+                <span class="pick-game-line" title="Point spread">
+                    <span class="pick-game-line-label">Line</span> @line
+                </span>
+            }
+        </span>
         @if (ShowSavedTick)
         {
             <span class="pick-game-saved">Saved &#10003;</span>

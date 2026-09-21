@@ -377,17 +377,17 @@ public sealed class FakeGameSetStore
         // conference game, etc. Reduced to Saturday FBS-vs-FBS games only.
         List<FakeGame> all =
         [
-            NewGame(Find("MICH"), 8, Find("TEX"), 5, "2026-10-17T19:30:00Z"),
-            NewGame(Find("MD"), null, Find("RUTG"), null, "2026-10-17T16:00:00Z"),
-            NewGame(Find("OSU"), null, Find("WIS"), null, "2026-10-17T16:00:00Z"),
-            NewGame(Find("ALA"), 11, Find("AUB"), null, "2026-10-17T19:30:00Z"),
-            NewGame(Find("UGA"), 2, Find("UK"), null, "2026-10-17T16:00:00Z"),
-            NewGame(Find("OU"), null, Find("MIZ"), null, "2026-10-17T23:00:00Z"),
-            NewGame(Find("CLEM"), null, Find("FSU"), null, "2026-10-17T16:00:00Z"),
-            NewGame(Find("ISU"), null, Find("KU"), null, "2026-10-17T20:00:00Z"),
-            NewGame(Find("TCU"), null, Find("BAY"), null, "2026-10-17T19:00:00Z"),
-            NewGame(Find("PSU"), null, Find("IND"), null, "2026-10-17T19:30:00Z"),
-            NewGame(Find("BSU"), null, Find("FRES"), null, "2026-10-16T23:30:00Z"), // Fri Pacific -> Sat Eastern.
+            NewGame(Find("MICH"), 8, Find("TEX"), 5, "2026-10-17T19:30:00Z", spread: -7.5m), // Matches lines.json.
+            NewGame(Find("MD"), null, Find("RUTG"), null, "2026-10-17T16:00:00Z", spread: 3m), // Away favored.
+            NewGame(Find("OSU"), null, Find("WIS"), null, "2026-10-17T16:00:00Z", spread: -14m),
+            NewGame(Find("ALA"), 11, Find("AUB"), null, "2026-10-17T19:30:00Z", spread: -10.5m),
+            NewGame(Find("UGA"), 2, Find("UK"), null, "2026-10-17T16:00:00Z", spread: -21m),
+            NewGame(Find("OU"), null, Find("MIZ"), null, "2026-10-17T23:00:00Z", spread: 0m), // Pick 'em.
+            NewGame(Find("CLEM"), null, Find("FSU"), null, "2026-10-17T16:00:00Z", spread: -2.5m),
+            NewGame(Find("ISU"), null, Find("KU"), null, "2026-10-17T20:00:00Z", spread: null), // No line yet.
+            NewGame(Find("TCU"), null, Find("BAY"), null, "2026-10-17T19:00:00Z", spread: 6.5m),
+            NewGame(Find("PSU"), null, Find("IND"), null, "2026-10-17T19:30:00Z", spread: -4m),
+            NewGame(Find("BSU"), null, Find("FRES"), null, "2026-10-16T23:30:00Z", spread: -9m), // Fri Pacific -> Sat Eastern.
         ];
 
         AllCandidates = all;
@@ -407,7 +407,13 @@ public sealed class FakeGameSetStore
     /// </summary>
     public Guid NeedsReviewDemoGameId { get; private set; }
 
-    private static FakeGame NewGame(TeamDto home, int? homeRank, TeamDto away, int? awayRank, string kickoffUtc) =>
+    private static FakeGame NewGame(
+        TeamDto home,
+        int? homeRank,
+        TeamDto away,
+        int? awayRank,
+        string kickoffUtc,
+        decimal? spread) =>
         new()
         {
             GameId = Guid.NewGuid(),
@@ -418,6 +424,7 @@ public sealed class FakeGameSetStore
             KickoffUtc = DateTimeOffset.Parse(kickoffUtc),
             PointValue = DefaultPointValue,
             Source = GameSetGameSource.Rule,
+            Spread = spread,
         };
 
     /// <summary>Mutable in-memory shape of one game, converted to <see cref="GameSetGameDto"/> on the way out.</summary>
@@ -439,6 +446,9 @@ public sealed class FakeGameSetStore
         /// <summary>Commissioner-set override winner (P5-05, Feature 06).</summary>
         public Guid? WinnerTeamId { get; set; }
 
+        /// <summary>Home-relative point spread, or null when the game has no line.</summary>
+        public decimal? Spread { get; set; }
+
         public GameSetGameDto ToDto(int? pointValueOverride = null) => new(
             GameSetGameId: GameId,
             GameId: GameId,
@@ -456,6 +466,7 @@ public sealed class FakeGameSetStore
             Period: null,
             Clock: null,
             IsVoided: IsVoided,
-            WinnerTeamId: WinnerTeamId);
+            WinnerTeamId: WinnerTeamId,
+            Spread: Spread);
     }
 }
