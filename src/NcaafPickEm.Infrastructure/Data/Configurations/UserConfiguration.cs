@@ -15,11 +15,11 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
         builder.ToTable("Users");
         builder.HasKey(user => user.Id);
 
-        builder.Property(user => user.GoogleSubject).HasMaxLength(64).IsRequired();
+        builder.Property(user => user.ExternalSubject).HasMaxLength(User.ExternalSubjectMaxLength).IsRequired();
         builder.Property(user => user.Email).HasMaxLength(256).IsRequired();
         builder.Property(user => user.DisplayName).HasMaxLength(User.DisplayNameMaxLength).IsRequired();
 
-        builder.HasIndex(user => user.GoogleSubject).IsUnique();
+        builder.HasIndex(user => user.ExternalSubject).IsUnique();
         builder.HasIndex(user => user.Email).IsUnique();
     }
 }

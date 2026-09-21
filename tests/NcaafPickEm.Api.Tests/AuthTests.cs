@@ -59,7 +59,7 @@ public sealed class AuthTests
         me.Leagues.Should().BeEmpty();
 
         Guid storedId = await _fixture.Factory.QueryDbAsync(async database =>
-            (await database.Users.SingleAsync(user => user.GoogleSubject == subject)).Id);
+            (await database.Users.SingleAsync(user => user.ExternalSubject == subject)).Id);
 
         storedId.Should().Be(me.UserId);
     }
@@ -105,7 +105,7 @@ public sealed class AuthTests
         after.DisplayName.Should().Be("Chosen Name");
 
         int count = await _fixture.Factory.QueryDbAsync(database =>
-            database.Users.CountAsync(user => user.GoogleSubject == subject));
+            database.Users.CountAsync(user => user.ExternalSubject == subject));
         count.Should().Be(1);
     }
 

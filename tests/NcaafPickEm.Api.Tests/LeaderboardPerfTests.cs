@@ -108,7 +108,7 @@ public sealed class LeaderboardPerfTests
             var creator = new User
             {
                 Id = Guid.CreateVersion7(),
-                GoogleSubject = $"google-perf-{leagueId:N}",
+                ExternalSubject = $"google-perf-{leagueId:N}",
                 Email = $"perf-{leagueId:N}@test.local",
                 DisplayName = $"Perf Creator {leagueId.ToString()[..8]}",
                 CreatedUtc = DateTime.UtcNow,
@@ -135,7 +135,7 @@ public sealed class LeaderboardPerfTests
                 db.Users.Add(new User
                 {
                     Id = userId,
-                    GoogleSubject = $"google-perf-{userId:N}",
+                    ExternalSubject = $"google-perf-{userId:N}",
                     Email = $"perf-{userId:N}@test.local",
                     DisplayName = $"Perf Member {i:D2} {userId.ToString()[..8]}",
                     CreatedUtc = DateTime.UtcNow,

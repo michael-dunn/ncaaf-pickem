@@ -9,10 +9,10 @@ All IDs are `uniqueidentifier` (Guid v7 generated in code) unless noted. All tim
 | Column | Type | Notes |
 |---|---|---|
 | Id | Guid PK | |
-| GoogleSubject | nvarchar(64) UQ | Match key on returning login. |
-| Email | nvarchar(256) UQ | |
-| DisplayName | nvarchar(30) | Initial value = Google name, trimmed to 30. |
-| CreatedUtc, LastLoginUtc | datetime2 | |
+| ExternalSubject | nvarchar(64) UQ | Match key on every returning request. The Tailscale login verbatim (P9-02, Q2); `fixture:{name}` for the fixture demo users. Was `GoogleSubject` until the `Phase9_02_ExternalSubject` migration renamed the column and its unique index. |
+| Email | nvarchar(256) UQ | Under header identity this is the Tailscale login too, stored verbatim. |
+| DisplayName | nvarchar(30) | Initial value = `Tailscale-User-Name` (RFC 2047 decoded) or the login's local part, trimmed to 30. Never overwritten afterwards: it is the user's to change. |
+| CreatedUtc, LastLoginUtc | datetime2 | `LastLoginUtc` is written on create and then at most once an hour, because header identity authenticates every request (P9-02). |
 
 ## Leagues (Features 01, 13)
 

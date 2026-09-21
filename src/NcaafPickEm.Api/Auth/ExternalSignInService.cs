@@ -8,15 +8,29 @@ using NcaafPickEm.Infrastructure.Data;
 namespace NcaafPickEm.Api.Auth;
 
 /// <summary>
-/// Turns a Google ticket into one of our users and one of our cookies (Feature 08, Option A).
+/// Turns an external identity into one of our users, and (for the cookie path) one of our
+/// cookies.
 /// </summary>
 /// <remarks>
-/// Google's principal never becomes the app's principal: we upsert <c>Users</c> by
-/// <c>GoogleSubject</c> and then sign in a principal of our own, so every downstream claim is
-/// one we control and a Google profile rename cannot reshape a session.
+/// The external principal never becomes the app's principal: we upsert <c>Users</c> by
+/// <see cref="User.ExternalSubject"/> and then build a principal of our own, so every downstream
+/// claim is one we control and a rename at the identity provider cannot reshape a request.
+/// <see cref="UpsertAsync"/> is the half <see cref="TailscaleAuthenticationHandler"/> runs on
+/// every request; <see cref="SignInAsync"/> adds the cookie and is used by the Google callback
+/// and <c>/auth/dev-login</c>.
 /// </remarks>
 public sealed class ExternalSignInService
 {
+    /// <summary>
+    /// How stale <see cref="User.LastLoginUtc"/> has to be before a matched login rewrites it.
+    /// </summary>
+    /// <remarks>
+    /// Header identity authenticates every request, so writing the timestamp each time would turn
+    /// every GET - every static file, every poll - into an UPDATE. An hour's resolution is more
+    /// than the column is ever read at.
+    /// </remarks>
+    public static readonly TimeSpan LastLoginWriteInterval = TimeSpan.FromHours(1);
+
     private readonly AppDbContext _database;
     private readonly TimeProvider _timeProvider;
     private readonly ILogger<ExternalSignInService> _logger;
@@ -48,14 +62,96 @@ public sealed class ExternalSignInService
 
         await httpContext.SignInAsync(
             CookieAuthenticationDefaults.AuthenticationScheme,
-            CreatePrincipal(user),
+            CreatePrincipal(user, CookieAuthenticationDefaults.AuthenticationScheme),
             new AuthenticationProperties { IsPersistent = true });
 
         return user;
     }
 
+    /// <summary>
+    /// Finds the user <paramref name="login"/> names, creating the row the first time that
+    /// identity is seen.
+    /// </summary>
+    /// <param name="login">The external identity, already validated as non-empty.</param>
+    /// <param name="cancellationToken">Cancels the database work.</param>
+    /// <returns>The matched or created user.</returns>
+    /// <remarks>
+    /// Matching is on <see cref="ExternalLogin.Subject"/> alone. On a match the email follows the
+    /// provider, because it is the account's identity everywhere else, but the display name never
+    /// does: it is the user's to change (Feature 08 Profile).
+    /// </remarks>
+    public async Task<User> UpsertAsync(ExternalLogin login, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(login);
+
+        DateTime nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
+        User? user = await _database.Users
+            .FirstOrDefaultAsync(candidate => candidate.ExternalSubject == login.Subject, cancellationToken);
+
+        if (user is not null)
+        {
+            if (!string.Equals(user.Email, login.Email, StringComparison.Ordinal))
+            {
+                user.Email = login.Email;
+            }
+
+            if (nowUtc - user.LastLoginUtc > LastLoginWriteInterval)
+            {
+                user.LastLoginUtc = nowUtc;
+            }
+
+            // No-op when neither changed, which is the common case under header identity.
+            await _database.SaveChangesAsync(cancellationToken);
+            return user;
+        }
+
+        user = new User
+        {
+            Id = Guid.CreateVersion7(),
+            ExternalSubject = login.Subject,
+            Email = login.Email,
+            DisplayName = ToInitialDisplayName(login.Name, login.Email),
+            CreatedUtc = nowUtc,
+            LastLoginUtc = nowUtc,
+        };
+
+        _database.Users.Add(user);
+
+        try
+        {
+            await _database.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Header identity authenticates every request, so a browser's first page load can
+            // race several requests into this insert at once. Whichever one lost the unique
+            // index simply reads the winner's row back.
+            _database.Entry(user).State = EntityState.Detached;
+
+            User? winner = await _database.Users
+                .FirstOrDefaultAsync(candidate => candidate.ExternalSubject == login.Subject, cancellationToken);
+
+            if (winner is null)
+            {
+                throw;
+            }
+
+            _logger.LogDebug("Lost the race to create a user for a first sign-in; using {UserId}", winner.Id);
+            return winner;
+        }
+
+        _logger.LogInformation("Created user {UserId} from a first sign-in", user.Id);
+        return user;
+    }
+
     /// <summary>Builds the claims principal a signed-in request carries.</summary>
-    public static ClaimsPrincipal CreatePrincipal(User user)
+    /// <param name="user">The signed-in user.</param>
+    /// <param name="authenticationType">
+    /// The scheme the identity is attributed to, so the principal reports the scheme that
+    /// actually authenticated the request.
+    /// </param>
+    public static ClaimsPrincipal CreatePrincipal(User user, string authenticationType)
     {
         ArgumentNullException.ThrowIfNull(user);
 
@@ -65,19 +161,19 @@ public sealed class ExternalSignInService
                 new Claim(ClaimTypes.Name, user.DisplayName),
                 new Claim(ClaimTypes.Email, user.Email),
             ],
-            CookieAuthenticationDefaults.AuthenticationScheme,
+            authenticationType,
             ClaimTypes.Name,
             ClaimTypes.Role);
 
         return new ClaimsPrincipal(identity);
     }
 
-    /// <summary>Trims a Google profile name to what <c>Users.DisplayName</c> can hold.</summary>
-    public static string ToInitialDisplayName(string? googleName, string email)
+    /// <summary>Trims a provider-supplied name to what <c>Users.DisplayName</c> can hold.</summary>
+    public static string ToInitialDisplayName(string? externalName, string email)
     {
-        string candidate = string.IsNullOrWhiteSpace(googleName)
+        string candidate = string.IsNullOrWhiteSpace(externalName)
             ? email.Split('@')[0]
-            : googleName.Trim();
+            : externalName.Trim();
 
         if (candidate.Length > User.DisplayNameMaxLength)
         {
@@ -85,40 +181,5 @@ public sealed class ExternalSignInService
         }
 
         return candidate.Length == 0 ? "Player" : candidate;
-    }
-
-    private async Task<User> UpsertAsync(ExternalLogin login, CancellationToken cancellationToken)
-    {
-        DateTime nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
-
-        User? user = await _database.Users
-            .FirstOrDefaultAsync(candidate => candidate.GoogleSubject == login.Subject, cancellationToken);
-
-        if (user is null)
-        {
-            user = new User
-            {
-                Id = Guid.CreateVersion7(),
-                GoogleSubject = login.Subject,
-                Email = login.Email,
-                DisplayName = ToInitialDisplayName(login.Name, login.Email),
-                CreatedUtc = nowUtc,
-                LastLoginUtc = nowUtc,
-            };
-
-            _database.Users.Add(user);
-            _logger.LogInformation("Created user {UserId} from a first Google sign-in", user.Id);
-        }
-        else
-        {
-            // The display name is the user's to change (Feature 08 Profile); only the email
-            // follows Google, because it is the account's identity everywhere else.
-            user.Email = login.Email;
-            user.LastLoginUtc = nowUtc;
-            _logger.LogInformation("Matched existing user {UserId} by Google subject", user.Id);
-        }
-
-        await _database.SaveChangesAsync(cancellationToken);
-        return user;
     }
 }

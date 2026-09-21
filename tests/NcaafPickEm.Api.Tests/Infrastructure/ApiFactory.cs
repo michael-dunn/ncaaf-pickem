@@ -27,8 +27,11 @@ public class ApiFactory : WebApplicationFactory<Program>
     /// <param name="connectionString">The test database.</param>
     /// <param name="useTestAuth">
     /// When true (the default) <see cref="TestAuthHandler"/> becomes the default scheme, so tests
-    /// sign in with a header. Pass false to leave the real cookie scheme in charge, which is what
-    /// the Google sign-in tests need.
+    /// sign in with <c>X-Test-User</c>. Pass false to leave the app's own <c>AppAuth</c> policy
+    /// scheme in charge — which forwards to the Tailscale identity handler or the cookie
+    /// depending on the request's headers — as the Google sign-in tests and
+    /// <c>TailscaleAuthTests</c> (P9-02) need. Only the default scheme is replaced either way:
+    /// the cookie, Google and Tailscale schemes all stay registered.
     /// </param>
     /// <param name="timeProvider">
     /// When given, replaces <c>TimeProvider.System</c> for the whole app (P1-01 hook: a test that

@@ -6,8 +6,17 @@ using Microsoft.AspNetCore.Authentication.Google;
 namespace NcaafPickEm.Api.Auth;
 
 /// <summary>
-/// Cookie authentication plus the Google handler, per Feature 08 Option A.
+/// The scheme set: a policy scheme that picks between Tailscale identity headers and the
+/// session cookie, plus the Google handler.
 /// </summary>
+/// <remarks>
+/// <see cref="AuthDefaults.SelectorScheme"/> is the default authenticate scheme. It forwards to
+/// <see cref="AuthDefaults.TailscaleScheme"/> whenever the request carries a non-empty
+/// <see cref="AuthDefaults.TailscaleLoginHeader"/> - which, behind <c>tailscale serve</c>, is
+/// every request from a tailnet user - and to the cookie otherwise. The challenge scheme stays
+/// the cookie, because it is the cookie that owns the 401/403-under-<c>/api</c> behaviour the
+/// SPA depends on; header identity has nothing to challenge for.
+/// </remarks>
 public static class AuthenticationSetup
 {
     // Google's options validate that these are non-empty, so a machine with no OAuth client
@@ -16,7 +25,7 @@ public static class AuthenticationSetup
     private const string PlaceholderClientId = "ncaaf-pickem-google-client-id-not-configured";
     private const string PlaceholderClientSecret = "ncaaf-pickem-google-client-secret-not-configured";
 
-    /// <summary>Registers the cookie scheme, the Google scheme, and the three policies.</summary>
+    /// <summary>Registers the four schemes and the three policies.</summary>
     public static IServiceCollection AddAppAuthentication(
         this IServiceCollection services,
         IConfiguration configuration)
@@ -28,7 +37,15 @@ public static class AuthenticationSetup
         services.AddScoped<ICurrentUser, CurrentUser>();
         services.AddScoped<ExternalSignInService>();
 
-        services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+        services.AddAuthentication(options =>
+            {
+                options.DefaultScheme = AuthDefaults.SelectorScheme;
+                options.DefaultChallengeScheme = CookieAuthenticationDefaults.AuthenticationScheme;
+            })
+            .AddPolicyScheme(AuthDefaults.SelectorScheme, AuthDefaults.SelectorScheme, ConfigureSelector)
+            .AddScheme<AuthenticationSchemeOptions, TailscaleAuthenticationHandler>(
+                AuthDefaults.TailscaleScheme,
+                _ => { })
             .AddCookie(ConfigureCookie)
             .AddGoogle(options => ConfigureGoogle(options, configuration));
 
@@ -38,6 +55,16 @@ public static class AuthenticationSetup
             .AddPolicy(PolicyNames.LeagueCommissioner, policy => policy.RequireAuthenticatedUser());
 
         return services;
+    }
+
+    private static void ConfigureSelector(PolicySchemeOptions options)
+    {
+        // Sign-in and sign-out forward through the same selector, so /auth/dev-login (which names
+        // the cookie scheme explicitly) is unaffected either way.
+        options.ForwardDefaultSelector = static context =>
+            string.IsNullOrWhiteSpace(context.Request.Headers[AuthDefaults.TailscaleLoginHeader].ToString())
+                ? CookieAuthenticationDefaults.AuthenticationScheme
+                : AuthDefaults.TailscaleScheme;
     }
 
     private static void ConfigureCookie(CookieAuthenticationOptions options)

@@ -13,9 +13,15 @@ Frontend and backend agents build against this file. DTO names are the record na
 
 ## Auth (Feature 08)
 
+**Identity comes from request headers (P9-02).** `tailscale serve` terminates TLS in front of the app and injects `Tailscale-User-Login` (the tailnet login) and `Tailscale-User-Name` (their profile name, RFC 2047 encoded when it is not plain ASCII). Every request carrying a non-empty `Tailscale-User-Login` is authenticated as that person, on that request alone — no cookie, no session, no sign-in step. The row in `Users` is created the first time the login is seen (`ExternalSubject` and `Email` both hold the login verbatim; `DisplayName` starts from the name header, RFC 2047 decoded and trimmed to 30, or the login's local part) and matched by `ExternalSubject` thereafter. A returning request updates `Email` if it changed and `LastLoginUtc` at most once an hour; it never touches `DisplayName`, which is the user's own (`PUT /api/me`).
+
+No header, or an empty one — a tagged device, a Funnel caller, a health probe, a browser that reached the app some other way — is **anonymous, never an error**: `/api/*` answers 401 and a navigation gets the login page. A malformed `Tailscale-User-Name` never fails a request; it is used as-is when it cannot be decoded.
+
+The scheme set is a policy scheme, `AppAuth`, which forwards to the `Tailscale` scheme when the login header is present and non-empty and to the cookie scheme otherwise. The cookie is still what `/auth/login/google` and `/auth/dev-login` write, and it is still the challenge scheme.
+
 | Method | Route | Scope | Notes |
 |---|---|---|---|
-| GET | `/auth/login/google?returnUrl=` | Anon | Challenges Google. `returnUrl` must be a relative path. |
+| GET | `/auth/login/google?returnUrl=` | Anon | Challenges Google. `returnUrl` must be a relative path. Removed in P9-03. |
 | GET | `/auth/callback/google` | Anon | Handled by the Google middleware; upserts `Users`, signs in cookie, redirects to `returnUrl`. |
 | POST | `/auth/logout` | Auth | Signs out, clears cookie. Returns 204. |
 | GET | `/api/me` | Auth | `MeResponse { UserId, Email, DisplayName, Leagues: LeagueSummary[] }` |
