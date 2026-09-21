@@ -1,0 +1,41 @@
+@*
+    Shared copy for a non-Valid invite outcome (P9-05). Used by both LeaguePicker's join-by-code
+    box (State null + NotFound for a 404) and Join.razor's preview card (a populated State for
+    every InviteState but Valid). Kept in one place so the two pages cannot drift.
+*@
+
+@if (NotFound)
+{
+    <p>No league found with that code.</p>
+}
+else if (State is not null)
+{
+    @switch (State)
+    {
+        case InviteState.AlreadyMember:
+            <p>You're already a member of this league.</p>
+            break;
+
+        case InviteState.Expired:
+            <p>This invite link has expired. Ask the commissioner for a new link.</p>
+            break;
+
+        case InviteState.Revoked:
+            <p>This invite link is no longer valid. Ask the commissioner for a new link.</p>
+            break;
+
+        case InviteState.Full:
+            <p>This league is full. Ask the commissioner for a new link once there's room.</p>
+            break;
+    }
+}
+
+@code {
+    /// <summary>The non-Valid state to render copy for. Null when <see cref="NotFound"/> is used instead.</summary>
+    [Parameter]
+    public InviteState? State { get; set; }
+
+    /// <summary>True when the code does not exist at all (a 404), rather than an existing invite in a bad state.</summary>
+    [Parameter]
+    public bool NotFound { get; set; }
+}

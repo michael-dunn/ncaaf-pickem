@@ -47,6 +47,13 @@ There is no sign-in route and no sign-out route (P9-03, Q3): identity arrives on
 | DELETE | `/api/leagues/{leagueId}/invites/{inviteId}` | Commish | revoke |
 | GET | `/api/invites/{code}` | Auth | `InvitePreview { LeagueName, SeasonYear, MemberCount, State: Valid/Expired/Revoked/Full/AlreadyMember }`; 404 for an unknown code |
 | POST | `/api/invites/{code}/accept` | Auth | -> `LeagueDetail`; 409 with State on any non-Valid state. When several states apply, priority is Revoked > Expired > AlreadyMember > Full (D-038). A caller who was previously a member and was removed reactivates their existing membership row rather than getting a second one (D-037). An unknown code (`GET`/`POST /api/invites/{code}*`) is 404. |
+
+**Invite code format (P9-05, D-179)**: `Code` is exactly six ASCII digits (`0-9`), leading zeros
+allowed (`RandomNumberGenerator.GetInt32(1_000_000)` formatted `D6`); the `{code}` route segment
+is matched and compared as a plain string, never parsed as a number, so a leading zero survives
+end to end. The `Invites.Code` column stays `nvarchar(12)` and any pre-existing 8-character code
+keeps previewing/accepting as before — nothing migrates. `MaxUses` (50) and `ExpiresUtc` (+14 days)
+defaults are unchanged (Q9/Q10).
 | DELETE | `/api/leagues/{leagueId}/members/{membershipId}` | Commish | soft remove; 404 if `membershipId` is unknown/not-in-league (P1-03, was 400); 409 if target is self or would leave zero commissioners |
 | POST | `/api/leagues/{leagueId}/members/{membershipId}/promote` | Commish | -> Commissioner; 404 if `membershipId` is unknown/not-in-league |
 | POST | `/api/leagues/{leagueId}/members/{membershipId}/demote` | Commish | 404 if `membershipId` is unknown/not-in-league; 409 if last commissioner |

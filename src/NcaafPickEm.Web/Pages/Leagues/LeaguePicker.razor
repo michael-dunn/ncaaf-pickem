@@ -4,9 +4,10 @@
 @inject NavigationManager Navigation
 
 @*
-    League picker (P1-02). Replaces the P0-04 shell placeholder at "/": every league the caller
-    belongs to, with role, current week, and submission status pill; a "Create league" button;
-    and an empty state that explains invites for a brand-new account.
+    League picker (P1-02). Replaces the P0-04 shell placeholder at "/": a "Join by code" box
+    (P9-05), a "Create league" button, and every league the caller belongs to with role, current
+    week, and submission status pill. The empty state shows the same join box instead of asking
+    the caller to find an invite link.
 *@
 
 <PageTitle>NCAAF Pick Em</PageTitle>
@@ -15,18 +16,46 @@
 
 <ErrorBanner Message="@_error" />
 
+<div class="card join-by-code">
+    <h2>Join by code</h2>
+    <p class="muted">Have a six-digit code from a commissioner? Type it here.</p>
+    <form class="join-by-code-form" @onsubmit="JoinAsync">
+        <input @bind="_code"
+               @bind:event="oninput"
+               inputmode="numeric"
+               autocomplete="one-time-code"
+               pattern="[0-9]{6}"
+               maxlength="6"
+               placeholder="123456"
+               aria-label="Six-digit invite code"
+               disabled="@_joining" />
+        <button type="submit" class="btn btn-primary" disabled="@_joining">
+            @(_joining ? "Joining..." : "Join")
+        </button>
+    </form>
+    @if (_validationError is not null)
+    {
+        <p class="join-by-code-message" role="alert">@_validationError</p>
+    }
+    else if (_notFound)
+    {
+        <InviteStateMessage NotFound="true" />
+    }
+    else if (_joinOutcomeState is not null)
+    {
+        <InviteStateMessage State="_joinOutcomeState" />
+    }
+</div>
+
+<a class="btn btn-secondary create-league-link" href="/leagues/new">@(_leagues is { Length: > 0 } ? "Create another league" : "Create a league")</a>
+
 @if (_leagues is null)
 {
     <LoadingSkeleton Rows="2" />
 }
 else if (_leagues.Length == 0)
 {
-    <EmptyState Title="No leagues yet"
-                Body="Ask your commissioner for an invite link, or start your own league and invite family.">
-        <Action>
-            <a class="btn btn-primary" href="/leagues/new">Create a league</a>
-        </Action>
-    </EmptyState>
+    <EmptyState Title="No leagues yet" Body="Join with a code above, or start your own league and invite family." />
 }
 else
 {
@@ -44,13 +73,16 @@ else
             </li>
         }
     </ul>
-
-    <a class="btn btn-secondary" href="/leagues/new">Create another league</a>
 }
 
 @code {
     private LeagueSummary[]? _leagues;
     private string? _error;
+    private string _code = string.Empty;
+    private bool _joining;
+    private string? _validationError;
+    private bool _notFound;
+    private InviteState? _joinOutcomeState;
 
     protected override async Task OnInitializedAsync()
     {
@@ -70,4 +102,42 @@ else
 
     private static string RoleLabel(LeagueSummary league) =>
         league.MyRole == MembershipRole.Commissioner ? "Commissioner" : "Member";
+
+    private async Task JoinAsync()
+    {
+        _validationError = null;
+        _notFound = false;
+        _joinOutcomeState = null;
+
+        if (_code.Length != 6 || !_code.All(char.IsAsciiDigit))
+        {
+            _validationError = "Enter the six-digit code.";
+            return;
+        }
+
+        _joining = true;
+        try
+        {
+            InviteAcceptOutcome outcome = await LeaguesApi.AcceptInviteAsync(_code);
+            if (outcome.League is { } league)
+            {
+                Navigation.NavigateTo($"/leagues/{league.LeagueId}");
+                return;
+            }
+
+            _joinOutcomeState = outcome.Preview?.State;
+        }
+        catch (LeaguesApiException ex) when (ex.StatusCode == 404)
+        {
+            _notFound = true;
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _joining = false;
+        }
+    }
 }

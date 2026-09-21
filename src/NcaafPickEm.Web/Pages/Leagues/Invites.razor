@@ -6,7 +6,9 @@
 
 @*
     Invites (P1-02). Create, list, revoke; "Share" uses navigator.share when available, else
-    copies the link to the clipboard (wwwroot/js/invites.js).
+    copies the link to the clipboard (wwwroot/js/invites.js). Codes are six digits (P9-05),
+    displayed grouped as "123 456" (display-only; the API returns the raw six characters), and
+    the share text carries the code alongside the link.
 *@
 
 <PageTitle>Invites - NCAAF Pick Em</PageTitle>
@@ -39,7 +41,7 @@ else
         {
             <li class="invite-row">
                 <div class="invite-row-main">
-                    <span class="invite-row-code">@invite.Code</span>
+                    <span class="invite-row-code">@GroupedCode(invite.Code)</span>
                     <span class="text-sm muted">
                         @invite.Uses/@invite.MaxUses used &middot; expires @invite.ExpiresUtc.ToLocalTime().ToString("MMM d")
                     </span>
@@ -138,16 +140,20 @@ else
         string outcome = await _module.InvokeAsync<string>(
             "share",
             "Join my NCAAF Pick Em league",
-            "Tap to join the league.",
+            $"Code: {GroupedCode(invite.Code)}, or tap the link.",
             invite.Url);
 
         _shareResult = outcome switch
         {
             "shared" => "Shared.",
             "copied" => "Link copied to clipboard.",
-            _ => $"Copy this link: {invite.Url}",
+            _ => $"Copy this link: {invite.Url} (code: {GroupedCode(invite.Code)})",
         };
     }
+
+    /// <summary>Splits a six-digit code as "123 456" for display. Display-only; the API returns the raw digits.</summary>
+    private static string GroupedCode(string code) =>
+        code.Length == 6 ? $"{code[..3]} {code[3..]}" : code;
 
     /// <inheritdoc />
     public async ValueTask DisposeAsync()

@@ -49,7 +49,7 @@ Invariant: a league always has at least one active Commissioner. Demote, remove,
 |---|---|---|
 | Id | Guid PK | |
 | LeagueId FK | | |
-| Code | nvarchar(12) UQ | URL-safe, shareable by text. |
+| Code | nvarchar(12) UQ | Six ASCII digits, leading zeros allowed (P9-05, D-179); column stays `nvarchar(12)` so a pre-existing 8-character code still works. |
 | CreatedByMembershipId FK | | |
 | ExpiresUtc | datetime2 | default +14 days |
 | RevokedUtc | datetime2 null | |
