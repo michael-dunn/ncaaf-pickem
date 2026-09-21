@@ -1,6 +1,6 @@
 # Phase 9 - Docker-only hosting, Tailscale identity, Google removal
 
-Status: Plan agreed 2026-09-20 (Q1-Q11 answered). Not started.
+Status: Implemented 2026-09-20 (P9-01..P9-05 merged); phone-side check pending.
 
 Goals (from the owner):
 1. Remove every Windows deployment script and every bit of Windows-service setup. The app runs in a

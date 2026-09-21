@@ -10,7 +10,7 @@ Decisions here were made to fit the stories' constraints: .NET with minimal endp
 | HTTP API | ASP.NET Core minimal APIs, grouped with `MapGroup` per feature, `TypedResults` | Feature 10 asks for minimal endpoints. |
 | Frontend | Blazor WebAssembly PWA, hosted by the API project (one deployable) | C# end to end, shared DTOs, PWA template with manifest and service worker. See load-time risk below. |
 | Persistence | EF Core 10 + SQL Server, code-first migrations | SQL Server exists on the host. Migrations are agent-friendly. |
-| Auth | ASP.NET Core cookie auth + `Microsoft.AspNetCore.Authentication.Google`, no Identity | Feature 08 Option A, decided. |
+| Auth | Tailscale Serve identity headers (`Tailscale-User-Login`), per-request, no session; cookie auth survives only for `/auth/dev-login` in Development/Testing | Feature 08 Option A superseded by Phase 9 (D-174..D-178). |
 | Background jobs | One `BackgroundService` scheduler using Cronos for cron expressions, plus a dedicated adaptive Saturday poller | Feature 10: jobs run inside the app. No Hangfire/Quartz, to keep schema and ops surface small. |
 | Time | `TimeZoneInfo.FindSystemTimeZoneById("America/New_York")`, all storage UTC | Feature 13. .NET on Windows resolves IANA IDs since .NET 6. |
 | Web push | `WebPush` NuGet (web-push-libs), VAPID keys from config | Feature 11. |
@@ -68,13 +68,13 @@ Phone (home-screen PWA)
                                   `--HTTP--> 127.0.0.1:5000 -> ncaaf-api container :8080
                                                   |-- /            Blazor WASM static files
                                                   |-- /api/*       minimal endpoints (header identity)
-                                                  |-- /auth/*      Google OAuth in/out (removed in P9-03)
+                                                  |-- /auth/dev-login  Development/Testing only (cookie)
                                                   |-- Scheduler    cron jobs (refresh, lock, reminders)
                                                   |-- SaturdayPoller  adaptive 5-min score polling
-                                                  |-- /app/keys    data-protection key ring (volume)
+                                                  |-- /app/keys    data-protection key ring (volume; dev-login cookie only)
                                                   |-- /app/logs    Serilog rolling file (volume)
                                                   `-- ncaaf-db container (SQL Server 2022) :1433
-                                        outbound: CFBD API, ESPN scoreboard, Google OAuth, push services
+                                        outbound: CFBD API, ESPN scoreboard, push services
 ```
 
 ## Key patterns
@@ -87,7 +87,7 @@ Phone (home-screen PWA)
 
 **Authorization.** Three policies: `Authenticated`, `LeagueMember`, `LeagueCommissioner`. The league ID comes from the route (`{leagueId:guid}`). An endpoint filter loads the caller's membership once per request and stores it in `HttpContext.Items`. Feature 01 allows multiple commissioners: authorization checks `Membership.Role == Commissioner`, never a single `League.CommissionerId`.
 
-**CSRF.** Cookie is `SameSite=Lax`, `HttpOnly`, `Secure`. All mutating `/api` calls must carry header `X-Requested-With: NcaafPickEm`; an endpoint filter rejects mutations without it. The Blazor `HttpClient` adds it through a delegating handler.
+**CSRF.** All mutating `/api` calls must carry header `X-Requested-With: NcaafPickEm`; an endpoint filter rejects mutations without it. The Blazor `HttpClient` adds it through a delegating handler. Under Tailscale header identity there is no cookie-based session in Production, so this mainly protects the Development-only `/auth/dev-login` cookie (`SameSite=Lax`, `HttpOnly`, `Secure`) — see `reviews/security-review.md`'s 2026-09-20 Phase 9 addendum.
 
 **Time.** Inject `TimeProvider`. Never call `DateTime.Now` or `DateTime.UtcNow` directly. `SeasonCalendar` (Domain) owns all Eastern-time logic.
 
@@ -101,7 +101,6 @@ Phone (home-screen PWA)
 
 ```
 ConnectionStrings__Default
-Google__ClientId, Google__ClientSecret
 Cfbd__ApiKey
 Providers__LiveScores = Espn | Cfbd | Fixture
 Providers__ReferenceData = Cfbd | Fixture
@@ -115,7 +114,7 @@ Container deployment only (P8-05); every one is a documented no-op when unset:
 
 ```
 App__BehindProxy = true | false          (default false; X-Forwarded-For/Proto/Host, D-160)
-DataProtection__KeysPath = /app/keys     (unset = framework default; cookie key ring, D-161)
+DataProtection__KeysPath = /app/keys     (unset = framework default; protects only the Development dev-login cookie since Phase 9, D-161)
 Serilog__LogDirectory = /app/logs        (unset = <content root>/logs)
 Database__MigrateOnStartup = true        (D-015 default stays false; the compose opts in, D-159)
 Database__StartupTimeoutSeconds = 120    (how long startup waits for SQL Server, D-159)

@@ -133,12 +133,20 @@ Result gives the real one and the Proof column is left as originally written for
 
 ## Feature 08 - Authentication
 
+**Superseded by Phase 9 (2026-09-20).** Google sign-in, the 90-day session cookie, and
+`POST /auth/logout` are removed; identity now comes from the `Tailscale-User-Login`/
+`Tailscale-User-Name` headers `tailscale serve` injects per request (no session). The rows below
+are left as originally written for history (per the header note above); the Result column points
+at the tests that now prove the equivalent behaviour under header identity. See
+`Implementation/Phases/Phase-9-Tailscale-Auth.md` and `reviews/security-review.md`'s 2026-09-20
+addendum.
+
 | AC group | Task | Proof | Result |
 |---|---|---|---|
-| First login creates account; returning matched by subject | P0-03 | A `AuthTests` with fake Google handler | PASS: `AuthTests.GivenNewGoogleAccount_WhenSigningIn_ThenTheUserIsCreatedFromTheGoogleProfile`, `.GivenAReturningAccount_WhenSigningInAgain_ThenItMatchesBySubjectAndDoesNotDuplicate` |
+| First login creates account; returning matched by subject | P0-03, superseded by P9-02 | A `AuthTests` with fake Google handler | PASS (header identity): `TailscaleAuthTests` create-from-headers and match-without-duplicating cases (`AuthTests`/`FakeGoogleBackchannel` deleted in P9-03) |
 | Works in iOS standalone | P0-04, P8-03 | Manual on iPhone - steps in `Implementation/screenshots/e2e/README.md` (Manual pending, operator) | MANUAL PENDING (operator): `Implementation/screenshots/e2e/README.md` (21-step walkthrough); also `Implementation/reviews/operator-checklist.md` item 8 |
-| 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03 | A cookie attribute assertions | PASS: `CookieSecurityTests.GivenARealSignIn_WhenTheCookieIsIssued_ThenTheHeaderCarriesEveryFlag`; `AuthTests.GivenASignedInSession_WhenLoggingOut_ThenTheCookieIsClearedAndMeIsUnauthorized` |
-| Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A | PASS: `DisplayNameTests.GivenAOneCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyOneCharacterOverride_WhenSettingIt_ThenItIsRejected`, `.GivenANameAlreadyUsedByAnotherActiveMember_WhenSettingIt_ThenItIs409`; `AuthTests.GivenAGoogleProfileNameOver30Characters_WhenSigningIn_ThenTheDisplayNameIsTrimmed` |
+| 90-day sliding cookie, HttpOnly Secure; logout invalidates | P0-03, superseded by P9-02/P9-03 | A cookie attribute assertions | SUPERSEDED: there is no session cookie or logout for real users under header identity (Q3, D-178); the `ncaaf.auth` cookie flags (`HttpOnly`, `Secure`, `SameSite=Lax`) survive only for `/auth/dev-login` in Development/Testing, proven by `CookieSecurityTests` |
+| Display name 1..30 everywhere; unique per league | P0-03, P1-03 | A | PASS: `DisplayNameTests.GivenAOneCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyCharacterOverride_WhenSettingIt_ThenItIsAccepted`, `.GivenAThirtyOneCharacterOverride_WhenSettingIt_ThenItIsRejected`, `.GivenANameAlreadyUsedByAnotherActiveMember_WhenSettingIt_ThenItIs409`; the >30-char trim case now lives in `TailscaleAuthTests` (RFC 2047 / long-name trim), since `AuthTests.GivenAGoogleProfileNameOver30Characters...` is deleted |
 | Member/commissioner authorization; non-member 404 | P0-03 + every endpoint task | A auth matrix test per group | PASS: one `*AuthMatrixTests`/`AuthMatrix.RunAsync` group per endpoint group (`GameSetAuthMatrixTests`, `PicksAuthMatrixTests`, `LeaderboardAuthMatrixTests`, `CorrectionsAuthMatrixTests`, `AuthMatrixTests`, plus `GeneratedAuthMatrixTests`'s inventory-driven sweep of every route) |
 
 ## Feature 09 - Game Data Feed
