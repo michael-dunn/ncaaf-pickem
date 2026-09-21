@@ -30,7 +30,7 @@ Rule of precedence when documents disagree: **WorkItems story > 04-Domain-Algori
 
 ## What we are building (one paragraph)
 
-A mobile-first PWA for a family college-football pick-em league. Commissioners configure rules that select Saturday FBS games each week and assign point values. Members tap winners before the first Saturday kickoff. At lock, an influence dashboard shows each member which games matter most against the rest of the league, with live scores. Games are scored automatically as they go final; weekly and season leaderboards update. Web push reminds people to submit. Stack is .NET on a home server behind Tailscale, SQL Server, Google sign-in, CollegeFootballData for reference data and ESPN for live scores.
+A mobile-first PWA for a family college-football pick-em league. Commissioners configure rules that select Saturday FBS games each week and assign point values. Members tap winners before the first Saturday kickoff. At lock, an influence dashboard shows each member which games matter most against the rest of the league, with live scores. Games are scored automatically as they go final; weekly and season leaderboards update. Web push reminds people to submit. Stack is .NET on a home server behind Tailscale, SQL Server, sign-in from Tailscale Serve identity headers, CollegeFootballData for reference data and ESPN for live scores.
 
 ## Phase map
 
@@ -86,5 +86,5 @@ Each task card names a tier. The orchestrator may upgrade a Sonnet task to Opus 
 ## Definition of done (project)
 
 - Every acceptance criterion in the 13 stories is mapped in `07-Traceability.md` to a passing automated test or a recorded manual verification.
-- The app runs on the home server over Tailscale HTTPS, installed to an iPhone home screen, with Google sign-in, push notifications, and a full simulated week (generate set, pick, lock, score, leaderboard) exercised end to end.
+- The app runs on the home server over Tailscale HTTPS, installed to an iPhone home screen, signed in from the Tailscale identity headers, with push notifications, and a full simulated week (generate set, pick, lock, score, leaderboard) exercised end to end.
 - No secrets in the repo. Nightly SQL backups configured.

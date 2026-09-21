@@ -1,7 +1,7 @@
 # P8-03 - manual end-to-end run on the deployed server, from an iPhone
 
 **Status: Manual pending (operator).** No agent can do this: it needs a real iPhone on the tailnet,
-a real Google account, and a real Home Screen install. The automated twin of this walkthrough is
+a real tailnet account, and a real Home Screen install. The automated twin of this walkthrough is
 `tests/NcaafPickEm.Api.Tests/Simulation/FullWeekSimulationTests.cs`, which asserts every step below
 against the same Week 7, 2026 fixtures. Run this once before the real season starts.
 
@@ -27,13 +27,14 @@ from the iPhone's screenshot button - do not crop).
 
 ## On the iPhone
 
-Sign in as yourself (real Google login) for steps 1-4, then use `/auth/dev-login?user=<name>` in
-Safari to become each fixture member for the picking steps.
+Open the app through Tailscale, which signs you in as your own tailnet account, for steps 1-4,
+then use `/auth/dev-login?user=<name>` in Safari to become each fixture member for the picking
+steps.
 
 | # | What to do | What to expect | Save as |
 |---|---|---|---|
-| 1 | Open `https://<host>/` in Safari over Tailscale | The login screen, no horizontal scrolling at any width | `e2e-01-login.png` |
-| 2 | Tap "Sign in with Google", complete the real Google flow | Back on the league picker, signed in as you | `e2e-02-signed-in.png` |
+| 1 | Open `https://<host>/` in Safari over Tailscale | The league picker, already signed in as you, no login screen, no horizontal scrolling at any width | `e2e-01-home.png` |
+| 2 | Open Profile (`/me`) | Your tailnet login shown as the account email; no sign-out button | `e2e-02-signed-in.png` |
 | 3 | Share → "Add to Home Screen", then open the installed app | Standalone (no Safari chrome), same signed-in session | `e2e-03-home-screen.png` |
 | 4 | Profile (`/me`) → Notifications → "Turn on notifications", allow the prompt | "Notifications are on"; then "Send test notification" delivers a banner | `e2e-04-notifications-on.png` |
 | 5 | As the commissioner, open the league → Configure → "This week's games" | The three Top 25 games the CLI generated, each 10 points | `e2e-05-week-games.png` |
