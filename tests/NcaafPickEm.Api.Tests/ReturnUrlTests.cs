@@ -3,7 +3,7 @@ using NcaafPickEm.Api.Auth;
 namespace NcaafPickEm.Api.Tests;
 
 /// <summary>
-/// The open-redirect guard on <c>/auth/login/google?returnUrl=</c>.
+/// The open-redirect guard on <c>/auth/dev-login?returnUrl=</c>.
 /// </summary>
 public sealed class ReturnUrlTests
 {

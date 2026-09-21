@@ -8,7 +8,7 @@ namespace NcaafPickEm.Api.Tests.Infrastructure;
 
 /// <summary>
 /// Signs a request in as whatever user id the <c>X-Test-User</c> header names, so no test ever
-/// has to talk to Google.
+/// has to produce a real identity.
 /// </summary>
 /// <remarks>
 /// The handler does not create users: tests seed rows through <see cref="TestUsers"/> and pass the

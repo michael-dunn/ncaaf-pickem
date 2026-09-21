@@ -16,8 +16,8 @@ namespace NcaafPickEm.Api.Auth;
 /// <see cref="User.ExternalSubject"/> and then build a principal of our own, so every downstream
 /// claim is one we control and a rename at the identity provider cannot reshape a request.
 /// <see cref="UpsertAsync"/> is the half <see cref="TailscaleAuthenticationHandler"/> runs on
-/// every request; <see cref="SignInAsync"/> adds the cookie and is used by the Google callback
-/// and <c>/auth/dev-login</c>.
+/// every request; <see cref="SignInAsync"/> adds the cookie and, since P9-03, has exactly one
+/// caller left: <c>/auth/dev-login</c> in Development and Testing.
 /// </remarks>
 public sealed class ExternalSignInService
 {
@@ -50,6 +50,10 @@ public sealed class ExternalSignInService
     /// Upserts the user for <paramref name="login"/> and issues the session cookie on
     /// <paramref name="httpContext"/>.
     /// </summary>
+    /// <remarks>
+    /// The cookie path exists for <c>/auth/dev-login</c> only. A tailnet caller is authenticated
+    /// per request by <see cref="TailscaleAuthenticationHandler"/> and never signs in at all.
+    /// </remarks>
     public async Task<User> SignInAsync(
         HttpContext httpContext,
         ExternalLogin login,

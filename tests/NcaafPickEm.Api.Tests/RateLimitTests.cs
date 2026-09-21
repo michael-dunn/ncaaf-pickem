@@ -12,7 +12,8 @@ using NcaafPickEm.Infrastructure.Data;
 namespace NcaafPickEm.Api.Tests;
 
 /// <summary>
-/// P8-01 / D-153: the fixed-window rate limits on <c>/auth/*</c> and <c>/api/invites/*</c>.
+/// P8-01 / D-153: the fixed-window rate limits on <c>/auth/*</c> (since P9-03,
+/// <c>/auth/dev-login</c> alone) and <c>/api/invites/*</c>.
 /// </summary>
 /// <remarks>
 /// The shared <see cref="ApiFactory"/> turns the limiter off — every in-memory test request has
@@ -49,13 +50,15 @@ public sealed class RateLimitTests : IAsyncLifetime
             AllowAutoRedirect = false,
         });
 
+        // /auth/dev-login without a ?user is a 400 from the endpoint itself, which is the
+        // cheapest way to spend the window without seeding anything.
         for (int attempt = 0; attempt < Permit; attempt++)
         {
-            using HttpResponseMessage allowed = await client.GetAsync("/auth/login/google?returnUrl=/");
-            allowed.StatusCode.Should().Be(HttpStatusCode.Redirect, "attempt {0} is inside the window", attempt + 1);
+            using HttpResponseMessage allowed = await client.GetAsync("/auth/dev-login");
+            allowed.StatusCode.Should().Be(HttpStatusCode.BadRequest, "attempt {0} is inside the window", attempt + 1);
         }
 
-        using HttpResponseMessage refused = await client.GetAsync("/auth/login/google?returnUrl=/");
+        using HttpResponseMessage refused = await client.GetAsync("/auth/dev-login");
 
         refused.StatusCode.Should().Be(HttpStatusCode.TooManyRequests);
         refused.Content.Headers.ContentType?.MediaType.Should().Be("application/problem+json");

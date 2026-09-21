@@ -29,7 +29,7 @@ public static class DependencyInjection
 
         services.AddProblemDetails();
 
-        // Cookie scheme + Google handler + the three policies (Feature 08, Option A).
+        // The AppAuth selector, the Tailscale header scheme, the dev-login cookie, three policies.
         services.AddAppAuthentication(configuration);
 
         // Fixed-window limits on /auth/* and /api/invites/* (P8-01, D-153).

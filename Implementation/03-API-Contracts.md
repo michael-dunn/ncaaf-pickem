@@ -17,21 +17,18 @@ Frontend and backend agents build against this file. DTO names are the record na
 
 No header, or an empty one — a tagged device, a Funnel caller, a health probe, a browser that reached the app some other way — is **anonymous, never an error**: `/api/*` answers 401 and a navigation gets the login page. A malformed `Tailscale-User-Name` never fails a request; it is used as-is when it cannot be decoded.
 
-The scheme set is a policy scheme, `AppAuth`, which forwards to the `Tailscale` scheme when the login header is present and non-empty and to the cookie scheme otherwise. The cookie is still what `/auth/login/google` and `/auth/dev-login` write, and it is still the challenge scheme.
+The scheme set is a policy scheme, `AppAuth`, which forwards to the `Tailscale` scheme when the login header is present and non-empty and to the cookie scheme otherwise. Google sign-in was removed in P9-03: the cookie is now written by `/auth/dev-login` alone (Development and Testing), and it is still the challenge scheme.
 
 | Method | Route | Scope | Notes |
 |---|---|---|---|
-| GET | `/auth/login/google?returnUrl=` | Anon | Challenges Google. `returnUrl` must be a relative path. Removed in P9-03. |
-| GET | `/auth/callback/google` | Anon | Handled by the Google middleware; upserts `Users`, signs in cookie, redirects to `returnUrl`. |
-| POST | `/auth/logout` | Auth | Signs out, clears cookie. Returns 204. |
 | GET | `/api/me` | Auth | `MeResponse { UserId, Email, DisplayName, Leagues: LeagueSummary[] }` |
 | PUT | `/api/me` | Auth | `UpdateMeRequest { DisplayName }` 1..30 chars after trimming; 400 otherwise. 409 (P1-03) if the new name collides with another active member's effective name in a league where the caller has no per-league override (D-058). |
 
 Unauthenticated `/api/*` = 401 (not a redirect; the SPA handles it).
 
-`/auth/callback/google` has no endpoint of its own: it is the Google handler's `CallbackPath`, answered by the authentication middleware. `returnUrl` on `/auth/login/google` must be a relative path; anything else (absolute, protocol-relative, or a bare `javascript:`) silently falls back to `/` rather than failing the login.
+There is no sign-in route and no sign-out route (P9-03, Q3): identity arrives on every request, and there is nothing to sign out of - the next request signs the same person straight back in. The only route left under `/auth` is `GET /auth/dev-login?user=&returnUrl=`, mapped in Development and Testing only (P2-05); its `returnUrl` must be a relative path, and anything else (absolute, protocol-relative, or a bare `javascript:`) silently falls back to `/` rather than failing the redirect.
 
-`/auth/*` is not covered by the CSRF header rule — the whole `/api` group is. `POST /auth/logout` is protected instead by the cookie being `SameSite=Lax`, which a cross-site form post never carries.
+`/auth/*` is not covered by the CSRF header rule — the whole `/api` group is. Nothing mutating is mapped outside `/api` any more.
 
 `MeResponse.Leagues` is `[]` until **P1-01** wires up league summaries; `LeagueSummary` is already defined in `Shared/Contracts/Leagues` with `MyCurrentWeekStatus` nullable (null when the current week has no game set yet).
 

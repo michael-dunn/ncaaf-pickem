@@ -12,8 +12,8 @@
 #
 # which terminates TLS on the host with the tailnet certificate and forwards plain HTTP to the
 # container. That is why the api service sets App__BehindProxy=true - without it the app would
-# build the Google redirect_uri as http://127.0.0.1:5000/... and rate-limit the whole family as
-# one client (D-160).
+# build invite links as http://127.0.0.1:5000/... and rate-limit the whole family as one
+# client (D-160).
 
 services:
   db:
@@ -69,8 +69,6 @@ services:
       # D-160: Tailscale Serve terminates TLS on the host and forwards plain HTTP.
       - App__BehindProxy=true
       - App__PublicOrigin=${PUBLIC_ORIGIN}
-      - Google__ClientId=${GOOGLE_CLIENT_ID}
-      - Google__ClientSecret=${GOOGLE_CLIENT_SECRET}
       - Cfbd__ApiKey=${CFBD_API_KEY}
       - Providers__ReferenceData=Cfbd
       - Providers__LiveScores=Espn

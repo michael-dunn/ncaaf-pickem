@@ -4,10 +4,10 @@
 self.importScripts('./service-worker-assets.js');
 self.addEventListener('install', event => event.waitUntil(onInstall(event)));
 self.addEventListener('activate', event => event.waitUntil(onActivate(event)));
-// Server-owned paths must never be answered from the offline cache: the Google OAuth callback
-// (/auth/callback/google) is a top-level navigation, and serving index.html for it means the
-// server never receives the code, no session cookie is issued, and sign-in silently loops.
-// /api is fetched by the app itself and /health by the container healthcheck.
+// Server-owned paths must never be answered from the offline cache. /auth/* is answered by the
+// server alone (dev-login is a top-level navigation that has to reach it), /api/* is fetched by
+// the app itself, and /health* is the container healthcheck: serving a cached index.html for any
+// of them would look like a success while the server never saw the request.
 const serverOwnedPathPrefixes = ['/auth/', '/api/', '/health'];
 function isServerOwned(request) {
     const path = new URL(request.url).pathname;

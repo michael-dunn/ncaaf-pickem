@@ -23,7 +23,7 @@ public static class TestUsers
         var user = new User
         {
             Id = id,
-            ExternalSubject = $"google-{id:N}",
+            ExternalSubject = $"test-{id:N}",
             Email = $"{id:N}@test.local",
             DisplayName = displayName ?? $"User {id.ToString()[..8]}",
             CreatedUtc = DateTime.UtcNow,

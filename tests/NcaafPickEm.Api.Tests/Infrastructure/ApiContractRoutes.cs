@@ -6,9 +6,10 @@ namespace NcaafPickEm.Api.Tests.Infrastructure;
 /// contract promises cannot quietly go missing and a contract change has to be made here too.
 /// </summary>
 /// <remarks>
-/// Route constraints are stripped, so entries read exactly as the contract tables do.
-/// <c>/auth/callback/google</c> is absent on purpose: it has no endpoint of its own, it is the
-/// Google handler's <c>CallbackPath</c> (03-API-Contracts.md, Auth).
+/// Route constraints are stripped, so entries read exactly as the contract tables do. Nothing
+/// under <c>/auth</c> is listed any more: identity arrives in a header on every request
+/// (P9-02), and the one remaining route there, <c>/auth/dev-login</c>, is a Development and
+/// Testing affordance rather than a contracted endpoint.
 /// </remarks>
 internal static class ApiContractRoutes
 {
@@ -16,8 +17,6 @@ internal static class ApiContractRoutes
     public static readonly string[] All =
     [
         // Auth (Feature 08)
-        "GET /auth/login/google",
-        "POST /auth/logout",
         "GET /api/me",
         "PUT /api/me",
 

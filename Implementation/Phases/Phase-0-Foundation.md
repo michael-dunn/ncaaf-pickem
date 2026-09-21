@@ -36,6 +36,10 @@ Done when
 - One API test proves `WebApplicationFactory` + `SqlTestDatabase` works end to end (`/health/ready` returns 200).
 
 ## P0-03 Google sign-in, users, authorization plumbing
+
+> Superseded by Phase 9 (P9-02, P9-03): identity now comes from the Tailscale identity headers,
+> and Google sign-in, sign-out and the `LogoutButton` were removed 2026-09-20.
+
 Tier: Opus. Depends on: P0-02. Story 08.
 
 Deliverables

@@ -5,10 +5,17 @@ namespace NcaafPickEm.Api.Auth;
 /// </summary>
 public static class AuthDefaults
 {
-    /// <summary>Our session cookie. Feature 08: HttpOnly, Secure, SameSite=Lax, 90-day sliding.</summary>
+    /// <summary>
+    /// The cookie <c>/auth/dev-login</c> writes: HttpOnly, Secure, SameSite=Lax and sliding,
+    /// exactly as Feature 08 specified. Since P9-03 nothing else issues it - a real caller is
+    /// authenticated per request from <see cref="TailscaleLoginHeader"/>.
+    /// </summary>
     public const string CookieName = "ncaaf.auth";
 
-    /// <summary>How long a session survives inactivity. Feature 08 asks for at least 90 days.</summary>
+    /// <summary>
+    /// How long the dev-login cookie survives inactivity. Feature 08 asked for at least 90 days
+    /// of session, and the value is kept, but Production never issues one.
+    /// </summary>
     public static readonly TimeSpan SessionLifetime = TimeSpan.FromDays(90);
 
     /// <summary>Header every mutating <c>/api</c> call must carry (01-Architecture.md, CSRF).</summary>
@@ -17,12 +24,9 @@ public static class AuthDefaults
     /// <summary>The only accepted value of <see cref="CsrfHeaderName"/>.</summary>
     public const string CsrfHeaderValue = "NcaafPickEm";
 
-    /// <summary>Route the Google handler owns. Must match the OAuth client's redirect URI.</summary>
-    public const string GoogleCallbackPath = "/auth/callback/google";
-
     /// <summary>
     /// Identity header <c>tailscale serve</c> injects: the tailnet login of the calling device's
-    /// user (an email for Google and Microsoft accounts, <c>name@github</c> for a GitHub one).
+    /// user: an email address for most identity providers, <c>name@github</c> for a GitHub account.
     /// Trusted exactly as it arrives; the tailnet is the security boundary (Phase 9, Q4).
     /// </summary>
     public const string TailscaleLoginHeader = "Tailscale-User-Login";

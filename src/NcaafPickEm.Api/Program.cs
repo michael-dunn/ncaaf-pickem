@@ -41,8 +41,8 @@ try
     WebApplication app = builder.Build();
 
     // P8-05: X-Forwarded-For/Proto/Host from Tailscale Serve, when App__BehindProxy is true
-    // (a no-op otherwise). First in the pipeline, because request logging, the Google
-    // redirect_uri, Secure cookies, and the per-IP rate limiter all read what it rewrites.
+    // (a no-op otherwise). First in the pipeline, because request logging, the absolute invite
+    // links, Secure cookies, and the per-IP rate limiter all read what it rewrites.
     app.UseAppForwardedHeaders();
 
     app.UseSerilogRequestLogging();

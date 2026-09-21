@@ -3,7 +3,7 @@
 #
 # Everything here is throwaway: the image is built from the working tree, the sa password is in
 # plain sight, both providers are the offline fixtures, and the demo league is seeded so
-# /auth/dev-login works without a Google client. Run it from the REPO ROOT:
+# /auth/dev-login works without a tailnet. Run it from the REPO ROOT:
 #
 #   docker compose -f deploy/docker/compose.dev.yaml up --build -d
 #   curl http://127.0.0.1:5000/health/ready
@@ -55,7 +55,7 @@ services:
       - ConnectionStrings__Default=Server=db,1433;Database=NcaafPickEm;User Id=sa;Password=Local_Dev_Passw0rd!;Encrypt=False;TrustServerCertificate=True;
       - Database__MigrateOnStartup=true
       - Database__StartupTimeoutSeconds=120
-      # Offline: no CFBD key, no ESPN calls, no Google client.
+      # Offline: no CFBD key, no ESPN calls, no outbound network at all.
       - Providers__ReferenceData=Fixture
       - Providers__LiveScores=Fixture
       - Seed__DemoLeague=true
