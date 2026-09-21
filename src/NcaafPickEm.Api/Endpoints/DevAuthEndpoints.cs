@@ -9,15 +9,15 @@ using NcaafPickEm.Infrastructure.Data;
 namespace NcaafPickEm.Api.Endpoints;
 
 /// <summary>
-/// Signs in as one of the fixture demo users without Google, so a UI or manual check can run
-/// against a full week of fixture data with no OAuth client at all (P2-05).
+/// Signs in as one of the fixture demo users without a tailnet, so a UI or manual check can run
+/// against a full week of fixture data from a plain browser (P2-05).
 /// </summary>
 /// <remarks>
 /// Mapped only in Development (<see cref="EndpointMapping"/>). Looks up
 /// <c>Users.ExternalSubject = "fixture:{user}"</c> — the same rows <c>FixtureSeeder</c> creates when
-/// <c>Seed:DemoLeague</c> is true — and issues the identical cookie principal
-/// <see cref="ExternalSignInService.CreatePrincipal"/> builds for a real Google sign-in, so every
-/// downstream authorization check behaves the same either way.
+/// <c>Seed:DemoLeague</c> is true — and issues the cookie principal
+/// <see cref="ExternalSignInService.CreatePrincipal"/> builds, so every downstream authorization
+/// check behaves exactly as it does for a request carrying a Tailscale identity header.
 /// </remarks>
 public static class DevAuthEndpoints
 {
@@ -28,6 +28,10 @@ public static class DevAuthEndpoints
 
         builder.MapGet("/auth/dev-login", DevLoginAsync)
             .WithName("AuthDevLogin")
+
+            // P8-01: a generous fixed window per client IP. This is the only route under /auth,
+            // and the only one a caller can reach with no identity at all.
+            .RequireRateLimiting(RateLimitingSetup.AuthPolicy)
             .AllowAnonymous();
 
         return builder;

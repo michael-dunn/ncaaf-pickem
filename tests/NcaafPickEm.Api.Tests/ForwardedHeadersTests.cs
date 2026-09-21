@@ -1,10 +1,15 @@
 using System.Net;
+using System.Net.Http.Json;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 using NcaafPickEm.Api.Auth;
 using NcaafPickEm.Api.Hosting;
 using NcaafPickEm.Api.Tests.Infrastructure;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Shared.Contracts.Invites;
 
 namespace NcaafPickEm.Api.Tests;
 
@@ -15,10 +20,10 @@ namespace NcaafPickEm.Api.Tests;
 /// <remarks>
 /// Two things break silently without it, and both are asserted here. The per-IP rate limiter
 /// (D-153) partitions on <c>Connection.RemoteIpAddress</c>, which behind Tailscale Serve is the
-/// Docker gateway for every member at once — so one phone signing in would spend the family's
-/// whole 30/minute <c>/auth/*</c> budget. And the Google <c>redirect_uri</c> is built from the
-/// request's own scheme and host, which is plain <c>http</c> on the container's loopback port,
-/// so Google would reject the callback the operator registered as <c>https</c>.
+/// Docker gateway for every member at once — so one caller would spend the family's whole
+/// <c>/auth/*</c> budget. And every absolute link the app builds from the request — the invite
+/// URL, when <c>App:PublicOrigin</c> is not configured — would name the container's own
+/// <c>http</c> loopback origin instead of the tailnet HTTPS one the family can actually open.
 /// <para>
 /// Both are proved through real HTTP against the real pipeline; the limiter is turned on with a
 /// three-request window, exactly as <c>RateLimitTests</c> does.
@@ -28,7 +33,12 @@ namespace NcaafPickEm.Api.Tests;
 public sealed class ForwardedHeadersTests : IAsyncLifetime
 {
     private const int Permit = 3;
-    private const string LimitedRoute = "/auth/login/google?returnUrl=/";
+
+    /// <summary>
+    /// The one rate-limited route under <c>/auth</c>. With no <c>?user</c> it answers 400 from
+    /// the endpoint itself, which is all this test needs: the limiter runs before the handler.
+    /// </summary>
+    private const string LimitedRoute = "/auth/dev-login";
 
     private readonly ApiTestFixture _fixture;
     private ProxiedFactory? _behindProxy;
@@ -60,7 +70,7 @@ public sealed class ForwardedHeadersTests : IAsyncLifetime
         // One member burns the whole window.
         for (int attempt = 0; attempt < Permit; attempt++)
         {
-            await ExpectAsync(client, "203.0.113.10", HttpStatusCode.Redirect);
+            await ExpectAsync(client, "203.0.113.10", HttpStatusCode.BadRequest);
         }
 
         await ExpectAsync(client, "203.0.113.10", HttpStatusCode.TooManyRequests);
@@ -68,7 +78,7 @@ public sealed class ForwardedHeadersTests : IAsyncLifetime
         // A second member behind the same proxy is untouched by the first one's spending.
         for (int attempt = 0; attempt < Permit; attempt++)
         {
-            await ExpectAsync(client, "203.0.113.11", HttpStatusCode.Redirect);
+            await ExpectAsync(client, "203.0.113.11", HttpStatusCode.BadRequest);
         }
     }
 
@@ -82,48 +92,54 @@ public sealed class ForwardedHeadersTests : IAsyncLifetime
         // default would be a spoofing hole rather than a convenience.
         for (int attempt = 0; attempt < Permit; attempt++)
         {
-            await ExpectAsync(client, $"203.0.113.{attempt + 20}", HttpStatusCode.Redirect);
+            await ExpectAsync(client, $"203.0.113.{attempt + 20}", HttpStatusCode.BadRequest);
         }
 
         await ExpectAsync(client, "203.0.113.99", HttpStatusCode.TooManyRequests);
     }
 
     [Fact]
-    public async Task GivenBehindProxy_WhenTheProxyTerminatesTls_ThenTheGoogleRedirectUriIsHttps()
+    public async Task GivenBehindProxy_WhenTheProxyTerminatesTls_ThenAbsoluteLinksUseTheForwardedOrigin()
     {
-        using HttpClient client = CreateClient(_behindProxy!);
+        InviteResponse invite = await CreateInviteAsync(_behindProxy!);
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, LimitedRoute);
+        invite.Url.Should().StartWith(
+            "https://pickem.tailnet-1234.ts.net/join/",
+            "an invite link must name the origin the family opens, not the container loopback port");
+    }
+
+    [Fact]
+    public async Task GivenNotBehindProxy_WhenTheProxyTerminatesTls_ThenAbsoluteLinksStayOnTheRequestOrigin()
+    {
+        InviteResponse invite = await CreateInviteAsync(_direct!);
+
+        // The negative half of the test above: the flag, not the header, decides.
+        invite.Url.Should().StartWith("http://localhost/join/");
+    }
+
+    /// <summary>
+    /// Creates an invite as the commissioner of a freshly seeded league through
+    /// <paramref name="factory"/>, with the headers Tailscale Serve would have added.
+    /// </summary>
+    private async Task<InviteResponse> CreateInviteAsync(ProxiedFactory factory)
+    {
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_fixture.Factory);
+
+        using HttpClient client = CreateClient(factory);
+        client.DefaultRequestHeaders.Add(TestAuthHandler.UserHeader, scenario.CommissionerUserId.ToString());
+        client.DefaultRequestHeaders.Add(AuthDefaults.CsrfHeaderName, AuthDefaults.CsrfHeaderValue);
+
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            $"/api/leagues/{scenario.LeagueId}/invites");
         request.Headers.Add("X-Forwarded-For", "203.0.113.30");
         request.Headers.Add("X-Forwarded-Proto", "https");
         request.Headers.Add("X-Forwarded-Host", "pickem.tailnet-1234.ts.net");
 
         using HttpResponseMessage response = await client.SendAsync(request);
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        response.StatusCode.Should().Be(HttpStatusCode.Redirect);
-
-        string location = response.Headers.Location!.ToString();
-        location.Should().StartWith("https://accounts.google.com/");
-        Uri.UnescapeDataString(location)
-            .Should().Contain(
-                "redirect_uri=https://pickem.tailnet-1234.ts.net/auth/callback/google",
-                "the challenge must name the HTTPS callback the operator registered with Google");
-    }
-
-    [Fact]
-    public async Task GivenNotBehindProxy_WhenTheProxyTerminatesTls_ThenTheRedirectUriStaysOnTheRequestScheme()
-    {
-        using HttpClient client = CreateClient(_direct!);
-
-        using var request = new HttpRequestMessage(HttpMethod.Get, LimitedRoute);
-        request.Headers.Add("X-Forwarded-Proto", "https");
-        request.Headers.Add("X-Forwarded-Host", "pickem.tailnet-1234.ts.net");
-
-        using HttpResponseMessage response = await client.SendAsync(request);
-
-        // The negative half of the test above: the flag, not the header, decides.
-        Uri.UnescapeDataString(response.Headers.Location!.ToString())
-            .Should().Contain("redirect_uri=http://localhost/auth/callback/google");
+        return (await response.Content.ReadFromJsonAsync<InviteResponse>())!;
     }
 
     private static HttpClient CreateClient(ProxiedFactory factory) =>
@@ -165,6 +181,14 @@ public sealed class ForwardedHeadersTests : IAsyncLifetime
             builder.UseSetting(RateLimitingSetup.EnabledKey, "true");
             builder.UseSetting("RateLimiting:AuthPermitPerMinute", Permit.ToString());
             builder.UseSetting("RateLimiting:InvitePermitPerMinute", Permit.ToString());
+
+            // The invite route needs a signed-in commissioner, and this host is not one of the
+            // fixture's own factories, so it registers TestAuth itself.
+            builder.ConfigureTestServices(services =>
+                services.AddAuthentication(TestAuthHandler.SchemeName)
+                    .AddScheme<AuthenticationSchemeOptions, TestAuthHandler>(
+                        TestAuthHandler.SchemeName,
+                        _ => { }));
         }
     }
 }

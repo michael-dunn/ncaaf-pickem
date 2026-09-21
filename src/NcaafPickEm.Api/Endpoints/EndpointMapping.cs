@@ -19,9 +19,6 @@ public static class EndpointMapping
         // Health lives at the root, not under /api, so probes never need auth or the CSRF header.
         app.MapHealthEndpoints();
 
-        // Sign-in and sign-out are browser navigations under /auth, not SPA fetches under /api.
-        app.MapAuthEndpoints();
-
         RouteGroupBuilder api = app.MapGroup("/api")
             .WithTags("api")
             // Every mutating /api call must carry X-Requested-With: NcaafPickEm.
@@ -43,7 +40,7 @@ public static class EndpointMapping
         api.MapMeEndpoints();
         api.MapPushEndpoints();
 
-        // Fixture-only dev tools (P2-05): sign in as a demo user without Google, and step the
+        // Fixture-only dev tools (P2-05): sign in as a demo user without a tailnet, and step the
         // live-score snapshot. Never mapped in Production; Testing needs them too so
         // DevLoginTests and FixtureAdminEndpointTests can exercise the real routes.
         if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))

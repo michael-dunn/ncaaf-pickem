@@ -9,14 +9,14 @@ namespace NcaafPickEm.Api.Hosting;
 /// On the home server the container listens on plain HTTP on <c>127.0.0.1:5000</c> and
 /// <c>tailscale serve</c> terminates TLS on the host and forwards to it. Without this the app
 /// sees every request as <c>http://127.0.0.1:5000</c> from the Docker gateway address, which
-/// breaks three things at once: the Google OAuth <c>redirect_uri</c> is built with the wrong
-/// scheme and host, <c>Secure</c> cookies look like they are being set over plain HTTP, and the
-/// per-IP rate limiter (D-153) partitions the whole family into one bucket, so the 30/minute
-/// <c>/auth/*</c> window trips for everybody at once.
+/// breaks three things at once: absolute links the app builds from the request (invite URLs,
+/// when <c>App:PublicOrigin</c> is not set) name the loopback port, <c>Secure</c> cookies look
+/// like they are being set over plain HTTP, and the per-IP rate limiter (D-153) partitions the
+/// whole family into one bucket, so one window trips for everybody at once.
 /// <para>
 /// Off unless <c>App__BehindProxy</c> is <c>true</c>: trusting <c>X-Forwarded-*</c> from an
-/// untrusted caller lets it spoof its own client IP, so the Windows-service deployment (P8-02),
-/// which binds HTTPS directly, must not switch it on.
+/// untrusted caller lets it spoof its own client IP, so a run that binds HTTPS directly - a
+/// Visual Studio debug session - must not switch it on.
 /// </para>
 /// </remarks>
 public static class ForwardedHeadersSetup

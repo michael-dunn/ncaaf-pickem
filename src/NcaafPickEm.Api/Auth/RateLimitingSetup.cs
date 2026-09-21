@@ -8,16 +8,17 @@ namespace NcaafPickEm.Api.Auth;
 /// Fixed-window rate limits on the two anonymous-ish entry points (P8-01).
 /// </summary>
 /// <remarks>
-/// Everything else under <c>/api</c> needs a session cookie and an active membership, so the
-/// cheapest thing an unauthenticated attacker can do is hammer sign-in or guess invite codes.
-/// The windows are deliberately generous: a real person signs in once and redeems one invite,
-/// while a code-guessing script needs orders of magnitude more attempts than this allows.
-/// Invite codes are 8 characters from a 31-character alphabet, so 20 guesses a minute is
-/// nowhere near a keyspace search.
+/// Everything else under <c>/api</c> needs an identity and an active membership, so the cheapest
+/// thing an unauthenticated caller can do is hammer <c>/auth/dev-login</c> (Development and
+/// Testing only; nothing is mapped under <c>/auth</c> in Production) or guess invite codes.
+/// The windows are deliberately generous: a real person redeems one invite, while a
+/// code-guessing script needs orders of magnitude more attempts than this allows. Invite codes
+/// are 8 characters from a 31-character alphabet, so 20 guesses a minute is nowhere near a
+/// keyspace search.
 /// </remarks>
 public static class RateLimitingSetup
 {
-    /// <summary>Policy on <c>/auth/*</c>.</summary>
+    /// <summary>Policy on <c>/auth/*</c>, which since P9-03 is <c>/auth/dev-login</c> alone.</summary>
     public const string AuthPolicy = "auth";
 
     /// <summary>Policy on <c>/api/invites/*</c> (preview and accept).</summary>

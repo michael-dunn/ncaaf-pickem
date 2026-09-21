@@ -23,14 +23,11 @@ public sealed class RouteInventoryTests
     /// <summary>
     /// The only endpoints allowed to be anonymous (P8-01 card). Everything else — including every
     /// <c>/auth</c> route that is not a sign-in entry point — must require authorization.
-    /// <c>/auth/callback/google</c> is not here because it has no endpoint: it is the Google
-    /// handler's <c>CallbackPath</c>, answered by the authentication middleware.
     /// </summary>
     private static readonly HashSet<string> AnonymousAllowList = new(StringComparer.Ordinal)
     {
         "health",
         "health/ready",
-        "auth/login/google",
 
         // Development/Testing only. ProductionBehaviourTests proves it is never mapped in
         // Production, which is what makes it safe to allow-list here.
@@ -113,20 +110,19 @@ public sealed class RouteInventoryTests
     [Fact]
     public void GivenTheMappedEndpoints_WhenInventoried_ThenNothingMutatingIsServedOutsideApi()
     {
-        // Static assets and the SPA fallback are the only routes outside /api, /auth and /health,
-        // and they are GET/HEAD by construction. A mutation mapped outside /api would sit outside
-        // the CSRF group entirely.
+        // Static assets, /auth/dev-login and the SPA fallback are the only routes outside /api
+        // and /health, and they are GET/HEAD by construction. A mutation mapped outside /api
+        // would sit outside the CSRF group entirely.
         string[] offenders =
         [
             .. RouteFact.From(_fixture.Factory.Services)
                 .Where(route => !route.IsApi && route.IsMutation)
-                .Where(route => route.Pattern is not "auth/logout")
                 .Select(route => route.Describe())
         ];
 
         offenders.Should().BeEmpty(
-            "no mutating endpoint may live outside /api; POST /auth/logout is the one documented "
-            + "exception and is protected by the cookie being SameSite=Lax (03-API-Contracts.md)");
+            "no mutating endpoint may live outside /api, where the CSRF filter covers it (P9-03 "
+            + "removed POST /auth/logout, which had been the one documented exception)");
     }
 
     [Fact]

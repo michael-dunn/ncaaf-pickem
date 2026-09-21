@@ -7,7 +7,7 @@ namespace NcaafPickEm.Shared.Contracts.Auth;
 /// always means "signed in".
 /// </summary>
 /// <param name="UserId">Our <c>Users.Id</c>.</param>
-/// <param name="Email">The Tailscale login (email for Google/Microsoft accounts).</param>
+/// <param name="Email">The Tailscale login (an email address for most identity providers).</param>
 /// <param name="DisplayName">Account-wide display name, 1..30 characters.</param>
 /// <param name="Leagues">Every league the caller is an active member of.</param>
 public sealed record MeResponse(

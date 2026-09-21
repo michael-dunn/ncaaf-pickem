@@ -35,8 +35,9 @@ public sealed class ApiTestFixture : IAsyncLifetime
     /// <summary>
     /// The same app with the shipped scheme set in charge — the <c>AppAuth</c> policy scheme
     /// picking between Tailscale identity headers and the cookie — rather than
-    /// <see cref="TestAuthHandler"/>. Used by the Google sign-in tests and by
-    /// <c>TailscaleAuthTests</c> (P9-02). Shares the database with <see cref="Factory"/>.
+    /// <see cref="TestAuthHandler"/>. Used by <c>TailscaleAuthTests</c> (P9-02),
+    /// <c>DevLoginTests</c> and <c>CookieSecurityTests</c>. Shares the database with
+    /// <see cref="Factory"/>.
     /// </summary>
     public ApiFactory CookieFactory => _cookieFactory
         ?? throw new InvalidOperationException("The fixture has not been initialized.");

@@ -7,7 +7,7 @@ using NcaafPickEm.Shared.Contracts.Auth;
 namespace NcaafPickEm.Api.Tests;
 
 /// <summary>
-/// <c>GET /auth/dev-login</c> (P2-05): signs in as a fixture demo user without Google, so a UI or
+/// <c>GET /auth/dev-login</c> (P2-05): signs in as a fixture demo user with no tailnet identity, so a UI or
 /// manual check can run against the fixture data with no OAuth client.
 /// </summary>
 [Collection(ApiTestCollection.Name)]

@@ -18,7 +18,7 @@ namespace NcaafPickEm.Api.Tests;
 /// </summary>
 /// <remarks>
 /// The host is real (Program.cs, the real pipeline, the run's database) with two overrides: the
-/// test authentication handler, so a signed-in request can be made without Google, and a
+/// test authentication handler, so a signed-in request needs no identity header, and a
 /// <see cref="LeagueService"/> registration that throws, which is how a genuinely unhandled
 /// exception is produced inside a real endpoint without adding a throwing route to the app.
 /// </remarks>
@@ -49,7 +49,7 @@ public sealed class ProductionBehaviourTests : IAsyncLifetime
     {
         string[] patterns = [.. RouteFact.From(_app.Services).Select(route => route.Pattern)];
 
-        patterns.Should().NotContain("auth/dev-login", "dev-login signs in as a fixture user without Google");
+        patterns.Should().NotContain("auth/dev-login", "dev-login signs in as a fixture user with no tailnet identity");
         patterns.Should().NotContain(
             pattern => pattern.StartsWith("api/admin/fixture", StringComparison.Ordinal),
             "the fixture snapshot controls step live scores by hand");
