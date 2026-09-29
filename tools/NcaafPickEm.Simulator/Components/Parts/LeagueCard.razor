@@ -1,0 +1,175 @@
+@inherits SessionComponent
+@* One league: its set this week, every member with status and points, picks for anyone (through the
+   app's own PickService), and the links that open the app as any of them. *@
+
+<section class="card">
+    <div class="card-head">
+        <h2>@League.Name</h2>
+        <div class="muted small">weeks @League.FirstWeek-@League.LastWeek@(League.IsComplete ? " · complete" : string.Empty)</div>
+    </div>
+
+    <div class="set-line">
+        @if (League.Set is not { } set)
+        {
+            <span class="muted">No set this week yet.</span>
+            <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.RunJobAsync("EnsureCurrentWeekSets", token)))">Generate it (Sunday job)</button>
+        }
+        else
+        {
+            <span><strong>@set.ActiveGames.Count()</strong> game(s) in the set</span>
+            @if (set.Games.Count(game => game.IsRemoved) is > 0 and var removed)
+            {
+                <span class="muted">&middot; @removed removed</span>
+            }
+            @if (set.ActiveGames.Count(game => game.PointValue > MinPoints(set)) is > 0 and var elevated)
+            {
+                <span class="muted">&middot; @elevated elevated</span>
+            }
+            <span>&middot;</span>
+            @if (set.IsComplete)
+            {
+                <span class="pill final">Complete</span>
+            }
+            else if (set.LockedUtc is { } locked)
+            {
+                <span class="pill locked">Locked @SimFormat.Relative(locked, Now)</span>
+            }
+            else if (set.IsFrozen)
+            {
+                <span class="pill live">Frozen - lock job due</span>
+            }
+            else if (set.LockAtUtc is { } lockAt)
+            {
+                <span class="pill open">Open &middot; locks @SimFormat.Relative(lockAt, Now)</span>
+            }
+        }
+    </div>
+
+    @if (Tester is { LoginName: string me } && Week is int week)
+    {
+        <div class="btn-row tight app-links">
+            <span class="small muted">Open the app as @Tester.Name:</span>
+            <a class="btn xs" target="_blank" rel="noopener" href="@AppLinks.SignIn(App, me, AppLinks.Picks(League.LeagueId, week))">Picks</a>
+            <a class="btn xs" target="_blank" rel="noopener" href="@AppLinks.SignIn(App, me, AppLinks.Dashboard(League.LeagueId, week))">Dashboard</a>
+            <a class="btn xs" target="_blank" rel="noopener" href="@AppLinks.SignIn(App, me, AppLinks.WeekLeaderboard(League.LeagueId, week))">Week</a>
+            <a class="btn xs" target="_blank" rel="noopener" href="@AppLinks.SignIn(App, me, AppLinks.Leaderboard(League.LeagueId))">Season</a>
+            <a class="btn xs" target="_blank" rel="noopener" href="@AppLinks.SignIn(App, me, AppLinks.Games(League.LeagueId, week))">Week games</a>
+            <a class="btn xs" target="_blank" rel="noopener" href="@AppLinks.SignIn(App, me, "/admin/data")">Data status</a>
+        </div>
+    }
+
+    <div class="inline-form fill-form">
+        <span class="small">Fill missing picks</span>
+        <select @bind="_strategy" aria-label="Strategy">
+            @foreach (PickStrategy strategy in Enum.GetValues<PickStrategy>())
+            {
+                <option value="@strategy">@strategy</option>
+            }
+        </select>
+        <label class="check small"><input type="checkbox" @bind="_includeMe" /> me too</label>
+        <label class="check small"><input type="checkbox" @bind="_submit" /> submit</label>
+        <label class="check small"><input type="checkbox" @bind="_leaveOne" /> leave one incomplete</label>
+        <button class="btn primary xs" disabled="@(Busy || League.Set is null)"
+                @onclick="@(() => Run((world, token) => world.FillEveryoneAsync(_strategy, _includeMe, _submit, _leaveOne, token)))">Fill everyone</button>
+    </div>
+
+    <div class="table-wrap">
+        <table class="grid members">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>Status</th>
+                    <th>Picked</th>
+                    <th>Week</th>
+                    <th>Season</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (SimMemberView member in League.Members)
+                {
+                    <tr class="@(member.IsTester ? "me" : string.Empty)">
+                        <td>
+                            <strong>@member.Name</strong>
+                            @if (member.Role == MembershipRole.Commissioner)
+                            {
+                                <span class="badge">commish</span>
+                            }
+                            @if (member.IsTester)
+                            {
+                                <span class="badge ok">you</span>
+                            }
+                            @if (member.LoginName is { } login)
+                            {
+                                <div class="muted small">dev-login: @login</div>
+                            }
+                        </td>
+                        <td><span class="pill @member.Status.ToString().ToLowerInvariant()">@member.Status</span></td>
+                        <td>@member.Picks.Count(pick => ActiveGameIds.Contains(pick.Key))/@ActiveGameIds.Count</td>
+                        <td>
+                            @if (member.WeekPoints is int points)
+                            {
+                                <strong>@points</strong> <span class="muted small">(@member.WeekCorrect right)</span>
+                            }
+                            else
+                            {
+                                <span class="muted">-</span>
+                            }
+                        </td>
+                        <td>@member.SeasonPoints</td>
+                        <td>
+                            <div class="btn-row tight">
+                                <button class="btn xs" disabled="@(Busy || League.Set is null)" title="Fill this member's missing picks (@_strategy) and submit"
+                                        @onclick="@(() => Run((world, token) => world.FillMemberAsync(member.MembershipId, _strategy, 0, _submit, token)))">Fill</button>
+                                <button class="btn xs" disabled="@(Busy || League.Set is null)" @onclick="@(() => Run((world, token) => world.SubmitAsync(member.MembershipId, token)))">Submit</button>
+                                <button class="btn xs" disabled="@(Busy || League.Set is null)" @onclick="@(() => Run((world, token) => world.ClearPicksAsync(member.MembershipId, token)))">Clear</button>
+                                @if (member.LoginName is { } name && Week is int w)
+                                {
+                                    <a class="btn xs" target="_blank" rel="noopener" title="Signs this browser in as @member.Name"
+                                       href="@AppLinks.SignIn(App, name, AppLinks.Picks(League.LeagueId, w))">Open as &#8599;</a>
+                                }
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <PickGrid League="League" />
+
+    <div class="inline-form">
+        <span class="small">Add a player</span>
+        <input @bind="_newPlayer" placeholder="Name" aria-label="New player name" />
+        <button class="btn xs" disabled="@(Busy || string.IsNullOrWhiteSpace(_newPlayer))"
+                @onclick="@(() => Run((world, token) => world.AddPlayerAsync(League.LeagueId, _newPlayer, token)))">Join through an invite</button>
+        <span class="spacer"></span>
+        <span class="small">Join with a code from the app</span>
+        <input class="code" @bind="_code" placeholder="123456" aria-label="Invite code" />
+        <input @bind="_codePlayer" placeholder="as player" aria-label="Player joining with the code" />
+        <button class="btn xs" disabled="@(Busy || string.IsNullOrWhiteSpace(_code) || string.IsNullOrWhiteSpace(_codePlayer))"
+                @onclick="@(() => Run((world, token) => world.JoinWithCodeAsync(_code, _codePlayer, token)))">Join</button>
+    </div>
+</section>
+
+@code {
+    private PickStrategy _strategy = PickStrategy.Mixed;
+    private bool _includeMe;
+    private bool _submit = true;
+    private bool _leaveOne;
+    private string _newPlayer = string.Empty;
+    private string _code = string.Empty;
+    private string _codePlayer = string.Empty;
+
+    /// <summary>The league to show.</summary>
+    [Parameter, EditorRequired]
+    public SimLeagueView League { get; set; } = default!;
+
+    private string App => Session.World.AppBaseUrl;
+
+    private SimMemberView? Tester => League.Members.FirstOrDefault(member => member.IsTester);
+
+    private HashSet<Guid> ActiveGameIds => League.Set is { } set ? [.. set.ActiveGames.Select(game => game.GameId)] : [];
+
+    private static int MinPoints(SimSetView set) => set.ActiveGames.Select(game => game.PointValue).DefaultIfEmpty(0).Min();
+}

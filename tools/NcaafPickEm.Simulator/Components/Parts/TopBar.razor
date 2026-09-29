@@ -1,0 +1,121 @@
+@inherits SessionComponent
+@* The always-visible strip: real now (the only now there is), the week the app thinks is current,
+   the next lock with a countdown, and the controls that move it. *@
+
+<header class="topbar">
+    <div class="topbar-brand">
+        <span class="logo" aria-hidden="true">&#127944;</span>
+        <div>
+            <div class="brand-name">Pick Em Simulator</div>
+            <div class="muted small">
+                @if (Snapshot is { } shot)
+                {
+                    <span class="@(shot.DatabaseProblem is null ? "ok" : "bad")">@shot.DatabaseName</span>
+                    <span> &middot; season @shot.SeasonYear</span>
+                }
+            </div>
+        </div>
+    </div>
+
+    <div class="topbar-clock">
+        <div class="clock-big">@SimFormat.Eastern(Now)</div>
+        <div class="muted small">@SimFormat.Local(Now) here &middot; real time, never moved</div>
+    </div>
+
+    <div class="topbar-week">
+        @if (Snapshot?.Calendar.Current is { } current)
+        {
+            <div class="week-big">Week @current.Week</div>
+            <div class="muted small">@StateText(current.State)</div>
+        }
+        else
+        {
+            <div class="week-big muted">No calendar</div>
+            <div class="muted small">create a sandbox</div>
+        }
+    </div>
+
+    <div class="topbar-lock">
+        @if (Snapshot?.NextLockUtc is { } lockAt)
+        {
+            <div class="lock-line">
+                <span class="muted small">Next lock</span>
+                <strong class="countdown @(lockAt - Now < TimeSpan.FromMinutes(2) ? "soon" : string.Empty)">@Countdown(lockAt - Now)</strong>
+                <span class="muted small">@SimFormat.Eastern(lockAt)</span>
+            </div>
+        }
+        else if (LockedAll)
+        {
+            <div class="lock-line"><span class="pill locked">Locked</span> <span class="muted small">every league this week</span></div>
+        }
+        else
+        {
+            <div class="lock-line muted small">No open lock this week</div>
+        }
+
+        <div class="btn-row">
+            <button class="btn danger" disabled="@(Busy || Week is null)" @onclick="@(() => Run((world, token) => world.LockNowAsync(token)))">Lock now</button>
+            @foreach (int minutes in LockPresets)
+            {
+                <button class="btn" disabled="@(Busy || Week is null)" title="First kickoff in @minutes minutes"
+                        @onclick="@(() => Run((world, token) => world.SetLockAsync(Now.AddMinutes(minutes), token)))">
+                    @PresetLabel(minutes)
+                </button>
+            }
+            <span class="inline-form">
+                <input type="number" min="0" class="num" @bind="_customMinutes" aria-label="Minutes until lock" />
+                <button class="btn" disabled="@(Busy || Week is null)" @onclick="@(() => Run((world, token) => world.SetLockAsync(Now.AddMinutes(_customMinutes), token)))">min</button>
+            </span>
+        </div>
+    </div>
+
+    <div class="topbar-links">
+        <a class="btn primary" href="@AppHref" target="_blank" rel="noopener" title="@(TesterLogin is null ? "The app" : $"Signs this browser in as {TesterLogin}")">Open the app &#8599;</a>
+        <span class="muted small">@(Busy ? "working..." : string.Empty)</span>
+    </div>
+</header>
+
+@if (Snapshot?.DatabaseProblem is { } problem)
+{
+    <div class="banner bad">@problem</div>
+}
+
+@code {
+    private static readonly int[] LockPresets = [2, 5, 15, 60, 24 * 60];
+
+    private int _customMinutes = 30;
+
+    private string? TesterLogin => Snapshot?.Leagues.SelectMany(league => league.Members).FirstOrDefault(member => member.IsTester)?.LoginName;
+
+    private string AppHref => TesterLogin is string login ? AppLinks.SignIn(Session.World.AppBaseUrl, login, "/") : Session.World.AppBaseUrl;
+
+    private bool LockedAll => Snapshot is { Leagues.Count: > 0 } shot && shot.Leagues.All(league => league.Set is { LockedUtc: not null });
+
+    private static string StateText(SeasonState state) => state switch
+    {
+        SeasonState.BeforeSeason => "before the season - picks open when it starts",
+        SeasonState.SeasonOver => "season over - leagues complete",
+        _ => "in season",
+    };
+
+    private static string PresetLabel(int minutes) => minutes switch
+    {
+        >= 24 * 60 => "in 1 day",
+        >= 60 => $"in {minutes / 60} h",
+        _ => $"in {minutes} min",
+    };
+
+    private static string Countdown(TimeSpan left)
+    {
+        if (left <= TimeSpan.Zero)
+        {
+            return "due now";
+        }
+
+        return left.TotalHours >= 24
+            ? SimFormat.Duration(left)
+            : left.TotalHours >= 1
+                ? left.ToString(@"h\:mm\:ss", CultureInfo.InvariantCulture)
+                : left.ToString(@"m\:ss", CultureInfo.InvariantCulture);
+    }
+}

@@ -1,0 +1,65 @@
+@inherits SessionComponent
+@* The calendar and a week's lifecycle. Starting a week lays the calendar out around *now*; nothing
+   here moves the clock. *@
+
+<section class="card">
+    <div class="card-head">
+        <h2>Season &amp; week</h2>
+        @if (Snapshot?.Calendar.CurrentWeekRow is { } row)
+        {
+            <span class="muted small">week @row.Week started @SimFormat.Relative(row.StartUtc, Now), runs until @SimFormat.EasternDate(row.EndUtc)</span>
+        }
+    </div>
+
+    @if (Snapshot is { Calendar.Weeks.Count: > 0 } shot)
+    {
+        <div class="week-strip">
+            @foreach (SimWeekView week in shot.Calendar.Weeks)
+            {
+                <button class="week-chip @ChipClass(week)" disabled="@(Busy || !week.IsRegularSeason)"
+                        title="@(week.IsRegularSeason ? $"Make week {week.Week} current from now" : "Championship week: not playable")"
+                        @onclick="@(() => Run((world, token) => world.StartWeekAsync(week.Week, token)))">
+                    <span>@week.Week</span>
+                    @if (week.GameCount > 0)
+                    {
+                        <small>@week.GameCount g</small>
+                    }
+                </button>
+            }
+        </div>
+    }
+
+    <div class="btn-row">
+        <button class="btn primary" disabled="@(Busy || Week is null)" @onclick="@(() => Run((world, token) => world.NextWeekAsync(token)))">Next week &rarr;</button>
+        <button class="btn" disabled="@(Busy || Week is null)" @onclick="@(() => Run((world, token) => world.PlayOutWeeksAsync(1, _includeMe, token)))">Play out this week</button>
+        <span class="inline-form">
+            <button class="btn" disabled="@(Busy || Week is null)" @onclick="@(() => Run((world, token) => world.PlayOutWeeksAsync(_weeks, _includeMe, token)))">Play out</button>
+            <input type="number" min="1" max="14" class="num" @bind="_weeks" aria-label="Weeks to play out" />
+            <span class="small">weeks</span>
+        </span>
+        <label class="check small"><input type="checkbox" @bind="_includeMe" /> fill my picks too</label>
+    </div>
+
+    <div class="btn-row">
+        <button class="btn" disabled="@(Busy || Week is null)" title="Unlock, keep every pick, clear scores and results, lock again in a few minutes"
+                @onclick="@(() => Run((world, token) => world.RewindWeekAsync(token)))">Rewind to before the lock</button>
+        <button class="btn" disabled="@(Busy || Week is null)" title="Delete sets, picks and results; regenerate the sets from the rules"
+                @onclick="@(() => Run((world, token) => world.ResetWeekAsync(token)))">Reset the week</button>
+        <button class="btn" disabled="@(Busy || Week is null)" title="Reset the week and replace every game with a new slate"
+                @onclick="@(() => Run((world, token) => world.ReplaceSlateAsync(token)))">New slate</button>
+        <span class="spacer"></span>
+        <button class="btn" disabled="@Busy" @onclick="@(() => Run((world, token) => world.BeforeSeasonAsync(token)))">Before the season</button>
+        <button class="btn" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SeasonOverAsync(token)))">Season over</button>
+    </div>
+</section>
+
+@code {
+    private int _weeks = 3;
+    private bool _includeMe = true;
+
+    private string ChipClass(SimWeekView week) => week.Week == Week
+        ? "current"
+        : week.EndUtc < Now
+            ? "past"
+            : week.IsRegularSeason ? "future" : "champ";
+}

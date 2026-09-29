@@ -1,0 +1,25 @@
+@inherits SessionComponent
+@* "It is Friday at 8 PM" on a Tuesday: the app's own jobs, run now against the shared database. *@
+
+<section class="card">
+    <div class="card-head">
+        <h2>The app's jobs, now</h2>
+        <span class="muted small">The app runs these on its own schedule too (with jobs on); here they run when you press.</span>
+    </div>
+    <ul class="jobs">
+        @foreach (SimJob job in JobDesk.Jobs)
+        {
+            <li>
+                <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.RunJobAsync(job.Name, token)))">Run</button>
+                <div>
+                    <div><strong>@job.Name</strong> <span class="muted small">@job.When</span></div>
+                    <div class="small muted">@job.What</div>
+                </div>
+            </li>
+        }
+    </ul>
+    <p class="muted small">
+        Reminders are once per week per member (the notification log); "Rewind" or "Reset the week" clears the week's log so they can be sent again.
+        Without the app's VAPID pair in the simulator's settings, pushes are recorded but not delivered.
+    </p>
+</section>

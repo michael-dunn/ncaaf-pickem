@@ -1,0 +1,55 @@
+@inherits SessionComponent
+@* This week's games: what the data provider and the scoreboard would say about them, and every
+   control for changing that. *@
+
+<section class="card">
+    <div class="card-head">
+        <h2>Scoreboard @(Week is int week ? $"- week {week}" : string.Empty)</h2>
+        <div class="btn-row tight">
+            <button class="btn" disabled="@(Busy || Week is null)" @onclick="@(() => Run((world, token) => world.FinishStartedAsync(token)))">Finish every started game</button>
+            <button class="btn" disabled="@Busy" @onclick="() => _adding = !_adding">@(_adding ? "Close" : "Add a game")</button>
+        </div>
+    </div>
+
+    @if (_adding)
+    {
+        <AddGameForm />
+    }
+
+    @if (Snapshot is not { Games.Count: > 0 } shot)
+    {
+        <p class="muted">No games this week yet. Create a sandbox, start a week, or add a game.</p>
+    }
+    else
+    {
+        <div class="legend muted small">
+            Times are Eastern. A game in <strong>no set</strong> is one the leagues' rules did not take (or cannot: off-day or FCS).
+            Autoplay plays every game that has kicked off toward its target; touching a score by hand turns it off for that game.
+        </div>
+        <div class="table-wrap">
+            <table class="grid games">
+                <thead>
+                    <tr>
+                        <th>Kickoff</th>
+                        <th>Game</th>
+                        <th>Line</th>
+                        <th>Sets</th>
+                        <th>Scoreboard</th>
+                        <th>Autoplay</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (SimGameView game in shot.Games)
+                    {
+                        <GameRow Game="game" @key="game.GameId" />
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</section>
+
+@code {
+    private bool _adding;
+}
