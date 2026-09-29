@@ -1,6 +1,6 @@
 # Phase 11 - The simulator: a separate test-bench website, real time everywhere
 
-Status: Implemented 2026-09-28 (P11-01 on `p11-01-simulator`). Supersedes Phase 10's dev clock.
+Status: Implemented 2026-09-28 (P11-01 on `p11-01-simulator`, merged to main @ a7abc49). Supersedes Phase 10's dev clock.
 
 Goals (from the owner):
 1. The dev tools for simulating picks, the dashboard and time live in **their own project**, not in
