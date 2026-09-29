@@ -28,6 +28,7 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(baseAddress);
 
         services.AddScoped<AppShellState>();
+        services.AddScoped<AppEntry>();
 
         services.AddScoped(sp => new HttpClient(CreateHandlerChain(sp))
         {
