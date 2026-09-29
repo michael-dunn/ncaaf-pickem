@@ -52,6 +52,10 @@ tests/
   NcaafPickEm.Domain.Tests/    Pure unit tests. No DB, no network, under 10 s.
   NcaafPickEm.Api.Tests/       WebApplicationFactory<Program> + real SQL Server.
   NcaafPickEm.Fixtures/        Embedded JSON fixtures plus `FixtureLoader`.
+  NcaafPickEm.Simulator.Tests/ The simulator's engine and the app in Simulator mode, real SQL Server.
+tools/
+  NcaafPickEm.Simulator/       The simulator website (Blazor Server). Not part of the app or its image.
+                                                                            -> Infrastructure
 deploy/                        Deployment scripts and the production config template (P8-02).
 Implementation/  WorkItems/    Plan and requirements.
 ```
@@ -179,62 +183,82 @@ is Commissioner). Then visit <https://localhost:7092/auth/dev-login?user=michael
 `dance`, `alex`, `daniel`) to sign in as that member — no tailnet needed. Seeding and
 dev-login are both Development/Testing only and never run in Production.
 
-Step through the live-score timeline (kickoff through all-Final, snapshots 1-6) with:
+The fixture week is for automated tests and a quick look at the UI. To actually *use* the app -
+pick, lock, watch the dashboard, score, run a season - on any day, use the simulator below.
 
-```bash
-curl -X POST https://localhost:7092/api/admin/fixture/snapshot/3 --cookie-jar cookies.txt --cookie cookies.txt
-curl https://localhost:7092/api/admin/fixture/snapshot --cookie cookies.txt
+### Simulating a week (`tools/NcaafPickEm.Simulator`)
+
+The simulator (Phase 11, D-182..D-186) is a **separate website** that plays everything the app
+does not own: the data provider (teams, the calendar, games, kickoffs, lines, the AP poll), the
+scoreboard (live scores), the other players (their picks), and the scheduler's calendar ("it is
+Friday at 8 PM"). It shares a database with a Development copy of the app and drives it through
+the app's own services, so every rule behaves exactly as it does for real.
+
+**Nothing moves the clock.** The app always runs on real time. Instead, the simulator moves the
+*schedule*: "lock in 10 minutes" puts the week's first kickoff 10 minutes from now (the lock is the
+first kickoff), and "next week" lays the season's calendar out so that week starts now. So a week
+is never tied to a Saturday, the browser's countdown is always right, and a whole season plays out
+in an afternoon.
+
+Start both (Windows PowerShell, from the repo root):
+
+```powershell
+./tools/start-simulator.ps1
 ```
 
-(sign in through `/auth/dev-login` first so the cookie jar has a session; these two routes
-require `Authenticated` like the rest of `/api`).
-
-### Moving the clock and driving a week (Dev tools)
-
-The fixture data has games in exactly one week (Week 7, 2026: October 11-17), and picks are only
-accepted for the calendar's *current* week, so on any other date the picks page 409s
-`WeekNotCurrent`. Instead of waiting for October, move the server's clock. In Development the app's
-`TimeProvider` is a `DevTimeProvider` (P10-01, D-180): real time plus an offset, or one frozen
-instant. Only `GetUtcNow` is shifted; the scheduler and Saturday poller keep ticking at real speed
-and read the shifted time on each tick.
-
-The quickest route is the **Dev tools** page in the app (More -> Dev tools, or `/admin/dev`): jump
-the clock into the fixture week, then step the demo league through generate -> fill picks -> lock
--> poll a score snapshot, with a member table showing status and points. The same controls exist
-as routes (all `Authenticated`, Development and Testing only, never mapped in Production):
+or by hand, in two terminals:
 
 ```bash
-# Where is the clock, and which calendar week is that?
-curl -b cookies.txt https://localhost:7092/api/admin/fixture/clock
-# Move to Wednesday of the fixture week (keeps running from there); {"advance":"1.00:00:00"} moves by a day; {"frozen":true} stops it
-curl -b cookies.txt -X PUT -H "X-Requested-With: NcaafPickEm" -H "Content-Type: application/json" \
-  -d '{"nowUtc":"2026-10-14T16:00:00Z"}' https://localhost:7092/api/admin/fixture/clock
-# Back to real time
-curl -b cookies.txt -X DELETE -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/clock
-
-# The demo league's week: set state, lock, members' status and points
-curl -b cookies.txt https://localhost:7092/api/admin/fixture/demo
-# Step it: generate the set, fill every other member's picks (add ?includeMe=true for yours too),
-# lock now, apply score snapshot 6 (all Final), or wipe the week and start over
-curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/generate
-curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/picks
-curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/lock
-curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" "https://localhost:7092/api/admin/fixture/demo/poll?snapshot=6"
-curl -b cookies.txt -X POST -H "X-Requested-With: NcaafPickEm" https://localhost:7092/api/admin/fixture/demo/reset
+dotnet run --project src/NcaafPickEm.Api --launch-profile simulator   # the app, https://localhost:7092
+dotnet run --project tools/NcaafPickEm.Simulator                       # the simulator, http://localhost:5299
 ```
 
-A typical loop: set the clock to Wednesday Oct 14, generate, make your own picks in the app as
-`michael` while the others are filled for you, advance the clock past the first kickoff (the lock
-job runs within a minute with jobs on, or press "Lock now"), then step snapshots 1-6 while
-advancing through Saturday and watch results and the leaderboard fill in. Reset when done.
+In Visual Studio, pick the **App + Simulator** launch profile (`NcaafPickEm.slnLaunch`). Both use
+the database `NcaafPickEm_Sim` on LocalDB and create it on first start. The app's `simulator`
+launch profile is `Providers__ReferenceData=Simulator` and `Providers__LiveScores=Simulator`: in
+that mode the app reads the calendar from the database and ingests and polls nothing of its own
+(its data page says the data is "owned by NcaafPickEm.Simulator"), while its lock job, reminders
+and every page work as normal. Both the mode and the simulator refuse to run outside Development.
 
-To boot already inside the fixture week, set `Clock__NowUtc=2026-10-14T16:00:00Z` (and optionally
-`Clock__Frozen=true`) in the environment or `appsettings.Development.json`. Both are ignored
-outside Development and Testing. The demo league also seeds with a default Top 25 rule now, so
-`EnsureCurrentWeekSetsJob` generates the week's set on its own once the clock enters the week.
+Then, on the dashboard at <http://localhost:5299>:
 
-Caveat: the client's lock countdown and "last updated" labels use the browser's real clock and will
-look odd while the server is shifted.
+1. **Create sandbox.** One click: 136 FBS teams (plus a few FCS), a calendar with week 1 current
+   from now, a 14-game slate whose first kickoff is 15 minutes away, you (Michael) as
+   commissioner, five players joined through real invites, Top 25 + SEC rules, close-line and
+   conference point rules, and the week's set generated by the app's own Sunday job.
+2. **Open the app** (top right) - it signs your browser in as you through `/auth/dev-login` and
+   opens the app. Make your picks there.
+3. **Pick for everyone else** from the league card: "Fill everyone" (strategies: mixed,
+   favourites, underdogs, home teams, random; optionally leave one player incomplete), or click
+   cells in the pick grid to pick for any player, and Submit / Clear per player. "Open as" signs the
+   browser in as that player instead.
+4. **Move the lock**: "Lock now", "in 2 min", "in 15 min", ... in the top bar. The whole slate
+   shifts with it. The app's own lock job locks the week (the simulator runs it at once rather
+   than waiting for the minute tick).
+5. **Watch it play.** With autoplay on, every game plays out in real time after its kickoff, in 12
+   minutes by default (set the length under "Autoplay & new weeks"), toward a target score drawn
+   from the line. The dashboard updates live; scoring, the week leaderboard and standings follow.
+   Or drive any game by hand: kick off, +7/+3, next quarter, final, set any score (a tie lands on
+   the app's "needs review" list), postpone, cancel, reopen a final game. Change a target mid-game
+   and it re-plans from the current score.
+6. **Next week**, or **Play out N weeks** to build a season instantly (standings, weekly wins, trend
+   arrows). **Rewind to before the lock** keeps every pick and plays the lock and the Saturday
+   again; **Reset the week** starts it blank; **Before the season** / **Season over** test those
+   states.
+
+Also on the dashboard: add a game (any two teams, any kickoff, any line, Saturday or off-day),
+nudge any kickoff, post or pull a line, flip a game's conference or Saturday flag, re-rank the AP
+poll, add a player mid-season, join a player to a league you made in the app with its invite code,
+and run any of the app's jobs now (Tuesday regeneration, the Friday reminders, the last call,
+the nightly rescore). Every action's result is in the activity feed, including the app's own
+refusals (a pick after the lock, a regenerate on a frozen week) - those are the point.
+
+The simulator only touches a database it created: pointed at one with leagues or users but no
+`sim.Settings` table (your Fixture dev database, say), it refuses to do anything. Reminder and
+notification pushes it triggers use the app's VAPID pair (borrowed from the app's
+`appsettings.Development.json` or user secrets); with none configured they are logged, not sent.
+Not simulated: the ESPN-outage fallback ("scores may be stale" banner) - that state lives inside
+the app's process.
 
 ### Local configuration
 
@@ -330,7 +354,8 @@ off — so there are two ways to get a signed-in session without a real tailnet:
    `Providers__ReferenceData=Fixture` and `Seed__DemoLeague=true` set (see "Run with fixtures"
    above). This signs you in as that fixture member through the cookie scheme — the only scheme
    `/auth/dev-login` ever writes to — and is Development/Testing only; it is never mapped in
-   Production.
+   Production. It also signs in the simulator's players (`Users.ExternalSubject = "sim:<name>"`,
+   e.g. `?user=alyson`), which is what the simulator's "Open the app" and "Open as" links use.
 2. **Send the headers yourself.** Since the Tailscale handler reads `Tailscale-User-Login` /
    `Tailscale-User-Name` on every request with no gating, a plain `curl` call or a
    header-modifying browser extension is a real, working sign-in:
@@ -358,48 +383,14 @@ member simply opens the app and is signed in with no login screen at all.
   `HttpContext.GetMembership()`. Non-member is 404 (existence is not revealed); a member on a
   commissioner route is 403.
 
-### Dry-run a week before the season (`simulate` CLI)
+### A whole week, automated
 
-`simulate` is a hidden, Development-only argument on the API that drives the Week 7, 2026 fixture
-week by hand, so you can rehearse a whole Saturday - generation, lock, live scores, scoring - before
-any real game is played. It uses the app's own services (the same jobs the server runs) but never
-starts the web server, so it is safe to run against a **separate** database while the real service
-is up. Point it at one with `ConnectionStrings__Default`.
-
-```bash
-# Windows PowerShell, from the repo root
-$env:ConnectionStrings__Default = 'Server=(localdb)\MSSQLLocalDB;Database=NcaafPickEm_Sim;Trusted_Connection=True;TrustServerCertificate=True'
-
-# Seed fixtures + the demo league, then generate week 7's set for it
-dotnet run --project src/NcaafPickEm.Api -- simulate --week 7
-
-# Lock the week now (whatever the clock says) and apply score snapshot 3
-dotnet run --project src/NcaafPickEm.Api -- simulate --week 7 --lock --snapshot 3
-
-# Walk the rest of the Saturday: 4 is the Iowa State / Kansas tie, 6 the post-midnight finish
-dotnet run --project src/NcaafPickEm.Api -- simulate --week 7 --snapshot 4
-dotnet run --project src/NcaafPickEm.Api -- simulate --week 7 --snapshot 6
-
-# Fire a scheduled job by hand, with the clock pinned to that instant
-dotnet run --project src/NcaafPickEm.Api -- simulate --tick "2026-10-16T20:00:00-04:00"   # Friday reminder
-dotnet run --project src/NcaafPickEm.Api -- simulate --tick "2026-10-16T21:00:00-04:00"   # commissioner summary
-```
-
-Options: `--week <n>` (default: the current week), `--snapshot <1-6>`, `--lock`,
-`--tick <instant with offset>`, `--league <name>` (default: the fixture demo league,
-"Family League"). Each run prints the week's games with their status, score and point value, plus
-every member's submission status and points. It refuses to run outside Development or with
-`Providers:ReferenceData` set to anything but `Fixture`.
-
-To sign in as a fixture member while rehearsing, use `/auth/dev-login?user=michael` (also
-Development-only). Members still need to make picks through the UI - `simulate` never picks for
-anyone.
-
-The same flow is asserted automatically by
-`tests/NcaafPickEm.Api.Tests/Simulation/FullWeekSimulationTests.cs`; read it as the executable
-description of a normal week. The manual iPhone walkthrough of the same flow is in
-`Implementation/screenshots/e2e/README.md`. The same CLI is also how an operator rehearses a week
-on the deployed server — see section 6 ("Operate").
+`tests/NcaafPickEm.Api.Tests/Simulation/FullWeekSimulationTests.cs` walks one league through a full
+fixture week - invites, regeneration, picks, both Friday reminders, the last call, the lock, the
+Overview dashboards, all six score snapshots, a void, an override, the leaderboards - and is the
+executable description of a normal week. `tests/NcaafPickEm.Simulator.Tests` does the same with the
+simulator driving the real app in Simulator mode, on a Tuesday. The manual iPhone walkthrough is
+`Implementation/screenshots/e2e/README.md`, driven from the simulator's dashboard.
 
 ## 4. Run tests
 
@@ -408,6 +399,10 @@ dotnet test
 ```
 
 - `NcaafPickEm.Domain.Tests` is pure: no database, no network.
+- `NcaafPickEm.Simulator.Tests` covers the simulator: its pure pieces (calendar layout, score plans,
+  slates), its engine end to end against a throwaway database per test (`NcaafPickEm_SimTest_<guid>`,
+  same `TEST_SQL_CONNECTION` seam), and the real app booted in Simulator mode over the database the
+  simulator wrote, signed in through `/auth/dev-login`.
 - `NcaafPickEm.Api.Tests` boots the real app with `WebApplicationFactory<Program>`. `SqlTestDatabase`
   creates a throwaway database `NcaafPickEm_Test_<guid>`, migrates it, and drops it at the end of
   the run — one database per run, not per test, shared through the `ApiTestFixture` collection

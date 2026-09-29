@@ -45,12 +45,15 @@ tests/
   NcaafPickEm.Domain.Tests/    Pure unit tests. Must run in under 10 s with no DB.
   NcaafPickEm.Api.Tests/       Endpoint + DB integration tests with WebApplicationFactory.
   NcaafPickEm.Fixtures/        JSON fixtures: sample CFBD/ESPN payloads, a full sample week.
+  NcaafPickEm.Simulator.Tests/ The simulator, and the app in Simulator mode over its database.
+tools/
+  NcaafPickEm.Simulator/       Development-only test bench website (P11-01). Not part of the app; never in the image.
 deploy/
   docker/
 Implementation/  WorkItems/
 ```
 
-Dependency direction: `Web -> Shared`; `Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared` (mapping only); `Domain -> Shared` (enums only, D-014; plus the `Contracts/Leaderboard` rows `StandingsCalculator` computes outright, D-139). `Shared` references nothing and holds no logic, so the graph stays acyclic and `Domain` still has no dependency on EF, HTTP, or a clock.
+Dependency direction: `Web -> Shared`; `Api -> Infrastructure -> Domain`; `Api -> Shared`; `Infrastructure -> Shared` (mapping only); `Domain -> Shared` (enums only, D-014; plus the `Contracts/Leaderboard` rows `StandingsCalculator` computes outright, D-139). `Shared` references nothing and holds no logic, so the graph stays acyclic and `Domain` still has no dependency on EF, HTTP, or a clock. `tools/NcaafPickEm.Simulator -> Infrastructure` sits outside that graph: nothing under `src/` references it, and it composes the app's own services rather than calling its API (P11-01).
 
 ## Runtime shape
 
@@ -102,8 +105,8 @@ Phone (home-screen PWA)
 ```
 ConnectionStrings__Default
 Cfbd__ApiKey
-Providers__LiveScores = Espn | Cfbd | Fixture
-Providers__ReferenceData = Cfbd | Fixture
+Providers__LiveScores = Espn | Cfbd | Fixture | Simulator   (Simulator: Development/Testing only, D-183)
+Providers__ReferenceData = Cfbd | Fixture | Simulator     (Simulator: tools/NcaafPickEm.Simulator owns the data)
 Push__VapidPublicKey, Push__VapidPrivateKey, Push__Subject (mailto: or https:)
 App__PublicOrigin = https://<tailnet-host>
 Jobs__Enabled = true | false   (false in tests)

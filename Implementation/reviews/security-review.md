@@ -569,3 +569,29 @@ No new finding is logged against Phase 9's design: the header-trust model is a s
 tradeoff (Q3/Q4) rather than a defect, and the network boundary described above is what makes it
 sound. `dotnet build -c Release` 0 warnings and `dotnet test tests/NcaafPickEm.Domain.Tests` 310/310
 were re-confirmed as part of P9-04 (docs only; no `.cs` file changed by this addendum).
+
+## 2026-09-28 - Phase 11 addendum
+
+Phase 11 (P11-01) moved every development tool out of the app and into
+`tools/NcaafPickEm.Simulator`, and made the app run on real time in every environment (D-182).
+
+**The app's surface shrank.** `/api/admin/fixture/snapshot[/{n}]`, `/api/admin/fixture/clock` and
+`/api/admin/fixture/demo/*` are gone from every environment, not just Production;
+`RouteInventoryTests` now asserts the Testing host (which maps everything Development does) has
+nothing under `api/admin/fixture` or `api/admin/dev`. So §10's accepted risk "`/api/admin/fixture/*`
+requires only `Authenticated`" (finding 8) is **moot**: the routes no longer exist. The only
+Development-only route left is `GET /auth/dev-login`, still never mapped in Production
+(`ProductionBehaviourTests`); it now also looks up `sim:<name>` subjects (D-184), and still only
+those two prefixes, so no real Tailscale login can be signed in as through it.
+
+**A new provider mode, refused outside Development/Testing.** `Providers:*=Simulator` (D-183) lets
+an external process own the database's games, scores and calendar. `AddInfrastructure` throws at
+startup if either key is `Simulator` in any other environment (`SimulatorModeTests`), so a
+misconfigured Production container fails to boot rather than silently stopping ingest.
+
+**The simulator cannot reach production.** It lives under `tools/`, which the Dockerfile never
+copies, so the image cannot contain it; it exits unless `ASPNETCORE_ENVIRONMENT=Development`; it
+has no network API (Blazor Server, bound to `localhost:5299`); and it refuses to write to any
+database holding leagues or users that it did not create (`SimDatabaseGuard`, D-186). It borrows the
+app's development VAPID pair from the app's gitignored settings or user secrets, never from the
+repository.

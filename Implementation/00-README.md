@@ -24,7 +24,7 @@ The stories are the requirements. This plan is how the work is cut, ordered, ass
 | `spikes/providers.md` | P2-01's live-capture spike against the real ESPN scoreboard and CFBD APIs: tier confirmation, corrections to the assumed contract, the verified team-alias draft. | Provider/domain agents, orchestrator |
 | `spikes/wasm-load-time.md` | P0-04's measured Blazor WASM load-time spike (cold/warm, localhost) against the 2 s/5 s budget, plus the pending phone-over-Tailscale measurement. | Orchestrator, anyone touching client startup |
 | `screenshots/` | 375px UI screenshots, one per page/state, named `p<task>-<state>-375.png`. | Orchestrator for sign-off; P8-04 traceability |
-| `screenshots/e2e/README.md` | The 21-step manual iPhone walkthrough of a full simulated week on the deployed server (P8-03), with exact screenshot filenames to save. | Operator, before the real season starts |
+| `screenshots/e2e/README.md` | The 21-step manual iPhone walkthrough of a full simulated week (P8-03), driven from the simulator's dashboard over the tailnet since P11-01, with exact screenshot filenames to save. | Operator, before the real season starts |
 
 Rule of precedence when documents disagree: **WorkItems story > 04-Domain-Algorithms > 02-Data-Model / 03-API-Contracts > Phase task card > DECISIONS.md.** If a story is ambiguous, the algorithm file decides; if the algorithm file is silent, log a decision in `DECISIONS.md` and continue.
 
@@ -65,7 +65,8 @@ Phase 8  Hardening, deploy, season simulation, traceability sign-off
 | 6 Influence Dashboard | 05 | `Phases/Phase-6-Dashboard.md` |
 | 7 Notifications & PWA | 11, 10 | `Phases/Phase-7-Notifications-PWA.md` |
 | 8 Hardening & Deploy | 10, all | `Phases/Phase-8-Hardening-Deploy.md` |
-| 10 Dev tooling (movable clock, demo-week controls) | 02, 04, 06 (testability) | `Phases/Phase-10-Dev-Tooling.md` |
+| 10 Dev tooling (movable clock, demo-week controls; superseded by 11) | 02, 04, 06 (testability) | `Phases/Phase-10-Dev-Tooling.md` |
+| 11 The simulator: a separate test-bench website, real time everywhere | all (manual testability) | `Phases/Phase-11-Simulator.md` |
 
 Phases 1, 2, and 3a run in parallel once Phase 0 is done. Everything from Phase 3b onward depends on Phase 2's dev fixtures (P2-05) so that UI and endpoint work never waits on live provider data.
 

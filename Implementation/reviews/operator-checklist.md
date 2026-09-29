@@ -23,7 +23,7 @@ check it from a phone). Record the result of each item back in the `STATUS.md` r
 
 - The last-commissioner-race and `Invite.Uses` concurrency findings (STATUS.md Escalations,
   2026-09-18) are an accepted risk at family scale, not an operator action item.
-- `/api/admin/fixture/*` being `Authenticated`-only rather than commissioner-gated is accepted
-  because it is Development/Testing-only (security-review.md §10).
+- `/api/admin/fixture/*` no longer exists (P11-01, D-182); the development tools are the separate
+  `tools/NcaafPickEm.Simulator` website (security-review.md, Phase 11 addendum).
 - The unmatched-game resolve picker being a raw GUID box is a UI polish item, not a manual
   verification — tracked as a possible follow-up card, not here.
