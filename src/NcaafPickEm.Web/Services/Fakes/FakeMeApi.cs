@@ -38,5 +38,5 @@ public sealed class FakeMeApi : IMeApi
         MichaelId,
         "michael@fixture.local",
         _displayName,
-        [new LeagueSummary(FakeLeaguesApi.SampleLeagueId, "The Family League", 2026, MembershipRole.Commissioner, 7, SubmissionStatus.Submitted)]);
+        [new LeagueSummary(FakeLeaguesApi.SampleLeagueId, "The Family League", 2026, MembershipRole.Commissioner, 7, SubmissionStatus.Submitted, LeagueLanding.Picks)]);
 }

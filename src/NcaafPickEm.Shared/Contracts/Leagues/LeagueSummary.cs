@@ -14,10 +14,15 @@ namespace NcaafPickEm.Shared.Contracts.Leagues;
 /// The caller's submission status for <paramref name="CurrentWeek"/>, or null when that week has
 /// no game set yet.
 /// </param>
+/// <param name="Landing">
+/// The screen the app opens this league on: Picks, the Dashboard, the Leaderboard, or the league
+/// home (04-Domain-Algorithms.md section 12).
+/// </param>
 public sealed record LeagueSummary(
     Guid LeagueId,
     string Name,
     int SeasonYear,
     MembershipRole MyRole,
     int CurrentWeek,
-    SubmissionStatus? MyCurrentWeekStatus);
+    SubmissionStatus? MyCurrentWeekStatus,
+    LeagueLanding Landing);

@@ -1,17 +1,25 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @inject AppShellState Shell
+@* Injected so it is listening from the first render; see AppEntry. *@
+@inject AppEntry Entry
 
 <CascadingValue Value="Shell" IsFixed="true">
     <div class="app-shell">
         <header class="top-bar">
-            <div class="top-bar-inner">
-                <span class="top-bar-title">@Shell.HeaderText</span>
-                @if (!string.IsNullOrEmpty(Shell.Title) && Shell.Title != Shell.HeaderText)
-                {
-                    <span class="top-bar-subtitle">@Shell.Title</span>
-                }
-            </div>
+            @if (Shell.LeagueId is { } leagueId)
+            {
+                @* The way back to the league home, now that the app opens a league on a tab (D-187). *@
+                <a class="top-bar-inner top-bar-link" href="@($"/leagues/{leagueId}")">
+                    @TopBarText
+                </a>
+            }
+            else
+            {
+                <div class="top-bar-inner">
+                    @TopBarText
+                </div>
+            }
         </header>
 
         <main class="app-main">
@@ -23,6 +31,15 @@
 </CascadingValue>
 
 @code {
+    private RenderFragment TopBarText =>
+        @<text>
+            <span class="top-bar-title">@Shell.HeaderText</span>
+            @if (!string.IsNullOrEmpty(Shell.Title) && Shell.Title != Shell.HeaderText)
+            {
+                <span class="top-bar-subtitle">@Shell.Title</span>
+            }
+        </text>;
+
     protected override void OnInitialized() => Shell.Changed += OnShellChanged;
 
     private void OnShellChanged() => StateHasChanged();

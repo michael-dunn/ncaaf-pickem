@@ -338,7 +338,8 @@ public sealed class FakeLeaguesApi : ILeaguesApi
         league.SeasonYear,
         me?.Role ?? MembershipRole.Member,
         league.CurrentWeek,
-        me?.CurrentWeekStatus);
+        me?.CurrentWeekStatus,
+        LeagueLanding.Picks);
 
     private static LeagueDetail ToDetail(FakeLeague league, FakeMember? me) => new(
         league.LeagueId,
