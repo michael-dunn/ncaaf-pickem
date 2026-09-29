@@ -181,8 +181,12 @@ public sealed class LeagueService
                 : SeasonCalendar.CurrentWeekAt(nowUtc, seasonWeeks).Week;
         }
 
+        Dictionary<(Guid LeagueId, int Week), WeekGameSet> setsByLeagueWeek = await LoadWeekGameSetsAsync(
+            [.. memberships.Select(membership => membership.LeagueId).Distinct()], cancellationToken)
+            .ConfigureAwait(false);
+
         Dictionary<Guid, SubmissionStatus?> statusByMembershipId = await LoadCurrentWeekStatusesAsync(
-            memberships, currentWeekByMembership, cancellationToken)
+            memberships, currentWeekByMembership, setsByLeagueWeek, cancellationToken)
             .ConfigureAwait(false);
 
         var summaries = new LeagueSummary[memberships.Count];
@@ -190,13 +194,23 @@ public sealed class LeagueService
         {
             Membership membership = memberships[i];
             League league = membership.League!;
+            int currentWeek = currentWeekByMembership[i];
+            LeagueLanding landing = LeagueLandingRule.Choose(
+                nowUtc,
+                weeksByYear[league.SeasonYear],
+                league.FirstWeek,
+                league.LastWeek,
+                setsByLeagueWeek.GetValueOrDefault((league.Id, currentWeek)),
+                setsByLeagueWeek.GetValueOrDefault((league.Id, currentWeek - 1)));
+
             summaries[i] = new LeagueSummary(
                 league.Id,
                 league.Name,
                 league.SeasonYear,
                 membership.Role,
-                currentWeekByMembership[i],
-                statusByMembershipId[membership.Id]);
+                currentWeek,
+                statusByMembershipId[membership.Id],
+                landing);
         }
 
         return summaries;
@@ -220,30 +234,36 @@ public sealed class LeagueService
     }
 
     /// <summary>
-    /// One <c>WeekGameSets</c> query and one <c>WeekSubmissions</c> query for every membership's
-    /// current week, instead of two queries per membership (P1-01 review follow-up 1).
+    /// Every week's set for the given leagues in one query, keyed by league and week: the current
+    /// week's for submission statuses, and the one before it for the landing screen.
+    /// </summary>
+    private Task<Dictionary<(Guid LeagueId, int Week), WeekGameSet>> LoadWeekGameSetsAsync(
+        Guid[] leagueIds,
+        CancellationToken cancellationToken) =>
+        _database.WeekGameSets
+            .AsNoTracking()
+            .Where(set => leagueIds.Contains(set.LeagueId))
+            .ToDictionaryAsync(set => (set.LeagueId, set.Week), cancellationToken);
+
+    /// <summary>
+    /// One <c>WeekSubmissions</c> query for every membership's current week, over the sets from
+    /// <see cref="LoadWeekGameSetsAsync"/>, instead of two queries per membership (P1-01 review
+    /// follow-up 1).
     /// </summary>
     private async Task<Dictionary<Guid, SubmissionStatus?>> LoadCurrentWeekStatusesAsync(
         IReadOnlyList<Membership> memberships,
         int[] currentWeekByMembership,
+        Dictionary<(Guid LeagueId, int Week), WeekGameSet> setsByLeagueWeek,
         CancellationToken cancellationToken)
     {
-        Guid[] leagueIds = [.. memberships.Select(membership => membership.LeagueId).Distinct()];
-
-        Dictionary<(Guid LeagueId, int Week), Guid> gameSetIdByLeagueWeek = await _database.WeekGameSets
-            .AsNoTracking()
-            .Where(set => leagueIds.Contains(set.LeagueId))
-            .ToDictionaryAsync(set => (set.LeagueId, set.Week), set => set.Id, cancellationToken)
-            .ConfigureAwait(false);
-
         var weekGameSetIdByMembership = new Guid?[memberships.Count];
         var relevantSetIds = new HashSet<Guid>();
         for (int i = 0; i < memberships.Count; i++)
         {
-            if (gameSetIdByLeagueWeek.TryGetValue((memberships[i].LeagueId, currentWeekByMembership[i]), out Guid setId))
+            if (setsByLeagueWeek.TryGetValue((memberships[i].LeagueId, currentWeekByMembership[i]), out WeekGameSet? set))
             {
-                weekGameSetIdByMembership[i] = setId;
-                relevantSetIds.Add(setId);
+                weekGameSetIdByMembership[i] = set.Id;
+                relevantSetIds.Add(set.Id);
             }
         }
 
@@ -376,8 +396,11 @@ public sealed class LeagueService
             var currentWeekByMembership = new int[activeMemberships.Count];
             Array.Fill(currentWeekByMembership, currentWeek);
 
+            Dictionary<(Guid LeagueId, int Week), WeekGameSet> setsByLeagueWeek =
+                await LoadWeekGameSetsAsync([leagueId], cancellationToken).ConfigureAwait(false);
+
             statusByMembershipId = await LoadCurrentWeekStatusesAsync(
-                activeMemberships, currentWeekByMembership, cancellationToken)
+                activeMemberships, currentWeekByMembership, setsByLeagueWeek, cancellationToken)
                 .ConfigureAwait(false);
         }
 

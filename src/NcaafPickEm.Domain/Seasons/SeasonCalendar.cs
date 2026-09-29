@@ -114,6 +114,22 @@ public sealed class SeasonCalendar(TimeProvider timeProvider)
     public CurrentWeek CurrentWeekNow(IReadOnlyList<SeasonWeek> weeks) => CurrentWeekAt(UtcNow, weeks);
 
     /// <summary>
+    /// True on the first Eastern calendar day of a week's window: the Sunday that follows the
+    /// previous week's Saturday games. Compared as Eastern dates, not as 24 hours from the start,
+    /// so the fall-back Sunday (25 hours long) is still one whole day.
+    /// </summary>
+    /// <param name="nowUtc">The instant to test.</param>
+    /// <param name="week">The week whose opening day is in question.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="week"/> is null.</exception>
+    public static bool IsOpeningDayAt(DateTimeOffset nowUtc, SeasonWeek week)
+    {
+        ArgumentNullException.ThrowIfNull(week);
+
+        return week.Contains(nowUtc)
+            && DateOnly.FromDateTime(ToEastern(nowUtc).DateTime) == DateOnly.FromDateTime(ToEastern(week.StartUtc).DateTime);
+    }
+
+    /// <summary>
     /// The range a new league falls back to when the season has no calendar at all: Weeks 1
     /// through 14, the length of a normal FBS regular season (D-165).
     /// </summary>
