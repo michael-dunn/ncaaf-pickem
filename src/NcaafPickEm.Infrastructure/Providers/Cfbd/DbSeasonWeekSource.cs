@@ -23,18 +23,35 @@ namespace NcaafPickEm.Infrastructure.Providers.Cfbd;
 /// </remarks>
 public sealed class DbSeasonWeekSource : ISeasonWeekSource
 {
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(5);
+    /// <summary>How long a season's weeks are remembered when CFBD's ingest owns the calendar.</summary>
+    public static readonly TimeSpan DefaultCacheDuration = TimeSpan.FromMinutes(5);
+
+    /// <summary>
+    /// How long they are remembered when <c>Providers:ReferenceData</c> is <c>Simulator</c>
+    /// (P11-01, D-183). The simulator rewrites the calendar from another process, where
+    /// <see cref="Invalidate"/> cannot reach, so "start next week" has to show within seconds.
+    /// </summary>
+    public static readonly TimeSpan SimulatorCacheDuration = TimeSpan.FromSeconds(2);
+
     private static readonly object CacheLock = new();
     private static readonly Dictionary<int, (DateTime ExpiresUtc, IReadOnlyList<SeasonWeek> Weeks)> Cache = [];
 
     private readonly AppDbContext _database;
     private readonly TimeProvider _timeProvider;
+    private readonly TimeSpan _cacheDuration;
 
-    /// <summary>Creates the source.</summary>
+    /// <summary>Creates the source with <see cref="DefaultCacheDuration"/>.</summary>
     public DbSeasonWeekSource(AppDbContext database, TimeProvider timeProvider)
+        : this(database, timeProvider, DefaultCacheDuration)
+    {
+    }
+
+    /// <summary>Creates the source with an explicit cache lifetime.</summary>
+    public DbSeasonWeekSource(AppDbContext database, TimeProvider timeProvider, TimeSpan cacheDuration)
     {
         _database = database;
         _timeProvider = timeProvider;
+        _cacheDuration = cacheDuration;
     }
 
     /// <inheritdoc />
@@ -63,13 +80,13 @@ public sealed class DbSeasonWeekSource : ISeasonWeekSource
         if (result.Count == 0)
         {
             // Nothing ingested yet. Caching the emptiness would hide the calendar for up to
-            // CacheDuration after the first successful ingest.
+            // the cache lifetime after the first successful ingest.
             return result;
         }
 
         lock (CacheLock)
         {
-            Cache[seasonYear] = (nowUtc + CacheDuration, result);
+            Cache[seasonYear] = (nowUtc + _cacheDuration, result);
         }
 
         return result;

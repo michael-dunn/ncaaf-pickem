@@ -3,7 +3,8 @@ namespace NcaafPickEm.Infrastructure.Providers.Fixture;
 /// <summary>
 /// The current position (1 through <see cref="MaxSnapshot"/>) in the Week 7, 2026 fixture score
 /// timeline. A singleton so every request in the process sees the same snapshot until something
-/// advances it: a test hook, or <c>POST /api/admin/fixture/snapshot/{n}</c> in Development.
+/// advances it - a test hook. (The Development route that also stepped it went with the rest of the
+/// in-app dev tools in P11-01, D-182.)
 /// </summary>
 public sealed class FixtureSnapshotState
 {

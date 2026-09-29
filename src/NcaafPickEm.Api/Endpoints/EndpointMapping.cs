@@ -40,17 +40,12 @@ public static class EndpointMapping
         api.MapMeEndpoints();
         api.MapPushEndpoints();
 
-        // Fixture-only dev tools (P2-05): sign in as a demo user without a tailnet, and step the
-        // live-score snapshot. Never mapped in Production; Testing needs them too so
-        // DevLoginTests and FixtureAdminEndpointTests can exercise the real routes.
+        // Sign in as a fixture or simulator user without a tailnet (P2-05, P11-01). Never mapped
+        // in Production; Testing needs it too so DevLoginTests can exercise the real route. Every
+        // other development tool lives outside the app, in tools/NcaafPickEm.Simulator (D-182).
         if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Testing"))
         {
             app.MapDevAuthEndpoints();
-            api.MapFixtureAdminEndpoints();
-
-            // P10-01: move the server clock and drive the demo league through a week by hand.
-            api.MapDevClockEndpoints();
-            api.MapDemoWeekEndpoints();
         }
 
         return app;

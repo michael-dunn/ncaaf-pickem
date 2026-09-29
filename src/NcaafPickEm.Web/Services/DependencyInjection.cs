@@ -49,7 +49,6 @@ public static class DependencyInjection
         services.AddScoped<IDashboardApi, Fakes.FakeDashboardApi>();
         services.AddScoped<ICorrectionsApi, Fakes.FakeCorrectionsApi>();
         services.AddScoped<ILeaderboardApi, Fakes.FakeLeaderboardApi>();
-        services.AddScoped<IDevToolsApi, Fakes.FakeDevToolsApi>();
 #else
         services.AddScoped<ILeaguesApi, LeaguesApi>();
         services.AddScoped<ISeasonsApi, SeasonsApi>();
@@ -62,7 +61,6 @@ public static class DependencyInjection
         services.AddScoped<IDashboardApi, DashboardApi>();
         services.AddScoped<ICorrectionsApi, CorrectionsApi>();
         services.AddScoped<ILeaderboardApi, LeaderboardApi>();
-        services.AddScoped<IDevToolsApi, DevToolsApi>();
 #endif
 
         return services;
