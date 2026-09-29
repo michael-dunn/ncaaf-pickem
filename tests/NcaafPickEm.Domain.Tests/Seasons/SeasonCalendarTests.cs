@@ -202,6 +202,37 @@ public sealed class SeasonCalendarTests
         resolve.Should().Throw<ArgumentException>();
     }
 
+    // ---------------------------------------------------------------------- week opening day
+
+    [Fact]
+    public void GivenSundayOfAWeek_WhenAskingIfItIsTheOpeningDay_ThenItIsFromMidnightToMidnightEastern()
+    {
+        SeasonWeek week = Week(8);
+
+        SeasonCalendar.IsOpeningDayAt(week.StartUtc, week).Should().BeTrue();
+        SeasonCalendar.IsOpeningDayAt(week.StartUtc.AddHours(23).AddMinutes(59), week).Should().BeTrue();
+        SeasonCalendar.IsOpeningDayAt(week.StartUtc.AddDays(1), week).Should().BeFalse("Monday 00:00 ET is day two");
+    }
+
+    [Fact]
+    public void GivenTheFallBackSunday_WhenAskingLateThatEvening_ThenItIsStillTheOpeningDay()
+    {
+        // Sunday 1 November 2026 is 25 hours long: 23:30 EST is 24.5 hours after 00:00 EDT, so
+        // "24 hours from the start" would already have called it Monday.
+        SeasonWeek week = Weeks.Single(w => w.Contains(new DateTimeOffset(2026, 11, 1, 12, 0, 0, TimeSpan.Zero)));
+        DateTimeOffset sundayLateEst = new(2026, 11, 2, 4, 30, 0, TimeSpan.Zero);
+
+        SeasonCalendar.IsOpeningDayAt(sundayLateEst, week).Should().BeTrue();
+    }
+
+    [Fact]
+    public void GivenAnInstantOutsideTheWeek_WhenAskingIfItIsThatWeeksOpeningDay_ThenItIsNot()
+    {
+        // The previous Saturday night and the following Sunday are both outside Week 8.
+        SeasonCalendar.IsOpeningDayAt(Week(8).StartUtc.AddMilliseconds(-1), Week(8)).Should().BeFalse();
+        SeasonCalendar.IsOpeningDayAt(Week(9).StartUtc, Week(8)).Should().BeFalse();
+    }
+
     // -------------------------------------------------------------------- default league range
 
     [Fact]
