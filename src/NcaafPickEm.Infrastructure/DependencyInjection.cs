@@ -1,4 +1,3 @@
-using System.Globalization;
 using CollegeFootballData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
@@ -22,11 +21,11 @@ using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Espn;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
+using NcaafPickEm.Infrastructure.Providers.Simulator;
 using NcaafPickEm.Infrastructure.Push;
 using NcaafPickEm.Infrastructure.Scoring;
 using NcaafPickEm.Infrastructure.Seeding;
 using NcaafPickEm.Infrastructure.Services;
-using NcaafPickEm.Infrastructure.Time;
 
 namespace NcaafPickEm.Infrastructure;
 
@@ -36,6 +35,12 @@ namespace NcaafPickEm.Infrastructure;
 /// </summary>
 public static class DependencyInjection
 {
+    /// <summary>
+    /// The <c>Providers:ReferenceData</c> / <c>Providers:LiveScores</c> value that hands this
+    /// database to <c>tools/NcaafPickEm.Simulator</c> (P11-01, D-183).
+    /// </summary>
+    public const string SimulatorProviderName = "Simulator";
+
     /// <summary>
     /// Registers persistence, providers, push, and background jobs.
     /// </summary>
@@ -59,23 +64,11 @@ public static class DependencyInjection
         ArgumentNullException.ThrowIfNull(configuration);
         ArgumentNullException.ThrowIfNull(environment);
 
-        // TimeProvider is the only clock the codebase may use (05-Conventions.md).
-        // TryAdd so tests (and the simulate command) can register their own clock before calling
-        // this. Development and Testing get the movable DevTimeProvider (P10-01, D-180), optionally
-        // pre-shifted by Clock:NowUtc / Clock:Frozen; Production always reads real time.
-        if (IsDevelopmentOrTesting(environment))
-        {
-            services.TryAddSingleton(sp => CreateDevClock(sp, configuration));
-            services.TryAddSingleton<TimeProvider>(sp => sp.GetRequiredService<DevTimeProvider>());
-
-            // Drives the demo league through a week by hand (generate, fill picks, lock, poll,
-            // reset) behind /api/admin/fixture/demo. Development and Testing only, like the routes.
-            services.TryAddScoped<DemoWeekService>();
-        }
-        else
-        {
-            services.TryAddSingleton(TimeProvider.System);
-        }
+        // TimeProvider is the only clock the codebase may use (05-Conventions.md), and in every
+        // environment it is the real one (P11-01, D-182): tools/NcaafPickEm.Simulator moves the
+        // schedule - kickoffs, the lock, the calendar - never the clock. TryAdd so tests can
+        // register their own pinned clock before calling this.
+        services.TryAddSingleton(TimeProvider.System);
 
         // An unset connection string has to reach UseSqlServer as null, not "": empty throws at
         // registration, whereas null lets the app boot and /health/ready report the problem.
@@ -96,14 +89,29 @@ public static class DependencyInjection
         services.AddHostedService<DatabaseMigratorHostedService>();
 
         string referenceDataProvider = configuration["Providers:ReferenceData"] ?? string.Empty;
+        string liveScoreProvider = configuration["Providers:LiveScores"] ?? string.Empty;
 
-        // Season calendar (P0-05). Cfbd registers a scoped source over the ingested SeasonWeeks
+        // P11-01 (D-183): Providers:*=Simulator means tools/NcaafPickEm.Simulator owns the data in
+        // this database - it writes the calendar, games, rankings and lines, and applies scores -
+        // so the app ingests and polls nothing of its own. Development and Testing only.
+        bool simulatorOwnsReferenceData = IsSimulator(referenceDataProvider, "ReferenceData", environment);
+        LiveScoreSource liveScoreSource = ParseLiveScoreSource(liveScoreProvider, environment);
+
+        // Season calendar (P0-05). Cfbd and Simulator register a scoped source over the SeasonWeeks
         // table before the fixture one below; TryAddSingleton then no-ops, since a service
-        // descriptor for ISeasonWeekSource already exists.
+        // descriptor for ISeasonWeekSource already exists. The simulator rewrites that table from
+        // another process, so its cache is seconds rather than minutes.
         services.TryAddSingleton<SeasonCalendar>();
         if (string.Equals(referenceDataProvider, "Cfbd", StringComparison.OrdinalIgnoreCase))
         {
             services.TryAddScoped<ISeasonWeekSource, DbSeasonWeekSource>();
+        }
+        else if (simulatorOwnsReferenceData)
+        {
+            services.TryAddScoped<ISeasonWeekSource>(provider => new DbSeasonWeekSource(
+                provider.GetRequiredService<AppDbContext>(),
+                provider.GetRequiredService<TimeProvider>(),
+                DbSeasonWeekSource.SimulatorCacheDuration));
         }
 
         services.TryAddSingleton<ISeasonWeekSource, FixtureSeasonWeekSource>();
@@ -200,28 +208,38 @@ public static class DependencyInjection
         // run in Development against the fixture provider).
         services.TryAddScoped<ReferenceDataIngestService>();
 
-        string liveScoreProvider = configuration["Providers:LiveScores"] ?? string.Empty;
-        RegisterLiveScoreProvider(services, liveScoreProvider, environment);
+        RegisterLiveScoreProvider(services, liveScoreSource);
 
         // Provider data refresh jobs (P2-04). Cron times are Eastern, per AGENT-NOTES "Jobs".
         services.AddScoped<ScheduleRefreshRunner>();
         services.AddScoped<RankingsRefreshRunner>();
-        services.AddScheduledJob<TeamsRefreshJob>();
-        services.AddScheduledJob<ScheduleRefreshJob>();
-        services.AddScheduledJob<ScheduleRefreshDailyJob>();
-        services.AddScheduledJob<RankingsRefreshEveningJob>();
-        services.AddScheduledJob<RankingsRefreshTuesdayJob>();
-        services.AddScheduledJob<LinesRefreshJob>();
+        if (!simulatorOwnsReferenceData)
+        {
+            services.AddScheduledJob<TeamsRefreshJob>();
+            services.AddScheduledJob<ScheduleRefreshJob>();
+            services.AddScheduledJob<ScheduleRefreshDailyJob>();
+            services.AddScheduledJob<RankingsRefreshEveningJob>();
+            services.AddScheduledJob<RankingsRefreshTuesdayJob>();
+            services.AddScheduledJob<LinesRefreshJob>();
+        }
 
         // The Saturday live-score poller (P2-04): its own BackgroundService, gated on
-        // Jobs:Enabled like the cron scheduler, since it is not cron-driven itself.
-        services.AddHostedService<SaturdayPoller>();
+        // Jobs:Enabled like the cron scheduler, since it is not cron-driven itself. Under the
+        // simulator there is nothing to poll: the simulator applies its scores itself.
+        if (liveScoreSource != LiveScoreSource.Simulator)
+        {
+            services.AddHostedService<SaturdayPoller>();
+        }
 
         // P8-06: on a fresh database the earliest of those crons is next Tuesday, so the first
         // start fetches the calendar and the current week itself (D-164). No-op unless
-        // Providers:ReferenceData is Cfbd with jobs on, or Providers:BootstrapOnStartup says so.
+        // Providers:ReferenceData is Cfbd with jobs on, or Providers:BootstrapOnStartup says so;
+        // never under the simulator, which writes that data itself.
         services.TryAddScoped<ReferenceDataBootstrap>();
-        services.AddHostedService<ReferenceDataBootstrapHostedService>();
+        if (!simulatorOwnsReferenceData)
+        {
+            services.AddHostedService<ReferenceDataBootstrapHostedService>();
+        }
 
         services.TryAddScoped<FixtureSeeder>();
         services.AddHostedService<FixtureSeederHostedService>();
@@ -262,11 +280,15 @@ public static class DependencyInjection
             RegisterCfbdClient(services, configuration);
             services.TryAddSingleton<IReferenceDataProvider, CfbdReferenceDataProvider>();
         }
+        else if (IsSimulator(providerName, "ReferenceData", environment))
+        {
+            services.TryAddSingleton<IReferenceDataProvider, SimulatorOwnedReferenceDataProvider>();
+        }
         else
         {
             throw new InvalidOperationException(
                 $"Providers:ReferenceData '{providerName}' is not a recognized provider. " +
-                "Use 'Fixture' or 'Cfbd'.");
+                $"Use 'Fixture', 'Cfbd' or '{SimulatorProviderName}'.");
         }
     }
 
@@ -288,13 +310,8 @@ public static class DependencyInjection
         });
     }
 
-    private static void RegisterLiveScoreProvider(
-        IServiceCollection services,
-        string providerName,
-        IHostEnvironment environment)
+    private static void RegisterLiveScoreProvider(IServiceCollection services, LiveScoreSource configured)
     {
-        LiveScoreSource configured = ParseLiveScoreSource(providerName, environment);
-
         // Singleton: which source is answering, and whether the fallback has engaged, is per
         // process and per game day (04-Domain-Algorithms.md section 10).
         services.TryAddSingleton<ILiveScoreHealth>(provider =>
@@ -303,6 +320,13 @@ public static class DependencyInjection
         if (configured == LiveScoreSource.Fixture)
         {
             services.TryAddSingleton<ILiveScoreProvider, FixtureLiveScoreProvider>();
+            return;
+        }
+
+        if (configured == LiveScoreSource.Simulator)
+        {
+            // TryAdd: the simulator's own process registers its scoreboard feed first.
+            services.TryAddSingleton<ILiveScoreProvider, SimulatorOwnedLiveScoreProvider>();
             return;
         }
 
@@ -339,6 +363,11 @@ public static class DependencyInjection
             return LiveScoreSource.Fixture;
         }
 
+        if (IsSimulator(providerName, "LiveScores", environment))
+        {
+            return LiveScoreSource.Simulator;
+        }
+
         return providerName switch
         {
             "Fixture" => LiveScoreSource.Fixture,
@@ -346,7 +375,7 @@ public static class DependencyInjection
             "Cfbd" => LiveScoreSource.Cfbd,
             _ => throw new InvalidOperationException(
                 $"Providers:LiveScores '{providerName}' is not a recognized provider. " +
-                "Use 'Fixture', 'Espn' or 'Cfbd'."),
+                $"Use 'Fixture', 'Espn', 'Cfbd' or '{SimulatorProviderName}'."),
         };
     }
 
@@ -354,49 +383,24 @@ public static class DependencyInjection
         environment.IsDevelopment() || environment.IsEnvironment("Testing");
 
     /// <summary>
-    /// The dev clock, pre-shifted from configuration: <c>Clock:NowUtc</c> (any ISO 8601 instant)
-    /// makes the app boot believing it is that moment, and <c>Clock:Frozen=true</c> stops it
-    /// there. Both are optional; with neither the clock reads real time until
-    /// <c>PUT /api/admin/fixture/clock</c> moves it.
+    /// True when <paramref name="providerName"/> is <c>Simulator</c> (P11-01, D-183). Refused
+    /// outside Development and Testing: the mode hands the database to a tool that writes games,
+    /// scores and the calendar at will, which must never happen to a real league.
     /// </summary>
-    private static DevTimeProvider CreateDevClock(IServiceProvider services, IConfiguration configuration)
+    private static bool IsSimulator(string providerName, string key, IHostEnvironment environment)
     {
-        var clock = new DevTimeProvider();
-        ILogger logger = services.GetRequiredService<ILoggerFactory>().CreateLogger<DevTimeProvider>();
-
-        string? configuredNow = configuration["Clock:NowUtc"];
-        if (!string.IsNullOrWhiteSpace(configuredNow))
+        if (!string.Equals(providerName, SimulatorProviderName, StringComparison.OrdinalIgnoreCase))
         {
-            if (DateTimeOffset.TryParse(
-                    configuredNow,
-                    CultureInfo.InvariantCulture,
-                    DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-                    out DateTimeOffset nowUtc))
-            {
-                clock.SetNow(nowUtc);
-            }
-            else
-            {
-                logger.LogWarning(
-                    "Clock:NowUtc '{ConfiguredNow}' is not an ISO 8601 instant; the dev clock starts at real time",
-                    configuredNow);
-            }
+            return false;
         }
 
-        if (configuration.GetValue<bool>("Clock:Frozen"))
+        if (!IsDevelopmentOrTesting(environment))
         {
-            clock.Freeze();
+            throw new InvalidOperationException(
+                $"Providers:{key} is '{SimulatorProviderName}', which is only allowed in Development and " +
+                $"Testing (environment is '{environment.EnvironmentName}'): the simulator owns the data in its database.");
         }
 
-        if (clock.IsShifted)
-        {
-            logger.LogWarning(
-                "Dev clock is shifted: the app believes it is {AppNowUtc:o} (real {RealNowUtc:o}, frozen={Frozen})",
-                clock.GetUtcNow(),
-                clock.RealUtcNow,
-                clock.IsFrozen);
-        }
-
-        return clock;
+        return true;
     }
 }

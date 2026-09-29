@@ -1,0 +1,23 @@
+@inherits SessionComponent
+@* What the last button press did, pinned where the eye already is. *@
+
+@if (Session.LastLog is { } log && log != _dismissed && (log.Failed || Now - log.AtUtc < ShownFor))
+{
+    <div class="toast @(log.Failed ? "failed" : string.Empty)" role="status">
+        <div class="activity-head">
+            <strong>@log.Title</strong>
+            <button class="btn xs link" @onclick="() => _dismissed = log">dismiss</button>
+        </div>
+        @foreach (string line in log.Lines.Take(12))
+        {
+            <div class="small">@line</div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>A result that worked fades after this; a failure stays until dismissed.</summary>
+    private static readonly TimeSpan ShownFor = TimeSpan.FromSeconds(12);
+
+    private SimLog? _dismissed;
+}

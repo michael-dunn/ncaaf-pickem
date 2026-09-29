@@ -48,8 +48,8 @@ services:
       db:
         condition: service_healthy
     environment:
-      # Development, so DevAuthEndpoints (/auth/dev-login) and the fixture admin routes are
-      # mapped at all - they are deliberately absent in Production (ProductionBehaviourTests).
+      # Development, so DevAuthEndpoints (/auth/dev-login) is mapped at all - it is deliberately
+      # absent in Production (ProductionBehaviourTests).
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
       - ConnectionStrings__Default=Server=db,1433;Database=NcaafPickEm;User Id=sa;Password=Local_Dev_Passw0rd!;Encrypt=False;TrustServerCertificate=True;
@@ -59,10 +59,8 @@ services:
       - Providers__ReferenceData=Fixture
       - Providers__LiveScores=Fixture
       - Seed__DemoLeague=true
-      # P10-01: uncomment to boot already inside the fixture week (Wednesday Oct 14, 2026), or move the
-      # clock later from /admin/dev or PUT /api/admin/fixture/clock. Development only.
-      # - Clock__NowUtc=2026-10-14T16:00:00Z
-      # - Clock__Frozen=false
+      # To drive a week by hand, run the app against tools/NcaafPickEm.Simulator instead: see the
+      # README, "Simulating a week". The app itself always reads real time (P11-01, D-182).
       # On, so `docker compose logs api` shows the heartbeat and proves the in-process scheduler
       # really runs inside the container. Safe because every provider above is a fixture: no
       # scheduled job can reach CFBD, ESPN, or a push endpoint from here.

@@ -9,8 +9,8 @@ namespace NcaafPickEm.Infrastructure.Providers.Fixture;
 /// Live scores for the Week 7, 2026 sample week, read from
 /// <c>tests/NcaafPickEm.Fixtures/Data/Week7_2026/scores/snapshot-{n}.json</c>. Which snapshot (1
 /// through <see cref="FixtureSnapshotState.MaxSnapshot"/>) is served comes from
-/// <see cref="FixtureSnapshotState"/>, advanced either by a test hook or by
-/// <c>POST /api/admin/fixture/snapshot/{n}</c> in Development.
+/// <see cref="FixtureSnapshotState"/>, which the tests advance. Driving scores by hand in a
+/// running app is the simulator's job (tools/NcaafPickEm.Simulator, D-182).
 /// </summary>
 public sealed class FixtureLiveScoreProvider : ILiveScoreProvider
 {

@@ -1,0 +1,17 @@
+[
+  {
+    "Name": "App + Simulator",
+    "Projects": [
+      {
+        "Path": "src\\NcaafPickEm.Api\\NcaafPickEm.Api.csproj",
+        "Action": "Start",
+        "DebugTarget": "simulator"
+      },
+      {
+        "Path": "tools\\NcaafPickEm.Simulator\\NcaafPickEm.Simulator.csproj",
+        "Action": "Start",
+        "DebugTarget": "simulator"
+      }
+    ]
+  }
+]

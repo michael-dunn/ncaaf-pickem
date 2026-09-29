@@ -1,0 +1,49 @@
+@page "/"
+@inherits SessionComponent
+@* The dashboard. Everything on it acts on real time: kickoffs, the lock and the calendar move;
+   the clock never does. *@
+
+<PageTitle>Pick Em Simulator@(Week is int week ? $" - week {week}" : string.Empty)</PageTitle>
+
+<TopBar />
+<LastResult />
+
+@if (Snapshot is null)
+{
+    <p class="muted pad">Loading...</p>
+}
+else
+{
+    <main class="layout">
+        <div class="col-main">
+            @if (Snapshot.Leagues.Count == 0)
+            {
+                <SandboxCard />
+            }
+            <WeekCard />
+            <Scoreboard />
+            @foreach (SimLeagueView league in Snapshot.Leagues)
+            {
+                <LeagueCard League="league" @key="league.LeagueId" />
+            }
+        </div>
+        <aside class="col-side">
+            @if (Snapshot.Leagues.Count > 0)
+            {
+                <SandboxCard />
+            }
+            <SettingsCard />
+            <JobsCard />
+            <PollCard />
+            <ActivityFeed />
+        </aside>
+    </main>
+}
+
+@code {
+    /// <inheritdoc />
+    protected override async Task OnInitializedAsync()
+    {
+        await Session.StartAsync();
+    }
+}

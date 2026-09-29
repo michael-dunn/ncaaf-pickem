@@ -1,0 +1,75 @@
+@inherits SessionComponent
+@* Autoplay, and how new weeks are laid out. *@
+
+<section class="card">
+    <div class="card-head"><h2>Autoplay &amp; new weeks</h2></div>
+
+    <div class="inline-form">
+        <label class="check"><input type="checkbox" @bind="_autoPlay" /> Autoplay</label>
+        <label class="small">games last <input type="number" min="1" max="600" class="num" @bind="_gameMinutes" /> min</label>
+        <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SetAutoplayAsync(_autoPlay, _gameMinutes, token)))">Apply</button>
+        <span class="muted small">A real game is ~210 min. Live games re-plan from their current score, so nothing jumps.</span>
+    </div>
+
+    <div class="form-grid">
+        <label>New week: first kickoff in (min) <input type="number" min="1" class="num" @bind="_lockLead" /></label>
+        <label>Games per slate <input type="number" min="@SlateOptions.MinGames" max="@SlateOptions.MaxGames" class="num" @bind="_games" /></label>
+        <label>Games per kickoff window <input type="number" min="1" class="num" @bind="_perSlot" /></label>
+        <label>Minutes between windows <input type="number" min="1" class="num" @bind="_slotMinutes" /></label>
+        <label class="check"><input type="checkbox" @bind="_fcs" /> include an FCS game</label>
+        <label class="check"><input type="checkbox" @bind="_offDay" /> include an off-day game</label>
+    </div>
+    <div class="btn-row">
+        <button class="btn" disabled="@Busy" @onclick="SaveWeekDefaultsAsync">Save new-week defaults</button>
+        <span class="muted small">Used by "Next week", "Start week N", "New slate" and "Play out".</span>
+    </div>
+</section>
+
+@code {
+    private bool _seeded;
+    private bool _autoPlay;
+    private int _gameMinutes;
+    private int _lockLead;
+    private int _games;
+    private int _perSlot;
+    private int _slotMinutes;
+    private bool _fcs;
+    private bool _offDay;
+
+    /// <inheritdoc />
+    protected override void OnParametersSet() => Seed();
+
+    /// <inheritdoc />
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (!_seeded && Snapshot is not null)
+        {
+            Seed();
+            StateHasChanged();
+        }
+    }
+
+    private void Seed()
+    {
+        if (_seeded || Snapshot?.Settings is not { } settings)
+        {
+            return;
+        }
+
+        _seeded = true;
+        _autoPlay = settings.AutoPlay;
+        _gameMinutes = settings.GameMinutes;
+        _lockLead = settings.LockLeadMinutes;
+        _games = settings.Slate.GameCount;
+        _perSlot = settings.Slate.GamesPerSlot;
+        _slotMinutes = settings.Slate.SlotMinutes;
+        _fcs = settings.Slate.IncludeFcsGame;
+        _offDay = settings.Slate.IncludeOffDayGame;
+    }
+
+    private Task SaveWeekDefaultsAsync()
+    {
+        var slate = new SlateOptions(_games, _slotMinutes, _perSlot, _fcs, _offDay);
+        return Run((world, token) => world.SetWeekDefaultsAsync(_lockLead, slate, token));
+    }
+}

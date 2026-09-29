@@ -21,6 +21,7 @@
 | `src/NcaafPickEm.Api/Endpoints/<Feature>Endpoints.cs` | the backend task |
 | `src/NcaafPickEm.Web/Pages/<Feature>/` | the frontend task |
 | `src/NcaafPickEm.Infrastructure/Data/Migrations/` | append-only; never edit another task's migration. Rebase conflicts by regenerating your own migration. |
+| `tools/NcaafPickEm.Simulator/` | the simulator task; it may call any Infrastructure service but nothing under `src/` may reference it (P11-01) |
 | `Program.cs`, `DbContext`, `app.css`, `service-worker.js` | shared hot spots. Make the smallest possible edit, commit it alone, and post in STATUS.md that you touched it. |
 
 ## Testing

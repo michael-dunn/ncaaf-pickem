@@ -1,0 +1,53 @@
+@inherits SessionComponent
+@* A hand-picked game for the current week. It joins no set on its own: the commissioner adds it in
+   the app, or a regeneration picks it up if the rules want it. *@
+
+<div class="editor">
+    <div class="inline-form">
+        <label class="small">Away
+            <select @bind="_away">
+                <option value="@Guid.Empty">choose</option>
+                @foreach (IGrouping<string, SimTeamOption> conference in Session.Teams.GroupBy(team => team.Conference))
+                {
+                    <optgroup label="@conference.Key">
+                        @foreach (SimTeamOption team in conference)
+                        {
+                            <option value="@team.TeamId">@team.School</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+        </label>
+        <span class="muted">at</span>
+        <label class="small">Home
+            <select @bind="_home">
+                <option value="@Guid.Empty">choose</option>
+                @foreach (IGrouping<string, SimTeamOption> conference in Session.Teams.GroupBy(team => team.Conference))
+                {
+                    <optgroup label="@conference.Key">
+                        @foreach (SimTeamOption team in conference)
+                        {
+                            <option value="@team.TeamId">@team.School</option>
+                        }
+                    </optgroup>
+                }
+            </select>
+        </label>
+    </div>
+    <div class="inline-form">
+        <label class="small">Kickoff, minutes after the first <input type="number" class="num" @bind="_minutes" /></label>
+        <label class="small">Home line <input type="number" step="0.5" class="num" @bind="_spread" /></label>
+        <label class="check small"><input type="checkbox" @bind="_saturday" /> Saturday game</label>
+        <button class="btn primary xs" disabled="@(Busy || _home == Guid.Empty || _away == Guid.Empty || _home == _away)"
+                @onclick="@(() => Run((world, token) => world.AddGameAsync(_home, _away, _minutes, _spread, _saturday, token)))">Add game</button>
+    </div>
+    <p class="muted small">Teams already playing this week are refused. The game is in no set until a commissioner adds it on the app's week games page, or RegenerateGameSets takes it.</p>
+</div>
+
+@code {
+    private Guid _home;
+    private Guid _away;
+    private int _minutes = 30;
+    private decimal? _spread = -3.5m;
+    private bool _saturday = true;
+}

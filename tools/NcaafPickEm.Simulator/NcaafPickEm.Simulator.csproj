@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!--
+    The simulator (P11-01, Implementation/Phases/Phase-11-Simulator.md): a separate Blazor Server
+    website that plays the outside world for a Development copy of the app - the data provider,
+    the scoreboard, the calendar, the other players, and the scheduler's "it is Friday now".
+
+    It shares the app's database and composes the app's own Infrastructure services, so every
+    rule and domain event behaves exactly as it does in the app. It is not part of the app: it
+    lives under tools/, the Dockerfile never copies it, and it refuses to start outside
+    Development.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- SeasonCalendar resolves America/New_York, which needs ICU (same as the Api). -->
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <UserSecretsId>ncaaf-pickem-simulator</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\NcaafPickEm.Infrastructure\NcaafPickEm.Infrastructure.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Catalog\teams.json" />
+    <Content Remove="Catalog\teams.json" />
+  </ItemGroup>
+
+</Project>

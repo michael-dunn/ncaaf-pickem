@@ -19,4 +19,10 @@ public enum LiveScoreSource
 
     /// <summary>CollegeFootballData's games endpoint: Scheduled or Final only.</summary>
     Cfbd = 2,
+
+    /// <summary>
+    /// <c>tools/NcaafPickEm.Simulator</c> applies scores itself; the app polls nothing
+    /// (P11-01, D-183). Development and Testing only.
+    /// </summary>
+    Simulator = 3,
 }

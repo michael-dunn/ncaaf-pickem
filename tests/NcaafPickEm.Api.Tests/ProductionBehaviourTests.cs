@@ -52,7 +52,7 @@ public sealed class ProductionBehaviourTests : IAsyncLifetime
         patterns.Should().NotContain("auth/dev-login", "dev-login signs in as a fixture user with no tailnet identity");
         patterns.Should().NotContain(
             pattern => pattern.StartsWith("api/admin/fixture", StringComparison.Ordinal),
-            "the fixture snapshot controls step live scores by hand");
+            "the development tools live in tools/NcaafPickEm.Simulator, outside the app (D-182)");
         patterns.Should().NotContain("api/push/test", "the push test route is a Development affordance");
 
         // The real routes are still there, so the assertions above are not passing vacuously.

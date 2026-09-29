@@ -1,6 +1,6 @@
 # Phase 10 - Development tooling: movable clock and demo-week controls
 
-Status: Implemented 2026-09-21 (P10-01 on `p10-01-dev-clock`).
+Status: Implemented 2026-09-21 (P10-01 on `p10-01-dev-clock`). **Superseded 2026-09-28 by Phase 11** (`Phase-11-Simulator.md`, D-182): the dev clock, the demo-week and fixture routes and the Dev tools page were removed; the app always runs on real time and `tools/NcaafPickEm.Simulator` moves the schedule instead.
 
 Goals (from the owner):
 1. Test picks, the lock, live scores and results from a browser this week, without a tailnet and

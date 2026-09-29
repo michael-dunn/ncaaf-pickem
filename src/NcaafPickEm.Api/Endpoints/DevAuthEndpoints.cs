@@ -9,18 +9,28 @@ using NcaafPickEm.Infrastructure.Data;
 namespace NcaafPickEm.Api.Endpoints;
 
 /// <summary>
-/// Signs in as one of the fixture demo users without a tailnet, so a UI or manual check can run
-/// against a full week of fixture data from a plain browser (P2-05).
+/// Signs in as a fixture demo user or a simulator player without a tailnet, so a UI or manual
+/// check can run from a plain browser (P2-05, P11-01).
 /// </summary>
 /// <remarks>
-/// Mapped only in Development (<see cref="EndpointMapping"/>). Looks up
-/// <c>Users.ExternalSubject = "fixture:{user}"</c> — the same rows <c>FixtureSeeder</c> creates when
-/// <c>Seed:DemoLeague</c> is true — and issues the cookie principal
+/// Mapped only in Development and Testing (<see cref="EndpointMapping"/>). Looks up
+/// <c>Users.ExternalSubject = "fixture:{user}"</c> — the rows <c>FixtureSeeder</c> creates when
+/// <c>Seed:DemoLeague</c> is true — and then <c>"sim:{user}"</c>, the players
+/// <c>tools/NcaafPickEm.Simulator</c> creates. Either way it issues the cookie principal
 /// <see cref="ExternalSignInService.CreatePrincipal"/> builds, so every downstream authorization
-/// check behaves exactly as it does for a request carrying a Tailscale identity header.
+/// check behaves exactly as it does for a request carrying a Tailscale identity header. Only
+/// those two prefixes are ever looked up, so no real Tailscale login can be signed in as.
 /// </remarks>
 public static class DevAuthEndpoints
 {
+    /// <summary>Subject prefix of the users <c>FixtureSeeder</c> creates.</summary>
+    public const string FixtureSubjectPrefix = "fixture:";
+
+    /// <summary>Subject prefix of the players the simulator creates (D-184).</summary>
+    public const string SimulatorSubjectPrefix = "sim:";
+
+    private static readonly string[] FixtureUserNames = ["michael", "alyson", "dance", "alex", "daniel"];
+
     /// <summary>Maps <c>GET /auth/dev-login</c>.</summary>
     public static IEndpointRouteBuilder MapDevAuthEndpoints(this IEndpointRouteBuilder builder)
     {
@@ -48,20 +58,26 @@ public static class DevAuthEndpoints
         {
             return TypedResults.BadRequest(
                 "Pass ?user=<name>, e.g. /auth/dev-login?user=michael. " +
-                $"Fixture demo users: {string.Join(", ", FixtureUserNames)}.");
+                $"Fixture demo users: {string.Join(", ", FixtureUserNames)}; simulator players by their first name.");
         }
 
-        string subject = $"fixture:{user.Trim().ToLowerInvariant()}";
+        string name = user.Trim().ToLowerInvariant();
+        string fixtureSubject = FixtureSubjectPrefix + name;
+        string simulatorSubject = SimulatorSubjectPrefix + name;
 
+        // Fixture first, so a database holding both kinds signs in the way it always has.
         User? account = await database.Users
-            .FirstOrDefaultAsync(candidate => candidate.ExternalSubject == subject, cancellationToken);
+            .Where(candidate => candidate.ExternalSubject == fixtureSubject || candidate.ExternalSubject == simulatorSubject)
+            .OrderBy(candidate => candidate.ExternalSubject == fixtureSubject ? 0 : 1)
+            .FirstOrDefaultAsync(cancellationToken);
 
         if (account is null)
         {
             return TypedResults.NotFound(
-                $"No fixture user '{user}'. Set Providers__ReferenceData=Fixture and Seed__DemoLeague=true " +
-                "and restart so FixtureSeeder creates the demo league members, or pass one of: " +
-                $"{string.Join(", ", FixtureUserNames)}.");
+                $"No fixture or simulator user '{user}'. For the fixture demo league set " +
+                "Providers__ReferenceData=Fixture and Seed__DemoLeague=true and restart (users: " +
+                $"{string.Join(", ", FixtureUserNames)}); for a simulated league create the player in " +
+                "tools/NcaafPickEm.Simulator first.");
         }
 
         await httpContext.SignInAsync(
@@ -71,6 +87,4 @@ public static class DevAuthEndpoints
 
         return TypedResults.Redirect(ReturnUrl.Sanitize(returnUrl));
     }
-
-    private static readonly string[] FixtureUserNames = ["michael", "alyson", "dance", "alex", "daniel"];
 }

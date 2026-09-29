@@ -1,0 +1,29 @@
+@inherits SessionComponent
+@* Every action's log, newest first - including the app's own refusals (a pick after the lock, a
+   frozen regenerate), which are the point, not errors. *@
+
+<section class="card">
+    <div class="card-head"><h2>Activity</h2></div>
+    @if (Session.Activity.Count == 0)
+    {
+        <p class="muted">Nothing yet.</p>
+    }
+    else
+    {
+        <ul class="activity">
+            @foreach (SimLog log in Session.Activity.Take(60))
+            {
+                <li class="@(log.Failed ? "failed" : string.Empty)">
+                    <div class="activity-head">
+                        <strong>@log.Title</strong>
+                        <span class="muted small">@SimFormat.Local(log.AtUtc)</span>
+                    </div>
+                    @foreach (string line in log.Lines)
+                    {
+                        <div class="small">@line</div>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</section>

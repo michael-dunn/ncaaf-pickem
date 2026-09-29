@@ -1,0 +1,192 @@
+@inherits SessionComponent
+@* One game: kickoff with nudges, the matchup and its flags, the line, how many sets hold it, the
+   scoreboard with the controls its status allows, and autoplay's target. The editor row holds the
+   rarer changes. *@
+
+<tr class="@RowClass">
+    <td class="nowrap">
+        <div>@SimFormat.Eastern(Game.KickoffUtc)</div>
+        <div class="muted small">@SimFormat.Relative(Game.KickoffUtc, Now)</div>
+        @if (Game.Status == GameStatus.Scheduled)
+        {
+            <div class="btn-row tight">
+                <button class="btn xs" disabled="@Busy" title="5 minutes earlier" @onclick="@(() => Move(-5))">-5m</button>
+                <button class="btn xs" disabled="@Busy" title="5 minutes later" @onclick="@(() => Move(5))">+5m</button>
+                <button class="btn xs" disabled="@Busy" title="An hour later" @onclick="@(() => Move(60))">+1h</button>
+            </div>
+        }
+    </td>
+    <td>
+        <div class="matchup">
+            <span class="team">@Game.Away.Label</span>
+            <span class="muted">at</span>
+            <span class="team">@Game.Home.Label</span>
+        </div>
+        <div class="badges">
+            @if (Game.IsConferenceGame)
+            {
+                <span class="badge">conf @Game.Home.Conference</span>
+            }
+            @if (!Game.IsSaturday)
+            {
+                <span class="badge warn" title="Stored as not a Saturday game: set generation must leave it out">off-day</span>
+            }
+            @if (!Game.Home.IsFbs || !Game.Away.IsFbs)
+            {
+                <span class="badge warn" title="An FCS team: set generation must leave it out">FCS</span>
+            }
+        </div>
+    </td>
+    <td class="nowrap">@SimFormat.Spread(Game.Spread, Game.Home.Short, Game.Away.Short)</td>
+    <td>
+        @if (Game.SetCount > 0)
+        {
+            <span class="badge ok">in @Game.SetCount</span>
+        }
+        else
+        {
+            <span class="badge muted-badge">no set</span>
+        }
+    </td>
+    <td>
+        <div class="scoreline">
+            <span class="pill @Game.Status.ToString().ToLowerInvariant()">@StatusText</span>
+            @if (Game.HomeScore is not null || Game.AwayScore is not null)
+            {
+                <strong>@Game.Away.Short @(Game.AwayScore ?? 0) &ndash; @(Game.HomeScore ?? 0) @Game.Home.Short</strong>
+            }
+        </div>
+        <div class="btn-row tight">
+            @switch (Game.Status)
+            {
+                case GameStatus.Scheduled:
+                    <button class="btn xs primary" disabled="@Busy" title="Kickoff moves to now (and the lock too, if this is a set's first game)" @onclick="@(() => Run((world, token) => world.KickOffAsync(Game.GameId, token)))">Kick off</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Disrupt(GameStatus.Postponed))">Postpone</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Disrupt(GameStatus.Cancelled))">Cancel</button>
+                    break;
+                case GameStatus.InProgress:
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Score(false, 7))">@Game.Away.Short +7</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Score(false, 3))">+3</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Score(true, 7))">@Game.Home.Short +7</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Score(true, 3))">+3</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.NextQuarterAsync(Game.GameId, token)))">Next Q</button>
+                    <button class="btn xs primary" disabled="@Busy" @onclick="@(() => Run((world, token) => world.FinalAsync(Game.GameId, token)))">Final</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Disrupt(GameStatus.Postponed))">Suspend</button>
+                    break;
+                case GameStatus.Final:
+                    <button class="btn xs" disabled="@Busy" title="Back to Q4 2:00; the week is rescored" @onclick="@(() => Run((world, token) => world.ReopenAsync(Game.GameId, token)))">Reopen</button>
+                    break;
+                default:
+                    <button class="btn xs primary" disabled="@Busy" @onclick="@(() => Disrupt(GameStatus.Scheduled))">Restore</button>
+                    break;
+            }
+        </div>
+    </td>
+    <td>
+        @if (Game.Plan is { } plan)
+        {
+            <label class="check small" title="Autoplay plays this game toward its target">
+                <input type="checkbox" checked="@plan.Auto" disabled="@Busy"
+                       @onchange="@(args => Run((world, token) => world.SetGameAutoAsync(Game.GameId, args.Value is true, token)))" />
+                &rarr; @Game.Away.Short @plan.TargetAway &ndash; @plan.TargetHome @Game.Home.Short
+            </label>
+        }
+    </td>
+    <td>
+        <button class="btn xs link" @onclick="() => _editing = !_editing">@(_editing ? "close" : "edit")</button>
+    </td>
+</tr>
+
+@if (_editing)
+{
+    <tr class="editor-row">
+        <td colspan="7">
+            <div class="editor">
+                <div class="inline-form">
+                    <span class="small">Final score &rarr;</span>
+                    <input type="number" min="0" class="num" @bind="_away" aria-label="Away points" /> <span class="small">@Game.Away.Short</span>
+                    <input type="number" min="0" class="num" @bind="_home" aria-label="Home points" /> <span class="small">@Game.Home.Short</span>
+                    <button class="btn xs" disabled="@Busy" title="Autoplay heads there from the current score (a tie is allowed)" @onclick="@(() => Run((world, token) => world.SetTargetAsync(Game.GameId, _home, _away, token)))">Autoplay to it</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SetScoreAsync(Game.GameId, _home, _away, false, token)))">Set live</button>
+                    <button class="btn xs primary" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SetScoreAsync(Game.GameId, _home, _away, true, token)))">Set final</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => { _home = _away = Math.Max(_home, _away); })">make it a tie</button>
+                </div>
+                <div class="inline-form">
+                    <span class="small">Line (home, negative = home favoured)</span>
+                    <input type="number" step="0.5" class="num" @bind="_spread" aria-label="Home spread" />
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SetSpreadAsync(Game.GameId, _spread, token)))">Post line</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SetSpreadAsync(Game.GameId, null, token)))">No line</button>
+                </div>
+                <div class="inline-form">
+                    <span class="small">Kickoff (Eastern)</span>
+                    <input type="datetime-local" @bind="_kickoffEastern" aria-label="Kickoff, Eastern" />
+                    <button class="btn xs" disabled="@Busy" @onclick="SetKickoffAsync">Set kickoff</button>
+                </div>
+                <div class="inline-form">
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SetGameFlagsAsync(Game.GameId, !Game.IsConferenceGame, null, token)))">@(Game.IsConferenceGame ? "Not a conference game" : "Make it a conference game")</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.SetGameFlagsAsync(Game.GameId, null, !Game.IsSaturday, token)))">@(Game.IsSaturday ? "Make it an off-day game" : "Make it a Saturday game")</button>
+                    <button class="btn xs" disabled="@Busy" @onclick="@(() => Run((world, token) => world.ResetGameAsync(Game.GameId, token)))">Reset to scheduled</button>
+                    @if (Game.SetCount == 0)
+                    {
+                        <button class="btn xs danger" disabled="@Busy" @onclick="@(() => Run((world, token) => world.DeleteGameAsync(Game.GameId, token)))">Delete game</button>
+                    }
+                </div>
+            </div>
+        </td>
+    </tr>
+}
+
+@code {
+    private bool _editing;
+    private bool _seeded;
+    private int _home;
+    private int _away;
+    private decimal? _spread;
+    private DateTime _kickoffEastern;
+
+    /// <summary>The game to show.</summary>
+    [Parameter, EditorRequired]
+    public SimGameView Game { get; set; } = default!;
+
+    private string RowClass => Game.Status switch
+    {
+        GameStatus.InProgress => "live",
+        GameStatus.Final => "final",
+        GameStatus.Postponed or GameStatus.Cancelled => "disrupted",
+        _ => Game.IsEligible ? string.Empty : "ineligible",
+    };
+
+    private string StatusText => Game.Status switch
+    {
+        GameStatus.InProgress => $"Q{Game.Period} {Game.Clock}",
+        GameStatus.Scheduled => "Scheduled",
+        _ => Game.Status.ToString(),
+    };
+
+    /// <inheritdoc />
+    protected override void OnParametersSet()
+    {
+        if (_seeded && _editing)
+        {
+            return;
+        }
+
+        _seeded = true;
+        _home = Game.HomeScore ?? Game.Plan?.TargetHome ?? 0;
+        _away = Game.AwayScore ?? Game.Plan?.TargetAway ?? 0;
+        _spread = Game.Spread;
+        _kickoffEastern = SeasonCalendar.ToEastern(Game.KickoffUtc).DateTime;
+    }
+
+    private Task Move(int minutes) => Run((world, token) => world.MoveKickoffAsync(Game.GameId, TimeSpan.FromMinutes(minutes), token));
+
+    private Task Score(bool home, int points) => Run((world, token) => world.ScoreAsync(Game.GameId, home, points, token));
+
+    private Task Disrupt(GameStatus status) => Run((world, token) => world.SetDisruptionAsync(Game.GameId, status, token));
+
+    private Task SetKickoffAsync()
+    {
+        DateTimeOffset kickoff = SeasonCalendar.ToUtc(_kickoffEastern);
+        return Run((world, token) => world.SetKickoffAsync(Game.GameId, kickoff, token));
+    }
+}

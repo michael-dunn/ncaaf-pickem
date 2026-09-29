@@ -1,0 +1,51 @@
+@inherits SessionComponent
+@* This week's AP Top 25, which the Top 25 rule reads on the next generation. *@
+
+<section class="card">
+    <div class="card-head">
+        <h2>AP poll @(Week is int week ? $"- week {week}" : string.Empty)</h2>
+        <span class="muted small">Rules read it on the next regeneration (run RegenerateGameSets).</span>
+    </div>
+
+    @if (Snapshot is { Poll.Count: > 0 } shot)
+    {
+        <ol class="poll">
+            @foreach (SimRankView rank in shot.Poll)
+            {
+                <li>
+                    <span class="poll-rank">@rank.Rank</span>
+                    <span class="poll-team" title="@rank.School">@rank.School</span>
+                    <span class="btn-row tight">
+                        <button class="btn xs" disabled="@(Busy || rank.Rank == 1)" title="Up one" @onclick="@(() => SetRank(rank.TeamId, rank.Rank - 1))">&uarr;</button>
+                        <button class="btn xs" disabled="@(Busy || rank.Rank == shot.Poll.Count)" title="Down one" @onclick="@(() => SetRank(rank.TeamId, rank.Rank + 1))">&darr;</button>
+                        <button class="btn xs" disabled="@Busy" title="Out of the poll" @onclick="@(() => SetRank(rank.TeamId, null))">&times;</button>
+                    </span>
+                </li>
+            }
+        </ol>
+    }
+    else
+    {
+        <p class="muted">No poll this week.</p>
+    }
+
+    <div class="inline-form">
+        <select @bind="_team" aria-label="Team to rank">
+            <option value="@Guid.Empty">rank a team...</option>
+            @foreach (SimTeamOption team in Session.Teams.Where(team => team.Conference != "FCS").OrderBy(team => team.School, StringComparer.Ordinal))
+            {
+                <option value="@team.TeamId">@team.School</option>
+            }
+        </select>
+        <span class="small">at #</span>
+        <input type="number" min="1" max="25" class="num" @bind="_rank" aria-label="Rank" />
+        <button class="btn xs" disabled="@(Busy || _team == Guid.Empty)" @onclick="@(() => SetRank(_team, _rank))">Set</button>
+    </div>
+</section>
+
+@code {
+    private Guid _team;
+    private int _rank = 10;
+
+    private Task SetRank(Guid teamId, int? rank) => Run((world, token) => world.SetRankAsync(teamId, rank, token));
+}

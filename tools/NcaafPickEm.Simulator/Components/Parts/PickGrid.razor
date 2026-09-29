@@ -1,0 +1,89 @@
+@inherits SessionComponent
+@* Everybody's picks for the week, one click to change anyone's. Before the lock each cell is two
+   buttons (the member's side highlighted); after it the grid is read-only and, once games finish,
+   right and wrong picks are marked. *@
+
+@if (League.Set is { } set && Snapshot is { } shot)
+{
+    <details class="pick-grid" open>
+        <summary>Pick grid @(set.IsFrozen ? "(locked: read-only)" : "(click a team to pick it for that member)")</summary>
+        <div class="table-wrap">
+            <table class="grid picks">
+                <thead>
+                    <tr>
+                        <th>Game</th>
+                        <th>Pts</th>
+                        @foreach (SimMemberView member in League.Members)
+                        {
+                            <th class="member-col">@member.Name</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (SimSetGameView row in set.ActiveGames)
+                    {
+                        SimGameView? game = shot.Games.FirstOrDefault(candidate => candidate.GameId == row.GameId);
+                        if (game is null)
+                        {
+                            continue;
+                        }
+
+                        Guid? winner = Winner(game);
+                        <tr>
+                            <td class="nowrap">
+                                <span>@game.Away.Short at @game.Home.Short</span>
+                                <span class="muted small">@SimFormat.Spread(game.Spread, game.Home.Short, game.Away.Short)</span>
+                            </td>
+                            <td>@row.PointValue</td>
+                            @foreach (SimMemberView member in League.Members)
+                            {
+                                Guid? picked = member.Picks.TryGetValue(game.GameId, out Guid team) ? team : null;
+                                <td class="pick-cell">
+                                    @if (set.IsFrozen)
+                                    {
+                                        @if (picked is Guid choice)
+                                        {
+                                            <span class="pick @Outcome(choice, winner)">@(choice == game.Home.TeamId ? game.Home.Short : game.Away.Short)</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="pick none">-</span>
+                                        }
+                                    }
+                                    else
+                                    {
+                                        <button class="side @(picked == game.Away.TeamId ? "on" : string.Empty)" disabled="@Busy"
+                                                @onclick="@(() => Pick(member, game, game.Away.TeamId))">@game.Away.Short</button>
+                                        <button class="side @(picked == game.Home.TeamId ? "on" : string.Empty)" disabled="@Busy"
+                                                @onclick="@(() => Pick(member, game, game.Home.TeamId))">@game.Home.Short</button>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </details>
+}
+
+@code {
+    /// <summary>The league whose picks to show.</summary>
+    [Parameter, EditorRequired]
+    public SimLeagueView League { get; set; } = default!;
+
+    private Task Pick(SimMemberView member, SimGameView game, Guid teamId) =>
+        Run((world, token) => world.SetPickAsync(member.MembershipId, game.GameId, teamId, token));
+
+    private static Guid? Winner(SimGameView game) =>
+        game is { Status: GameStatus.Final, HomeScore: int home, AwayScore: int away } && home != away
+            ? home > away ? game.Home.TeamId : game.Away.TeamId
+            : null;
+
+    private static string Outcome(Guid choice, Guid? winner) => winner switch
+    {
+        null => "pending",
+        _ when winner == choice => "right",
+        _ => "wrong",
+    };
+}

@@ -126,6 +126,24 @@ public sealed class RouteInventoryTests
     }
 
     [Fact]
+    public void GivenTheTestingHost_WhenInventoried_ThenNoDevelopmentToolIsMappedInTheApp()
+    {
+        // Testing maps everything Development does, so this is the environment in which the
+        // Phase 10 clock, demo-week and fixture-snapshot routes used to exist. P11-01 moved every
+        // one of them into tools/NcaafPickEm.Simulator (D-182); dev-login is the only
+        // Development-only route the app keeps.
+        string[] offenders =
+        [
+            .. RouteFact.From(_fixture.Factory.Services)
+                .Where(route => route.Pattern.StartsWith("api/admin/fixture", StringComparison.Ordinal)
+                    || route.Pattern.StartsWith("api/admin/dev", StringComparison.Ordinal))
+                .Select(route => route.Describe())
+        ];
+
+        offenders.Should().BeEmpty("the simulator owns the development tools; the app maps none of them");
+    }
+
+    [Fact]
     public void GivenTheMappedEndpoints_WhenInventoried_ThenEveryContractRouteIsPresent()
     {
         HashSet<string> mapped = new(
