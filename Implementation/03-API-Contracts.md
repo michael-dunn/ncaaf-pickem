@@ -39,7 +39,7 @@ Development and Testing map no development tools under `/api` any more: the P2-0
 | Method | Route | Scope | Request / Response |
 |---|---|---|---|
 | POST | `/api/leagues` | Auth | `CreateLeagueRequest { Name, SeasonYear, FirstWeek?, LastWeek? }` -> `LeagueDetail` |
-| GET | `/api/leagues` | Auth | `LeagueSummary[] { LeagueId, Name, SeasonYear, MyRole, CurrentWeek, MyCurrentWeekStatus }` |
+| GET | `/api/leagues` | Auth | `LeagueSummary[] { LeagueId, Name, SeasonYear, MyRole, CurrentWeek, MyCurrentWeekStatus, Landing }`. `Landing` (`LeagueLanding`: `LeagueHome`, `Picks`, `Dashboard`, `Leaderboard`) is the screen the app opens that league on, per 04-Domain-Algorithms section 12 (P1-04, D-187); `MeResponse.Leagues` carries it too. |
 | GET | `/api/leagues/{leagueId}` | Member | `LeagueDetail { LeagueId, Name, SeasonYear, FirstWeek, LastWeek, DefaultPointValue, CurrentWeek, IsComplete, MyRole, MyCurrentWeekStatus, CurrentWeekLockAtUtc?, LockAtEasternDisplay? }` |
 | PUT | `/api/leagues/{leagueId}/settings` | Commish | `UpdateLeagueSettingsRequest { Name, FirstWeek, LastWeek, DefaultPointValue }` |
 | GET | `/api/leagues/{leagueId}/members` | Member | `MemberRow[] { MembershipId, DisplayName, Role, JoinedWeek, IsFormer, CurrentWeekStatus?, IsMe }` (status only populated for Commish callers; `IsMe` added P1-03, additive) |

@@ -200,3 +200,17 @@ Owner: `Infrastructure/Jobs/ReminderJobs`. Tests: `ReminderJobTests`.
 - Once-per-week guarantee via the `NotificationLog` filtered unique index; a duplicate insert = Skipped.
 - Event-driven: `GameAddedToSet` (only to members who were Submitted) and `GameRemovedFromSet` (only to members with a pick on that game) send immediately, coalescing multiple adds in one regeneration into one "N new games" message.
 - Delivery: 404/410 deletes the subscription (Result = Expired). Other failures retry 3 times over 15 minutes with backoff, then Failed.
+
+## 12. League landing screen (owner request, P1-04, D-187)
+
+Owner: `Leagues/LeagueLandingRule`. Tests: `LeagueLandingRuleTests` (rule), `SeasonCalendarTests` (opening day), `LeagueLandingTests` (API wiring).
+
+`Choose(nowUtc, weeks, firstWeek, lastWeek, currentSet?, previousSet?)` returns the `LeagueLanding` the app opens a league on. `currentSet` is the league's `WeekGameSets` row for the calendar's current week, `previousSet` the row for the week before it. First match wins:
+
+1. The league's last week has closed (`SeasonCalendar.LeagueIsCompleteAt`) -> `Leaderboard` (the season leaderboard is final).
+2. The calendar's current week is before the league's first week -> `LeagueHome` ("Season starts Week N on <date>"; no picks page yet).
+3. `currentSet` is frozen (`WeekGameSetLockGuard.IsFrozen`: locked, or its lock instant has passed) -> `Leaderboard` if `IsComplete` (every game final or void), else `Dashboard`.
+4. `previousSet` has locked and now is the current week's opening day (`SeasonCalendar.IsOpeningDayAt`: same Eastern calendar date as the window's start, i.e. the Sunday) -> `Leaderboard`.
+5. Otherwise -> `Picks` (including a week with no set yet; the picks page shows its own empty state).
+
+With no calendar ingested (`weeks` empty) rules 1, 2 and 4 cannot apply and the set alone decides. The client maps `Picks` and `Dashboard` to the current week's tab routes, `Leaderboard` to `/leagues/{id}/leaderboard`, and `LeagueHome` to `/leagues/{id}` (`Web/Services/LeagueLandingRoute`).

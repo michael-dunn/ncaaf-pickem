@@ -48,6 +48,17 @@ Deliverables
 Done when
 - `DisplayNameTests`: length bounds, per-league uniqueness, projection helper used by members endpoint.
 
+## P1-04 Open a league on its landing screen
+Tier: Opus. Depends on: P1-02, P4-02, P5-01. Added 2026-09-28 at the owner's request, after Phase 11.
+
+Deliverables
+- `Domain/Leagues/LeagueLandingRule` (04-Domain-Algorithms section 12, D-187) and `SeasonCalendar.IsOpeningDayAt`; `LeagueSummary.Landing` filled by `LeagueService.ListMineAsync`.
+- Entering the app at `/` with exactly one league opens that league's landing screen: Picks before the lock, the Dashboard after it, the Leaderboard once the week's games are done and on the Sunday after a played week. Every league card on the picker opens its landing screen; a later in-app tap back to `/` still shows the picker (`Web/Services/AppEntry`).
+- The top bar's league name links to the league home.
+
+Done when
+- `LeagueLandingRuleTests`, the opening-day cases in `SeasonCalendarTests`, and `LeagueLandingTests` pass.
+
 ---
 
 ## Phase exit criteria
