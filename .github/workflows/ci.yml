@@ -70,3 +70,10 @@ jobs:
         env:
           TEST_SQL_CONNECTION: Server=localhost,1433;User Id=sa;Password=${{ env.SA_PASSWORD }};Encrypt=False;TrustServerCertificate=True
         run: dotnet test tests/NcaafPickEm.Api.Tests -c Release --no-build
+
+      - name: Simulator tests
+        # tools/NcaafPickEm.Simulator's engine and the app in Simulator mode (P11-01). One throwaway
+        # database per test, through the same server-level TEST_SQL_CONNECTION.
+        env:
+          TEST_SQL_CONNECTION: Server=localhost,1433;User Id=sa;Password=${{ env.SA_PASSWORD }};Encrypt=False;TrustServerCertificate=True
+        run: dotnet test tests/NcaafPickEm.Simulator.Tests -c Release --no-build

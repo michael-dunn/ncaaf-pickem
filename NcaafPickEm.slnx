@@ -10,6 +10,7 @@
     <Project Path="tests/NcaafPickEm.Api.Tests/NcaafPickEm.Api.Tests.csproj" />
     <Project Path="tests/NcaafPickEm.Domain.Tests/NcaafPickEm.Domain.Tests.csproj" />
     <Project Path="tests/NcaafPickEm.Fixtures/NcaafPickEm.Fixtures.csproj" />
+    <Project Path="tests/NcaafPickEm.Simulator.Tests/NcaafPickEm.Simulator.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/NcaafPickEm.Simulator/NcaafPickEm.Simulator.csproj" />
