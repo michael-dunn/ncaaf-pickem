@@ -68,8 +68,8 @@ public sealed partial class SimWorld
         GameActionAsync("Set a line", gameId, async (state, game, log, token) =>
         {
             await InScopeAsync(services => services.GetRequiredService<SlateDesk>().SetSpreadAsync(gameId, spread, token)).ConfigureAwait(false);
-            log.Note($"{Describe(game)}: {SimFormat.Spread(spread, Short(game.HomeTeam), Short(game.AwayTeam))}. Picks show it now; " +
-                "point values re-resolve against it on the next regeneration and, finally, at lock");
+            log.Note($"{Describe(game)}: {SimFormat.Spread(spread, Short(game.HomeTeam), Short(game.AwayTeam))}. Picks show it now, " +
+                "and every open week's point value for it re-resolved (manual overrides stay)");
         }, cancellationToken);
 
     /// <summary>Flips a game's stored conference-game or Saturday flag.</summary>

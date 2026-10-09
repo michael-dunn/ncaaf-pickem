@@ -156,6 +156,32 @@ public sealed class SimulatorScenarioTests
     }
 
     [Fact]
+    public async Task GivenAnOpenSet_WhenALineIsPostedAndTakenAway_ThenThePointValueFollowsIt()
+    {
+        const int DefaultPoints = 10;
+        const int CloseSpreadPoints = 20; // the sandbox's rule: lines inside SlateBuilder.CloseSpread
+
+        await using SimHarness sim = await SimHarness.StartAsync();
+        SimSnapshot snapshot = await sim.CreateSandboxAsync();
+
+        // Not a conference game, so only the close-spread rule can lift it off the default.
+        SimGameView game = snapshot.Games.First(candidate => candidate.SetCount == 1 && !candidate.IsConferenceGame);
+
+        // A minute between posts, so each new line is strictly the newest (the week locks in 15).
+        async Task<int> PostLineAsync(decimal? spread)
+        {
+            sim.Clock.Advance(TimeSpan.FromMinutes(1));
+            SimHarness.Ok(await sim.World.SetSpreadAsync(game.GameId, spread, CancellationToken.None));
+            SimSnapshot current = await sim.SnapshotAsync();
+            return current.Leagues[0].Set!.Games.Single(row => row.GameId == game.GameId).PointValue;
+        }
+
+        (await PostLineAsync(-10m)).Should().Be(DefaultPoints);
+        (await PostLineAsync(-1.5m)).Should().Be(CloseSpreadPoints);
+        (await PostLineAsync(null)).Should().Be(DefaultPoints);
+    }
+
+    [Fact]
     public async Task GivenAScoredWeek_WhenAGameIsReopened_ThenTheWeekIsNoLongerComplete()
     {
         await using SimHarness sim = await SimHarness.StartAsync();

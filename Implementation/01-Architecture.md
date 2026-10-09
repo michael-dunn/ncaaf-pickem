@@ -86,7 +86,7 @@ Phone (home-screen PWA)
 
 **Application services.** Live in `Infrastructure/Services`. They load entities, call pure `Domain` functions, persist, and raise domain events. Domain functions are pure and unit-tested against fixtures.
 
-**Domain events, in-process.** `GameAddedToSet`, `GameRemovedFromSet`, `WeekLocked`, `GameWentFinal`, `ResultOverridden`, `GameVoided`. Dispatched synchronously after `SaveChanges` through a small `IDomainEventDispatcher`. Notifications (Phase 7) and scoring (Phase 5) subscribe. No message bus.
+**Domain events, in-process.** `GameAddedToSet`, `GameRemovedFromSet`, `WeekLocked`, `GameWentFinal`, `ResultOverridden`, `GameVoided`, `GameLineChanged`. Dispatched synchronously after `SaveChanges` through a small `IDomainEventDispatcher`. Notifications (Phase 7) and scoring (Phase 5) subscribe, and point values subscribe to `GameLineChanged` (P3-06). No message bus.
 
 **Authorization.** Three policies: `Authenticated`, `LeagueMember`, `LeagueCommissioner`. The league ID comes from the route (`{leagueId:guid}`). An endpoint filter loads the caller's membership once per request and stores it in `HttpContext.Items`. Feature 01 allows multiple commissioners: authorization checks `Membership.Role == Commissioner`, never a single `League.CommissionerId`.
 

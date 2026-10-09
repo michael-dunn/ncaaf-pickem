@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Domain.Seasons;
+using NcaafPickEm.Domain.Seasons.Events;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Shared.Enums;
 using NcaafPickEm.Simulator.Catalog;
 
@@ -11,7 +13,8 @@ namespace NcaafPickEm.Simulator.Engine;
 /// kickoffs, posts lines and sets the AP poll - the rows an ingest writes - and then does what the
 /// app does when a kickoff moves, recomputing each open week's <c>LockAtUtc</c> as the earliest
 /// kickoff among its set's games (04-Domain-Algorithms section 2.9, the same rule
-/// <c>ScheduleChangeHandler</c> applies).
+/// <c>ScheduleChangeHandler</c> applies). A posted or removed line raises
+/// <see cref="GameLineChanged"/>, as the lines ingest does, so open weeks' point values follow it.
 /// </summary>
 public sealed class SlateDesk
 {
@@ -26,12 +29,14 @@ public sealed class SlateDesk
 
     private readonly AppDbContext _database;
     private readonly TimeProvider _timeProvider;
+    private readonly IDomainEventDispatcher _dispatcher;
 
     /// <summary>Creates the desk.</summary>
-    public SlateDesk(AppDbContext database, TimeProvider timeProvider)
+    public SlateDesk(AppDbContext database, TimeProvider timeProvider, IDomainEventDispatcher dispatcher)
     {
         _database = database;
         _timeProvider = timeProvider;
+        _dispatcher = dispatcher;
     }
 
     /// <summary>The week's games, tracked, with both teams loaded, in kickoff order.</summary>
@@ -272,25 +277,31 @@ public sealed class SlateDesk
 
     /// <summary>
     /// Posts a new line for the game (lines are history, as with the ingest: the newest wins), or
-    /// with null removes every line, so the game shows none.
+    /// with null removes every line, so the game shows none. Either way open weeks' point values
+    /// re-resolve against the result (D-189).
     /// </summary>
     public async Task SetSpreadAsync(Guid gameId, decimal? spread, CancellationToken cancellationToken)
     {
+        DateTime nowUtc = _timeProvider.GetUtcNow().UtcDateTime;
+
         if (spread is not decimal value)
         {
             await _database.GameLines.Where(line => line.GameId == gameId).ExecuteDeleteAsync(cancellationToken).ConfigureAwait(false);
-            return;
+        }
+        else
+        {
+            _database.GameLines.Add(new GameLine
+            {
+                Id = Guid.CreateVersion7(),
+                GameId = gameId,
+                Provider = LineProvider,
+                Spread = value,
+                FetchedUtc = nowUtc,
+            });
+            await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
         }
 
-        _database.GameLines.Add(new GameLine
-        {
-            Id = Guid.CreateVersion7(),
-            GameId = gameId,
-            Provider = LineProvider,
-            Spread = value,
-            FetchedUtc = _timeProvider.GetUtcNow().UtcDateTime,
-        });
-        await _database.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        await _dispatcher.DispatchAsync([new GameLineChanged(gameId) { OccurredUtc = nowUtc }], cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>Flips a game's stored conference-game or Saturday flag.</summary>
