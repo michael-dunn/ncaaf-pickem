@@ -164,6 +164,8 @@ public static class DependencyInjection
         services.AddPush(configuration);
         // P3-04: keeps WeekGameSetGames in sync with a game entering/leaving Postponed/Cancelled.
         services.AddDomainEventHandler<GameScheduleChanged, ScheduleChangeHandler>();
+        // P3-06: re-resolves the game's point value in every open week when its line moves (D-189).
+        services.AddDomainEventHandler<GameLineChanged, GameLineChangedPointValueHandler>();
         // P4-04: recomputes WeekSubmissions status and HasUnseenGameChanges when a game enters or
         // leaves the set (order relative to P7-03's notification handlers does not matter).
         services.AddDomainEventHandler<GameAddedToSet, GameAddedPickHandler>();
