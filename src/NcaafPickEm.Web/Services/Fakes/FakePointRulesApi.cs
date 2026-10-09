@@ -27,7 +27,7 @@ public sealed class FakePointRulesApi(FakeGameSetStore store) : IPointRulesApi
     }
 
     /// <inheritdoc />
-    public Task<WeekGameSetResponse> SetOverrideAsync(
+    public Task<GameSetGameDto> SetOverrideAsync(
         Guid leagueId, int week, Guid gameId, int? pointValue, CancellationToken cancellationToken = default)
     {
         if (_store.IsLocked && week == FakeGameSetStore.Week)
@@ -36,10 +36,6 @@ public sealed class FakePointRulesApi(FakeGameSetStore store) : IPointRulesApi
         }
 
         _store.SetOverride(gameId, pointValue);
-
-        GameSetGameDto[] games = [.. _store.Games.Select(g => g.ToDto())];
-        DateTimeOffset? lockAt = games.Length == 0 ? null : games.Min(g => g.KickoffUtc);
-        return Task.FromResult(new WeekGameSetResponse(
-            week, lockAt, lockAt is null ? null : "Sat 12:00 PM ET", _store.IsLocked, IsComplete: false, games));
+        return Task.FromResult(_store.Games.First(g => g.GameId == gameId).ToDto());
     }
 }

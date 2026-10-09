@@ -33,7 +33,7 @@ public sealed class PointRulesApi(HttpClient httpClient) : IPointRulesApi
     }
 
     /// <inheritdoc />
-    public async Task<WeekGameSetResponse> SetOverrideAsync(
+    public async Task<GameSetGameDto> SetOverrideAsync(
         Guid leagueId, int week, Guid gameId, int? pointValue, CancellationToken cancellationToken = default)
     {
         using HttpResponseMessage response = await _httpClient.PutAsJsonAsync(
@@ -41,6 +41,6 @@ public sealed class PointRulesApi(HttpClient httpClient) : IPointRulesApi
             new SetPointOverrideRequest(pointValue),
             cancellationToken);
         await ApiResponses.EnsureSuccessAsync(response);
-        return await ApiResponses.ReadRequiredAsync<WeekGameSetResponse>(response);
+        return await ApiResponses.ReadRequiredAsync<GameSetGameDto>(response);
     }
 }

@@ -319,7 +319,8 @@ else
     {
         try
         {
-            _set = await PointRulesApi.SetOverrideAsync(LeagueId, Week, gameId, value);
+            await PointRulesApi.SetOverrideAsync(LeagueId, Week, gameId, value);
+            _set = await GameSetsApi.GetWeekGameSetAsync(LeagueId, Week);
         }
         catch (LeaguesApiException ex)
         {
@@ -335,7 +336,8 @@ else
     {
         try
         {
-            _set = await PointRulesApi.SetOverrideAsync(LeagueId, Week, gameId, null);
+            await PointRulesApi.SetOverrideAsync(LeagueId, Week, gameId, null);
+            _set = await GameSetsApi.GetWeekGameSetAsync(LeagueId, Week);
         }
         catch (LeaguesApiException ex)
         {

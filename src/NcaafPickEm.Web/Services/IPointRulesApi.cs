@@ -19,9 +19,10 @@ public interface IPointRulesApi
 
     /// <summary>
     /// <c>PUT /api/leagues/{leagueId}/weeks/{week}/gameset/games/{gameId}/points</c>. Null
-    /// <paramref name="pointValue"/> clears the override. Throws <see cref="LeaguesApiException"/>
-    /// with <c>StatusCode == 409</c> when the week is locked.
+    /// <paramref name="pointValue"/> clears the override. Returns the one updated game, not the
+    /// whole week, so callers refetch the set (as with corrections, D-148). Throws
+    /// <see cref="LeaguesApiException"/> with <c>StatusCode == 409</c> when the week is locked.
     /// </summary>
-    Task<WeekGameSetResponse> SetOverrideAsync(
+    Task<GameSetGameDto> SetOverrideAsync(
         Guid leagueId, int week, Guid gameId, int? pointValue, CancellationToken cancellationToken = default);
 }
