@@ -1,9 +1,27 @@
-@* Tap-only numeric stepper (minus / value / plus), used for point values (1..100). Optional
-   Clear button for "remove this override and fall back to the rule/default". *@
+@using System.Globalization
+@implements IAsyncDisposable
+@inject IJSRuntime JsRuntime
+
+@* Numeric stepper (minus / value / plus), used for point values (1..100). The value can also be
+   typed (D-188): it commits on Enter or blur, out-of-range numbers clamp to Min..Max, and anything
+   that is not a whole number reverts. Optional Clear button for "remove this override and fall
+   back to the rule/default". *@
 
 <div class="number-stepper">
     <button type="button" class="stepper-btn" disabled="@(Disabled || Value <= Min)" @onclick="Decrement" aria-label="Decrease">&#8722;</button>
-    <span class="stepper-value">@Value</span>
+    <input @ref="_input"
+           class="stepper-input"
+           type="text"
+           inputmode="numeric"
+           pattern="[0-9]*"
+           maxlength="3"
+           enterkeyhint="done"
+           autocomplete="off"
+           aria-label="Point value"
+           disabled="@Disabled"
+           @onfocus="SelectAllAsync"
+           @bind:get="Value.ToString(CultureInfo.InvariantCulture)"
+           @bind:set="SetTypedValue" />
     <button type="button" class="stepper-btn" disabled="@(Disabled || Value >= Max)" @onclick="Increment" aria-label="Increase">&#43;</button>
     @if (ShowClear)
     {
@@ -12,11 +30,14 @@
 </div>
 
 @code {
+    private ElementReference _input;
+    private IJSObjectReference? _module;
+
     /// <summary>Current value.</summary>
     [Parameter]
     public int Value { get; set; }
 
-    /// <summary>Raised when the value changes by a tap.</summary>
+    /// <summary>Raised when the value changes by a tap or a typed entry.</summary>
     [Parameter]
     public EventCallback<int> ValueChanged { get; set; }
 
@@ -40,11 +61,52 @@
     [Parameter]
     public EventCallback OnClear { get; set; }
 
+    /// <summary>Focuses the value (selecting it, so typing replaces it) when first shown.</summary>
+    [Parameter]
+    public bool AutoFocus { get; set; }
+
+    /// <inheritdoc />
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && AutoFocus && !Disabled)
+        {
+            await _input.FocusAsync();
+        }
+    }
+
     private Task Decrement() => SetValue(Value - 1);
 
     private Task Increment() => SetValue(Value + 1);
 
     private Task SetValue(int value) => ValueChanged.InvokeAsync(Math.Clamp(value, Min, Max));
 
+    // @bind keeps the typed text in the render tree, so returning without raising ValueChanged
+    // still re-renders the box back to Value.
+    private Task SetTypedValue(string? text)
+    {
+        if (!int.TryParse(text?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int typed))
+        {
+            return Task.CompletedTask;
+        }
+
+        int value = Math.Clamp(typed, Min, Max);
+        return value == Value ? Task.CompletedTask : ValueChanged.InvokeAsync(value);
+    }
+
     private Task Clear() => OnClear.InvokeAsync();
+
+    private async Task SelectAllAsync()
+    {
+        _module ??= await JsRuntime.InvokeAsync<IJSObjectReference>("import", "./js/number-stepper.js");
+        await _module.InvokeVoidAsync("selectAll", _input);
+    }
+
+    /// <inheritdoc />
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            await _module.DisposeAsync();
+        }
+    }
 }

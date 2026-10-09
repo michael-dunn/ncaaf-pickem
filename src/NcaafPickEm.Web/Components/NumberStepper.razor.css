@@ -21,10 +21,23 @@
     cursor: default;
 }
 
-.stepper-value {
-    min-width: 2.5ch;
-    text-align: center;
+/* Base font size (16px) keeps iOS Safari from zooming in when the box is focused. */
+.stepper-input {
+    width: calc(4ch + 2 * var(--space-2));
+    min-height: var(--tap-min);
+    padding: 0 var(--space-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-text);
+    font: inherit;
+    font-size: var(--text-base);
     font-weight: 700;
+    text-align: center;
+}
+
+.stepper-input:disabled {
+    opacity: 0.4;
 }
 
 .stepper-clear {
