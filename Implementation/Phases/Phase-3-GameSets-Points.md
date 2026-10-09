@@ -64,5 +64,17 @@ Done when
 
 ---
 
+## P3-06 Point values follow line moves
+Tier: Opus. Depends on: P3-03, P2-02, P11-01. Added 2026-10-09 at the owner's request.
+
+Deliverables
+- `Domain/Seasons/Events/GameLineChanged`, raised by `ReferenceDataIngestService.IngestLinesAsync` after its commit for each game that gained a line, and by the simulator's `SlateDesk.SetSpreadAsync` when it posts or removes one.
+- `Infrastructure/Services/GameLineChangedPointValueHandler`: re-resolves the game's `ResolvedPointValue` in every league's week that is not yet frozen (04-Domain-Algorithms section 3, D-189). A close-spread rule starts or stops matching as the line crosses its threshold; a manual override keeps its value; frozen weeks never change.
+
+Done when
+- `LineMovePointValueTests` (moves inside and outside the threshold, a first line appearing, an override standing, a locked week untouched, two leagues), `ReferenceIngestTests.GivenLinesIngestedRepeatedly_ThenGameLineChangedIsRaisedOnlyForGamesWhoseSpreadMoved` and `SimulatorScenarioTests.GivenAnOpenSet_WhenALineIsPostedAndTakenAway_ThenThePointValueFollowsIt` pass.
+
+---
+
 ## Phase exit criteria
 - Demo league gets a generated week 7 set from fixture data via default rules, preview and override work, point values resolve with an elevated badge visible, and the Tuesday job regenerates without touching manual rows.
