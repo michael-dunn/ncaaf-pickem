@@ -48,7 +48,7 @@ Result gives the real one and the Proof column is left as originally written for
 | Preview lists matchups with ranks and count | P3-01, P3-03, P3-05 | D `*.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`, A, UI | PASS: `GameSetGeneratorTests.GivenCandidateRules_WhenPreviewing_ThenManualAddsAndStickyRemovalsStillApply`; screenshot `p3-05-rules-preview-375.png` |
 | Generated on save and Tuesday auto-regen; frozen after lock | P3-04 | A `FullWeekSimulationTests` (the real Tuesday 03:30 ET cron builds the week through `SchedulerTick`), A `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests`, D `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` | PASS: `FullWeekSimulationTests`, `RegenerationJobTests`, `AutoCreateWeekSetTests`, `WeekOverrideRegenerateTests.GivenTheCurrentWeek_WhenAnOverrideIsSaved_ThenTheSetIsRegeneratedInTheSameCall`, `GameSetGeneratorTests.GivenALockedWeek_WhenGenerating_ThenNothingIsProducedAndTheRefusalIsFlagged` |
 | Member view ordered by kickoff in local time | P3-05 | UI | PASS: screenshot `p3-05-member-week-375.png` |
-| Tap-only rule editing | P3-05 | UI | PASS: screenshot `p3-05-rules-375.png` (`BottomSheet`/`NumberStepper` tap controls, no free-text entry) |
+| Tap-only rule editing | P3-05 | UI | PASS: screenshot `p3-05-rules-375.png` (`BottomSheet`/`NumberStepper` tap controls; since D-188 a point value may also be typed, which is optional, the taps alone still suffice) |
 
 ## Feature 03 - Point Values
 
