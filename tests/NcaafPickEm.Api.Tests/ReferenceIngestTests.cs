@@ -1,9 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using NcaafPickEm.Api.Tests.Infrastructure;
+using NcaafPickEm.Domain.Events;
 using NcaafPickEm.Domain.Operations;
 using NcaafPickEm.Domain.Seasons;
+using NcaafPickEm.Domain.Seasons.Events;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Fixture;
 using NcaafPickEm.Infrastructure.Providers.Models;
@@ -533,16 +536,7 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
         (await database.GameLines.CountAsync(l => l.GameId == gameId)).Should().Be(lineCountAfterFirst);
 
         // The spread on 700001 moves: exactly one new history row for that game.
-        decorated.Lines = async (season, week, ct) =>
-        {
-            IReadOnlyList<ProviderLine> original = await baseProvider.GetLinesAsync(season, week, ct);
-            return
-            [
-                .. original.Select(line => line.CfbdGameId == 700001
-                    ? line with { Spread = line.Spread - 1, FetchedUtc = line.FetchedUtc.AddHours(1) }
-                    : line),
-            ];
-        };
+        decorated.Lines = MoveSpreadByOne(baseProvider, 700001);
 
         LinesIngestResult third = await service.IngestLinesAsync(Season, Week);
         third.Success.Should().BeTrue();
@@ -550,8 +544,77 @@ public sealed class ReferenceIngestTests : IAsyncLifetime
         (await database.GameLines.CountAsync(l => l.GameId == gameId)).Should().Be(lineCountAfterFirst + 1);
     }
 
-    private static ReferenceDataIngestService CreateService(AppDbContext database, IReferenceDataProvider provider) =>
-        new(database, provider, TimeProvider.System, NullLogger<ReferenceDataIngestService>.Instance);
+    [Fact]
+    public async Task GivenLinesIngestedRepeatedly_ThenGameLineChangedIsRaisedOnlyForGamesWhoseSpreadMoved()
+    {
+        await using AppDbContext database = _database.CreateContext();
+        var baseProvider = new FixtureReferenceDataProvider();
+        var decorated = new DecoratingReferenceDataProvider(baseProvider);
+        var dispatcher = new RecordingDispatcher();
+        var service = CreateService(database, decorated, dispatcher);
+
+        await service.IngestTeamsAsync(Season);
+        await service.IngestScheduleAsync(Season, Week);
+
+        // First ingest: every game with a line gains its first one, and raises exactly once.
+        (await service.IngestLinesAsync(Season, Week)).Success.Should().BeTrue();
+        Guid[] gamesWithLines = await database.GameLines.Select(l => l.GameId).Distinct().ToArrayAsync();
+        dispatcher.Dispatched.OfType<GameLineChanged>().Select(e => e.GameId)
+            .Should().BeEquivalentTo(gamesWithLines);
+        dispatcher.Dispatched.Clear();
+
+        // Same spreads again: nothing moved, nothing raised.
+        (await service.IngestLinesAsync(Season, Week)).Success.Should().BeTrue();
+        dispatcher.Dispatched.Should().BeEmpty();
+
+        // 700001 moves: that game alone.
+        decorated.Lines = MoveSpreadByOne(baseProvider, 700001);
+        (await service.IngestLinesAsync(Season, Week)).Success.Should().BeTrue();
+
+        Guid movedGameId = (await database.Games.SingleAsync(g => g.CfbdGameId == 700001)).Id;
+        dispatcher.Dispatched.Should().ContainSingle()
+            .Which.Should().BeOfType<GameLineChanged>()
+            .Which.GameId.Should().Be(movedGameId);
+    }
+
+    private static ReferenceDataIngestService CreateService(
+        AppDbContext database,
+        IReferenceDataProvider provider,
+        IDomainEventDispatcher? dispatcher = null) =>
+        new(
+            database,
+            provider,
+            TimeProvider.System,
+            new DomainEventCollector(),
+            dispatcher ?? new RecordingDispatcher(),
+            NullLogger<ReferenceDataIngestService>.Instance);
+
+    /// <summary>The fixture's lines, with <paramref name="cfbdGameId"/>'s spread one point lower.</summary>
+    private static Func<int, int, CancellationToken, Task<IReadOnlyList<ProviderLine>>> MoveSpreadByOne(
+        IReferenceDataProvider baseProvider,
+        long cfbdGameId) =>
+        async (season, week, ct) =>
+        {
+            IReadOnlyList<ProviderLine> original = await baseProvider.GetLinesAsync(season, week, ct);
+            return
+            [
+                .. original.Select(line => line.CfbdGameId == cfbdGameId
+                    ? line with { Spread = line.Spread - 1, FetchedUtc = line.FetchedUtc.AddHours(1) }
+                    : line),
+            ];
+        };
+
+    /// <summary>Keeps what the ingest dispatches instead of delivering it; no handler runs.</summary>
+    private sealed class RecordingDispatcher : IDomainEventDispatcher
+    {
+        public List<IDomainEvent> Dispatched { get; } = [];
+
+        public Task DispatchAsync(IEnumerable<IDomainEvent> domainEvents, CancellationToken cancellationToken = default)
+        {
+            Dispatched.AddRange(domainEvents);
+            return Task.CompletedTask;
+        }
+    }
 
     /// <summary>
     /// Wraps a real <see cref="IReferenceDataProvider"/> and lets a test override one method, or

@@ -1,8 +1,11 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using NcaafPickEm.Domain.Events;
 using NcaafPickEm.Domain.Operations;
 using NcaafPickEm.Domain.Seasons;
+using NcaafPickEm.Domain.Seasons.Events;
 using NcaafPickEm.Infrastructure.Data;
+using NcaafPickEm.Infrastructure.Events;
 using NcaafPickEm.Infrastructure.Providers;
 using NcaafPickEm.Infrastructure.Providers.Cfbd;
 using NcaafPickEm.Infrastructure.Providers.Models;
@@ -38,6 +41,8 @@ public sealed class ReferenceDataIngestService
     private readonly AppDbContext _database;
     private readonly IReferenceDataProvider _provider;
     private readonly TimeProvider _timeProvider;
+    private readonly DomainEventCollector _collector;
+    private readonly IDomainEventDispatcher _dispatcher;
     private readonly ILogger<ReferenceDataIngestService> _logger;
 
     /// <summary>Creates the service.</summary>
@@ -45,11 +50,15 @@ public sealed class ReferenceDataIngestService
         AppDbContext database,
         IReferenceDataProvider provider,
         TimeProvider timeProvider,
+        DomainEventCollector collector,
+        IDomainEventDispatcher dispatcher,
         ILogger<ReferenceDataIngestService> logger)
     {
         _database = database;
         _provider = provider;
         _timeProvider = timeProvider;
+        _collector = collector;
+        _dispatcher = dispatcher;
         _logger = logger;
     }
 
@@ -381,13 +390,16 @@ public sealed class ReferenceDataIngestService
     /// <summary>
     /// Appends one <c>GameLines</c> row per provider line whose spread differs from the current
     /// (newest) row for that (game, provider) — a repeated ingest with an unchanged spread grows
-    /// nothing. Identical Provider+Spread pairs within the same fetch are added once.
+    /// nothing. Identical Provider+Spread pairs within the same fetch are added once. Every game
+    /// that gained a line raises <see cref="GameLineChanged"/> once, dispatched after the commit,
+    /// so point values follow the move (P3-06, D-189); a failed ingest dispatches nothing.
     /// </summary>
-    public Task<LinesIngestResult> IngestLinesAsync(
+    public async Task<LinesIngestResult> IngestLinesAsync(
         int season,
         int week,
-        CancellationToken cancellationToken = default) =>
-        RunAsync(
+        CancellationToken cancellationToken = default)
+    {
+        LinesIngestResult result = await RunAsync(
             RefreshDataType.Lines,
             async () =>
             {
@@ -413,6 +425,7 @@ public sealed class ReferenceDataIngestService
 
                 DateTime fetchedUtc = _timeProvider.GetUtcNow().UtcDateTime;
                 var seenThisFetch = new HashSet<(Guid GameId, string Provider, decimal Spread)>();
+                var movedGameIds = new HashSet<Guid>();
                 int added = 0;
 
                 foreach (ProviderLine providerLine in providerLines)
@@ -447,12 +460,28 @@ public sealed class ReferenceDataIngestService
                     _database.GameLines.Add(line);
                     currentByKey[gameProviderKey] = line;
                     added++;
+
+                    if (movedGameIds.Add(gameId))
+                    {
+                        _collector.Raise(new GameLineChanged(gameId) { OccurredUtc = fetchedUtc });
+                    }
                 }
 
                 return new LinesIngestResult(true, null, added);
             },
             error => new LinesIngestResult(false, error, 0),
-            cancellationToken);
+            cancellationToken).ConfigureAwait(false);
+
+        // RunAsync has either committed everything the body changed or discarded all of it; the
+        // events share that fate, so a failed ingest never re-resolves against lines it dropped.
+        IReadOnlyList<IDomainEvent> raised = _collector.TakeAll();
+        if (result.Success)
+        {
+            await _dispatcher.DispatchAsync(raised, cancellationToken).ConfigureAwait(false);
+        }
+
+        return result;
+    }
 
     private async Task<Dictionary<int, Guid>> UpsertConferencesAsync(
         IReadOnlyList<ProviderConference> conferences,
