@@ -2,7 +2,7 @@
 @inject AppShellState Shell
 
 @*
-    "More" tab (P0-04 placeholder, filled in by P1-03 and P2-04): a small menu to Profile and the
+    "More" tab (P1-03, P2-04): a small menu to Profile and the
     commissioner Data status page. The link is shown to everyone; the page itself checks
     commissioner status server-side (the 403 from GET /api/admin/data-status) and shows a
     friendly message to anyone who is not one, rather than hiding the link client-side.
@@ -28,10 +28,6 @@
     </p>
     <p class="text-sm">
         This device: <strong>@_localZone</strong> &mdash; now @_localNow
-    </p>
-    <p class="placeholder-note">
-        Placeholder from P0-04. Zone <em>abbreviations</em> ("MDT") must come from the browser's
-        Intl API, not .NET: the client runs with invariant globalization (D-023).
     </p>
 </div>
 

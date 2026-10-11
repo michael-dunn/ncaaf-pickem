@@ -1,0 +1,94 @@
+Feature 14: Member Stats
+Overview reference: extends Major Feature 7 (Leaderboard)
+
+Summary
+-------
+A stats area that ranks league members across a few pick-quality categories, plus a per-member
+stats profile. Members can see the leaders in each category and click any member to see that
+member's numbers and their best and worst weeks.
+
+User Stories
+------------
+- As a member, I can see who leads the league in each stat category.
+- As a member, I can open any member's stats profile, including my own.
+- As a member, I can see a member's best and worst weeks by correct picks and by points.
+- As a member, I can see how often a member correctly picks underdogs that win.
+
+Definitions
+-----------
+- Counted game: a game in the league's set for a week that is locked, has a final result, and
+  is not voided (Feature 06). Pending, in-progress, and voided games never count in any stat.
+- Counted pick: a member's pick on a counted game. A counted game the member did not pick
+  counts as a miss for accuracy (the denominator is the number of counted games, not the number
+  of picks made).
+- Underdog: the team getting points per the line at lock (LockedGameSnapshot.SpreadAtLock).
+  A game with no line at lock, or a spread of exactly 0, has no underdog and is excluded from
+  the underdog stat.
+- Underdog win: a counted game where the underdog won.
+
+Stat Categories
+---------------
+1. Pick accuracy
+   - Value: correct counted picks / counted games, shown as a percentage and the raw fraction
+     (e.g., "68.4% (93/136)").
+2. Underdog hits
+   - Value: underdog wins the member picked / underdog wins in the league's counted games so far,
+     shown as a percentage and the raw fraction (e.g., "41.7% (5/12)").
+   - The denominator is the same for every member who was in the league for all of those weeks.
+     A member who joined late only has the underdog wins from the weeks they were a member.
+3. Best and worst weeks (profile only, not a leaderboard category)
+   - Most correct week: the Complete week with the highest correct-pick count.
+   - Least correct week: the Complete week with the lowest correct-pick count.
+   - Most points week: the Complete week with the highest points total.
+   - Least points week: the Complete week with the lowest points total.
+   - Each shows the week number, the value, and that week's game count (e.g., "Week 6: 11/12").
+   - Ties: show the most recent week and a "+N more" indicator listing the other tied weeks.
+   - Only Complete weeks (Feature 06) count. An in-progress week is excluded until it is Complete.
+
+Acceptance Criteria
+-------------------
+League stats page
+- Given a league, then a Stats page lists each leaderboard category (Pick accuracy, Underdog
+  hits) with members ranked by that category's value, highest first.
+- Each category shows every current member with: rank, name, value, and raw fraction.
+- Ties share a rank, using the same rule as the season leaderboard (Feature 07).
+- The viewing member's row is highlighted.
+- Every member name links to that member's stats profile.
+- Before any game is counted, the page shows an empty state ("Stats appear after the first
+  week's games go final").
+- The page is reachable from the season leaderboard and the bottom navigation or More menu
+  (placement to be settled in UI design).
+
+Member stats profile
+- Given a member of the league, when any member of the league opens their profile, then it shows:
+  - Pick accuracy and Underdog hits, each with the member's league rank in that category.
+  - Most correct, least correct, most points, and least points weeks.
+  - A per-week table: week, correct/total, points, weekly rank. Each row links to that week's
+    leaderboard drill-down (Feature 07).
+- Members can only view stats profiles for members of leagues they belong to.
+- Former members (removed from the league) do not appear on the league stats page. Their
+  profile is reachable from past weekly leaderboards and shows stats for the weeks they played.
+
+Freshness
+- Stats update when a game goes final, is overridden, or is voided, in the same pass that
+  updates scoring and the leaderboard. No separate refresh is needed.
+- Stats show provisional values while a week is in progress, using the same "In Progress"
+  labeling as the weekly leaderboard. Best and worst weeks use only Complete weeks.
+
+Performance
+- The league stats page and a member profile each load in under 1 second for a league of up
+  to 50 members and 15 weeks.
+
+Out of Scope (for now)
+----------------------
+- Streaks, accuracy by conference, points-over-time charts, and favorite-cover stats. These are
+  natural follow-ups once the stats data is in place.
+- Cross-season or career stats.
+
+Open Questions
+--------------
+- Should a member need a minimum number of counted games to appear on a category leaderboard
+  (e.g., a late joiner at 3/3 = 100% would lead accuracy)? Proposed: show them, sorted by
+  value, with a minimum of one Complete week. Answer: No, all members currently have picked all available games
+- Should Underdog hits rank by percentage or by raw count of underdog wins picked? Proposed:
+  percentage, with the raw count as the tiebreaker. Answer: percentage, not points earned

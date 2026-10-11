@@ -1,0 +1,77 @@
+Feature 16: Picks Open Tuesday
+Overview reference: amends Major Feature 4 (Weekly Picks) and Feature 2 (Weekly Game Set Configuration)
+
+Summary
+-------
+Picks for a week are not available until the week's game set is final for the week, which is
+after the AP poll and the Tuesday regeneration. Today a week's set is created at Sunday 00:05 ET
+(EnsureCurrentWeekSetsJob) and members can pick right away. The Tuesday 03:30 ET
+regeneration (RegenerateGameSetsJob) can then add or drop games after members have submitted.
+This feature closes picks until the set is settled, so submitted picks are never invalidated by
+ranking changes.
+
+User Stories
+------------
+- As a member, I can only make picks once the week's game set is set, so my picks don't change
+  under me.
+- As a member, before picks open I can see when they will open.
+- As a commissioner, I can still configure rules and preview the coming week's set before picks
+  open.
+
+Definitions
+-----------
+- Picks-open moment for week N: Tuesday 12:00 AM ET of week N's window (the Tuesday before
+  week N's Saturday). See Open Questions for the job-timing conflict.
+- Pre-open period: from the week window start (Sunday 00:00 ET) to the picks-open moment.
+
+Acceptance Criteria
+-------------------
+Pick availability
+- Given now is before week N's picks-open moment, when a member calls the pick endpoints for
+  week N, then they are refused with a "Picks not open yet" rule violation that includes the
+  picks-open time.
+- Given now is before week N's picks-open moment, the Picks page shows the open time (local
+  time plus ET, using the existing LockTime display) and no pick controls.
+- Picks for weeks beyond the display week (Feature 15) are never open.
+- From the picks-open moment until lock, picks behave as today.
+
+Game set stability
+- The week's set is generated or regenerated with the latest AP poll before the picks-open
+  moment, so the set members see at open is the set they play.
+- After picks open, automatic regeneration must not add or remove games. Changes after open
+  happen only through the existing commissioner actions (add game, void, remove) and keep their
+  existing notifications (GamesAdded / GameRemoved handlers).
+- Point values may still move with the line after open (P3-06 / D-189); that is unchanged.
+
+Commissioner preview
+- Commissioners can view and regenerate the week's set during the pre-open period. Members see
+  a "Games will be set Tuesday" empty state instead of the provisional set.
+
+Notifications
+- When picks open, send a "Week N picks are open" push to members who have push enabled. The
+  existing Friday reminder and Saturday one-shot are unchanged.
+
+Migration
+- Weeks that already opened under the old rule are unaffected. The rule applies from the first
+  week whose picks-open moment is after deployment.
+
+Testing
+- Domain tests: pick refused at Monday 23:59:59 ET, accepted at Tuesday 00:00 ET, DST weeks.
+- API tests: pick endpoints return the new rule violation before open; the Picks page payload
+  includes the open time.
+- Job tests: the regeneration that fixes the set runs before the open moment, and no automatic
+  regeneration changes a set after open.
+
+Open Questions
+--------------
+- Timing conflict: the Tuesday rankings and schedule refreshes run 03:00 to 03:20 ET and
+  RegenerateGameSetsJob runs at 03:30 ET, which is after a 12:00 AM open. The AP poll is
+  normally released Sunday afternoon and is already captured by the Sunday and Monday 20:00
+  refreshes. Options:
+    a) Keep 12:00 AM ET Tuesday. Move the final regeneration to Monday ~23:30 ET and drop the
+       Tuesday 03:30 regeneration (or keep it only for weeks where a commissioner has not
+       viewed the set). Recommended.
+    b) Open picks at 04:00 AM ET Tuesday, after the existing regeneration. No job changes.
+  Answer: b
+- Should a week whose set fails to generate by the open moment (provider outage) stay closed
+  until it is generated, with a commissioner alert? Proposed: yes. Answer: yes

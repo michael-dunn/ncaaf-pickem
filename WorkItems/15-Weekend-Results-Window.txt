@@ -1,0 +1,76 @@
+Feature 15: Weekend Results Window
+Overview reference: amends Major Feature 7 (Leaderboard) and the landing rule (04-Domain-Algorithms.md section 12)
+
+Summary
+-------
+From the end of Saturday's games through Monday night, the app should be about the week that
+was just played. Today the season calendar rolls the "current week" to the next week at Sunday
+00:00 ET, so "This week's leaderboard" opens an empty, unplayed week, and the landing screen
+falls back to Picks after Sunday. This feature keeps the just-played week as the week members
+see until picks open on Tuesday (Feature 16).
+
+Current Behavior (for reference)
+--------------------------------
+- SeasonCalendar.WeekWindow: a week's window runs from the preceding Sunday 00:00 ET, so the
+  current week flips to week N+1 at Sunday 00:00 ET.
+- LeagueLandingRule: lands on the Leaderboard only on the opening day (Sunday) of week N+1, then
+  Picks from Monday.
+- Season.razor "This week's leaderboard" links to /weeks/{CurrentWeek}/leaderboard, which is
+  week N+1 from Sunday on.
+
+User Stories
+------------
+- As a member, on Sunday and Monday, I open the app and see the results of the week just played.
+- As a member, when I tap "This week's leaderboard" on Sunday or Monday, I see the week just
+  played, not next week's empty leaderboard.
+- As a member, on Tuesday, the app opens on Picks for the new week.
+
+Definitions
+-----------
+- Display week: the week the app treats as "this week" for navigation and landing. It is
+  separate from the calendar's current week, which jobs still use.
+- Picks-open moment for week N+1: defined in Feature 16 (Tuesday, Eastern).
+- Results window: from week N's lock until week N+1's picks-open moment.
+
+Acceptance Criteria
+-------------------
+Display week
+- Given now is before week N+1's picks-open moment and week N's set is locked, then the
+  display week is N.
+- Given now is at or after week N+1's picks-open moment, then the display week is N+1.
+- The API returns the display week to the client alongside the calendar's current week. All
+  client "this week" links, the WeekNav "jump to current week" control, and the league home
+  card use the display week.
+- Server jobs (refresh, generation, lock, scoring) keep using the calendar's current week.
+  This feature changes only what members see.
+
+Landing screen
+- Saturday from lock until week N is Complete: Dashboard (unchanged).
+- Once week N is Complete, or from Sunday 00:00 ET whichever is first, until week N+1's
+  picks-open moment: Leaderboard for week N. This includes all of Sunday and Monday.
+- From week N+1's picks-open moment: Picks for week N+1.
+- A league's first week still opens on Picks as soon as its picks are open (no previous week
+  to show).
+- After the league's last week: Leaderboard (unchanged).
+
+"This week's leaderboard"
+- Given the results window, when a member taps "This week's leaderboard", then week N's weekly
+  leaderboard opens.
+- Members can still navigate forward to week N+1 with WeekNav once its set exists. Before picks
+  open it is shown per Feature 16 (not yet open).
+
+Edge cases
+- A week where a game runs late or is postponed past Saturday: the results window still runs to
+  the picks-open moment; the week shows "In Progress" until Complete.
+- Bye or gap weeks in a league's range: the display week is the most recent locked week until
+  the next week's picks open.
+
+Testing
+- Domain tests for the display-week and landing rules covering: Saturday during games, Saturday
+  after all final, Sunday 00:00, Monday 23:59, Tuesday picks-open moment, first league week,
+  last league week, DST fall-back Sunday.
+- Use the simulator (Phase 11) to walk a full Saturday to Tuesday cycle.
+
+Open Questions
+--------------
+- None, once Feature 16's picks-open time is settled.
