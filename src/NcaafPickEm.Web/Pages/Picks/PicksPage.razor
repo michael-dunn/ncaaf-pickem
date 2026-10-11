@@ -48,7 +48,7 @@ else
 
     @if (!picks.PicksOpen && !picks.IsLocked)
     {
-        @* Feature 16 (D-190): before Tuesday 04:00 ET the set is still the commissioner's preview. *@
+        @* Feature 16 (D-192): before Tuesday 04:00 ET the set is still the commissioner's preview. *@
         <div class="card picks-status-card">
             <span class="text-sm muted">Picks open</span>
             <LockTime LockAtUtc="picks.PicksOpenAtUtc" EasternDisplay="@picks.PicksOpenAtEasternDisplay" NoLockText="Not yet" />

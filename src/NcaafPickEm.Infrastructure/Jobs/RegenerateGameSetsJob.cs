@@ -101,7 +101,7 @@ public sealed class RegenerateGameSetsJob : IScheduledJob
 
             foreach (int week in targetWeeks)
             {
-                // Feature 16 (D-190): once a week's picks have opened (Tuesday 04:00 ET, after this
+                // Feature 16 (D-192): once a week's picks have opened (Tuesday 04:00 ET, after this
                 // job's 03:30 run) no automatic regeneration may add or drop its games - a late
                 // catch-up run leaves it alone. Only commissioner actions change it from then on.
                 if (weeks.FirstOrDefault(candidate => candidate.Week == week) is SeasonWeek seasonWeek

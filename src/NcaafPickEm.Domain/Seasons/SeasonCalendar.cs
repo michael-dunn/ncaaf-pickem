@@ -131,7 +131,7 @@ public sealed class SeasonCalendar(TimeProvider timeProvider)
 
     /// <summary>
     /// The Eastern wall-clock time picks open on the third day of a week's window: Tuesday 04:00
-    /// ET for a real Sunday-to-Saturday week, after the Tuesday 03:30 regeneration (Feature 16, D-190).
+    /// ET for a real Sunday-to-Saturday week, after the Tuesday 03:30 regeneration (Feature 16, D-192).
     /// </summary>
     public static TimeOnly PicksOpenTimeEastern { get; } = new(4, 0);
 

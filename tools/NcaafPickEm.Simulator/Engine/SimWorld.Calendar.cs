@@ -218,7 +218,7 @@ public sealed partial class SimWorld
     private async Task EnterWeekAsync(SimState state, int week, SimLog log, CancellationToken cancellationToken, bool generateSets = true)
     {
         DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
-        // Started a few days back, so the week's picks have already opened (Feature 16, D-190).
+        // Started a few days back, so the week's picks have already opened (Feature 16, D-192).
         IReadOnlyList<SeasonWeek> weeks = SimCalendarLayout.Build(state.SeasonYear, week, nowUtc - SimCalendarLayout.PicksOpenLead);
         await InScopeAsync(services => services.GetRequiredService<CalendarDesk>().WriteAsync(state.SeasonYear, weeks, cancellationToken))
             .ConfigureAwait(false);

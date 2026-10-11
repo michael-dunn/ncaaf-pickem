@@ -5,7 +5,7 @@ using NcaafPickEm.Shared.Contracts.GameSets;
 namespace NcaafPickEm.Infrastructure.Services;
 
 /// <summary>
-/// Puts a <see cref="PicksOpening"/> on the week's game-set response (Feature 16, D-190), and
+/// Puts a <see cref="PicksOpening"/> on the week's game-set response (Feature 16, D-192), and
 /// takes the provisional set off it for a member before picks open.
 /// </summary>
 public static class PicksOpeningResponses

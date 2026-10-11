@@ -29,7 +29,7 @@ else
 
     @if (set.Games.Length == 0 && !set.IsLocked && set.PicksOpenAtUtc is { } opensAt && opensAt > DateTimeOffset.UtcNow)
     {
-        @* Feature 16 (D-190): before picks open members get no provisional set. *@
+        @* Feature 16 (D-192): before picks open members get no provisional set. *@
         <EmptyState Title="Games will be set Tuesday" Body="@($"Picks open {set.PicksOpenAtEasternDisplay}.")" />
     }
     else if (set.Games.Length == 0)

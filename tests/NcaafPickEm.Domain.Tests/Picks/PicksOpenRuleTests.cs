@@ -4,7 +4,7 @@ using NcaafPickEm.Domain.Seasons;
 namespace NcaafPickEm.Domain.Tests.Picks;
 
 /// <summary>
-/// Feature 16 (D-190, 04-Domain-Algorithms.md section 4.1): a week's picks open Tuesday 04:00 ET
+/// Feature 16 (D-192, 04-Domain-Algorithms.md section 4.1): a week's picks open Tuesday 04:00 ET
 /// of its window, and only once its set has games.
 /// </summary>
 public sealed class PicksOpenRuleTests

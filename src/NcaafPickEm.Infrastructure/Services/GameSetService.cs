@@ -560,7 +560,7 @@ public sealed class GameSetService
     }
 
     /// <summary>
-    /// Where a league's week stands against its picks-open moment (Feature 16, D-190), through
+    /// Where a league's week stands against its picks-open moment (Feature 16, D-192), through
     /// <see cref="PicksOpenRule"/> against the league's season calendar.
     /// </summary>
     /// <param name="league">The league.</param>

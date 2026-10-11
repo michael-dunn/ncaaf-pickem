@@ -11,7 +11,7 @@ using NcaafPickEm.Shared.Enums;
 namespace NcaafPickEm.Infrastructure.Notifications;
 
 /// <summary>
-/// Tuesday 04:00 AM Eastern (Feature 16, D-190): the moment the current week's picks open, half
+/// Tuesday 04:00 AM Eastern (Feature 16, D-192): the moment the current week's picks open, half
 /// an hour after <see cref="RegenerateGameSetsJob"/> settled the set. Every active league whose
 /// current week has games gets a "Week N picks are open" push to each member; a league whose week
 /// has no games (generation failed, or its rules select nothing) stays closed, and its

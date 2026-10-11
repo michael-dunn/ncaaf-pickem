@@ -70,7 +70,7 @@ public sealed class PickService
         if (set is null || (!games.PicksOpen && !games.IsLocked))
         {
             // No set yet, or picks have not opened: the provisional set is the commissioners'
-            // preview, so the page shows only when picks open (Feature 16, D-190).
+            // preview, so the page shows only when picks open (Feature 16, D-192).
             return new MyPicksResponse(
                 week,
                 SubmissionStatus.NotStarted,
@@ -680,7 +680,7 @@ public sealed class PickService
 
         SeasonWeek currentWeek = await EnsureCurrentWeekAsync(league, week, cancellationToken).ConfigureAwait(false);
 
-        // Tuesday 04:00 ET (Feature 16, D-190): until then the set may still change, so it takes no picks.
+        // Tuesday 04:00 ET (Feature 16, D-192): until then the set may still change, so it takes no picks.
         PicksOpening opening = PicksOpenRule.At(new DateTimeOffset(nowUtc, TimeSpan.Zero), currentWeek, hasActiveGames: true);
         if (opening.State == PicksOpenState.NotYetOpen)
         {

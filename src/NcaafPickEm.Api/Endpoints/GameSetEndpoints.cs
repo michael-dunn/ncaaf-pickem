@@ -230,7 +230,7 @@ public static class GameSetEndpoints
         {
             WeekGameSetResponse response = await gameSetService.GetWeekGameSetAsync(membership.LeagueId, week, cancellationToken);
 
-            // Before picks open the set is the commissioners' preview (Feature 16, D-190).
+            // Before picks open the set is the commissioners' preview (Feature 16, D-192).
             return TypedResults.Ok(membership.Role == MembershipRole.Commissioner ? response : response.ForMember());
         }
         catch (GameSetRuleViolation violation)

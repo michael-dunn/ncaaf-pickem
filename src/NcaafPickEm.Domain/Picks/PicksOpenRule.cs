@@ -10,7 +10,7 @@ public enum PicksOpenState
 
     /// <summary>
     /// The moment has passed but the week's set has no active games (generation failed or has not
-    /// run): picks stay closed until the set is generated (Feature 16, D-190).
+    /// run): picks stay closed until the set is generated (Feature 16, D-192).
     /// </summary>
     AwaitingGames,
 
@@ -29,7 +29,7 @@ public sealed record PicksOpening(DateTimeOffset? OpensAtUtc, PicksOpenState Sta
 
 /// <summary>
 /// The one answer to "have this week's picks opened?" (Feature 16, 04-Domain-Algorithms.md
-/// section 4.1, D-190): Tuesday 04:00 ET of the week's window
+/// section 4.1, D-192): Tuesday 04:00 ET of the week's window
 /// (<see cref="SeasonCalendar.PicksOpenAtUtc"/>), and only once the set has games.
 /// </summary>
 /// <remarks>

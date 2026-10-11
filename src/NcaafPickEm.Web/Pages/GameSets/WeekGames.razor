@@ -46,7 +46,7 @@ else
 
     @if (!set.IsLocked && set.PicksOpenAtUtc is { } opensAt && opensAt > DateTimeOffset.UtcNow)
     {
-        @* Feature 16 (D-190): members see "Games will be set Tuesday" until then. *@
+        @* Feature 16 (D-192): members see "Games will be set Tuesday" until then. *@
         <p class="text-sm muted">Preview: members see these games when picks open @set.PicksOpenAtEasternDisplay. Tuesday's regeneration may still change them.</p>
     }
 
