@@ -39,8 +39,8 @@ Development and Testing map no development tools under `/api` any more: the P2-0
 | Method | Route | Scope | Request / Response |
 |---|---|---|---|
 | POST | `/api/leagues` | Auth | `CreateLeagueRequest { Name, SeasonYear, FirstWeek?, LastWeek? }` -> `LeagueDetail` |
-| GET | `/api/leagues` | Auth | `LeagueSummary[] { LeagueId, Name, SeasonYear, MyRole, CurrentWeek, MyCurrentWeekStatus, Landing }`. `Landing` (`LeagueLanding`: `LeagueHome`, `Picks`, `Dashboard`, `Leaderboard`) is the screen the app opens that league on, per 04-Domain-Algorithms section 12 (P1-04, D-187); `MeResponse.Leagues` carries it too. |
-| GET | `/api/leagues/{leagueId}` | Member | `LeagueDetail { LeagueId, Name, SeasonYear, FirstWeek, LastWeek, DefaultPointValue, CurrentWeek, IsComplete, MyRole, MyCurrentWeekStatus, CurrentWeekLockAtUtc?, LockAtEasternDisplay? }` |
+| GET | `/api/leagues` | Auth | `LeagueSummary[] { LeagueId, Name, SeasonYear, MyRole, CurrentWeek, MyCurrentWeekStatus, Landing, DisplayWeek }`. `DisplayWeek` is the week the app calls "this week" (04-Domain-Algorithms section 12.1, Feature 15, D-193): the week just played from the Sunday rollover until the next week's picks open, else `CurrentWeek` clamped to the league's range. `Landing` (`LeagueLanding`: `LeagueHome`, `Picks`, `Dashboard`, `Leaderboard`) is the screen the app opens that league on, per 04-Domain-Algorithms section 12 (P1-04, D-187); `MeResponse.Leagues` carries it too. |
+| GET | `/api/leagues/{leagueId}` | Member | `LeagueDetail { LeagueId, Name, SeasonYear, FirstWeek, LastWeek, DefaultPointValue, CurrentWeek, IsComplete, MyRole, MyCurrentWeekStatus, CurrentWeekLockAtUtc?, LockAtEasternDisplay?, DisplayWeek }` (`DisplayWeek` as on `LeagueSummary`; the other current-week fields stay on `CurrentWeek`) |
 | PUT | `/api/leagues/{leagueId}/settings` | Commish | `UpdateLeagueSettingsRequest { Name, FirstWeek, LastWeek, DefaultPointValue }` |
 | GET | `/api/leagues/{leagueId}/members` | Member | `MemberRow[] { MembershipId, DisplayName, Role, JoinedWeek, IsFormer, CurrentWeekStatus?, IsMe }` (status only populated for Commish callers; `IsMe` added P1-03, additive) |
 | PUT | `/api/leagues/{leagueId}/members/me/display-name` | Member | `SetLeagueDisplayNameRequest { DisplayName }` -> caller's own updated `MemberRow` (`IsMe = true`); 409 if taken by another **active** member (case-insensitive; a removed member's old name is free, D-039) |
@@ -66,7 +66,7 @@ defaults are unchanged (Q9/Q10).
 | Method | Route | Scope | Response |
 |---|---|---|---|
 | GET | `/api/seasons/{year}/weeks` | Auth | `SeasonWeek[] { Week, StartUtc, EndUtc, IsRegularSeason }`; 404 when the calendar has no such season (P0-05). Weeks are ordered ascending and `Week` may be 0. |
-| GET | `/api/leagues/{leagueId}/weeks` | Member | `LeagueWeek[] { Week, HasGameSet, IsCurrent, IsLocked, IsComplete, LockAtUtc? }` restricted to First..Last. `HasGameSet` is true only when the week holds at least one active game, i.e. a set has actually been generated (D-140) |
+| GET | `/api/leagues/{leagueId}/weeks` | Member | `LeagueWeek[] { Week, HasGameSet, IsCurrent, IsLocked, IsComplete, LockAtUtc?, IsDisplayWeek }` restricted to First..Last. `HasGameSet` is true only when the week holds at least one active game, i.e. a set has actually been generated (D-140). Exactly one row has `IsDisplayWeek` (section 12.1, D-193); the week navigation jumps to it. |
 
 ## Game set configuration (Feature 02)
 

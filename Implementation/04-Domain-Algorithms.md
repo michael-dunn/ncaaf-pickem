@@ -224,10 +224,23 @@ Owner: `Leagues/LeagueLandingRule`. Tests: `LeagueLandingRuleTests` (rule), `Sea
 1. The league's last week has closed (`SeasonCalendar.LeagueIsCompleteAt`) -> `Leaderboard` (the season leaderboard is final).
 2. The calendar's current week is before the league's first week -> `LeagueHome` ("Season starts Week N on <date>"; no picks page yet).
 3. `currentSet` is frozen (`WeekGameSetLockGuard.IsFrozen`: locked, or its lock instant has passed) -> `Leaderboard` if `IsComplete` (every game final or void), else `Dashboard`.
-4. `previousSet` has locked and now is the current week's opening day (`SeasonCalendar.IsOpeningDayAt`: same Eastern calendar date as the window's start, i.e. the Sunday) -> `Leaderboard`.
+4. `previousSet` has locked and the current week's picks have not opened (`PicksOpenRule.HasOpenMomentPassed` is false: from the Sunday rollover until Tuesday 04:00 ET, section 4.1) -> `Leaderboard`. Until Feature 15 (D-193) this was the Sunday only (`SeasonCalendar.IsOpeningDayAt`).
 5. Otherwise -> `Picks` (including a week with no set yet; the picks page shows its own empty state).
 
 With no calendar ingested (`weeks` empty) rules 1, 2 and 4 cannot apply and the set alone decides. The client maps `Picks` and `Dashboard` to the current week's tab routes, `Leaderboard` to `/leagues/{id}/leaderboard`, and `LeagueHome` to `/leagues/{id}` (`Web/Services/LeagueLandingRoute`).
+
+### 12.1 Display week (Feature 15, D-193)
+
+Owner: `Leagues/DisplayWeekRule`. Tests: `DisplayWeekRuleTests`, `LeagueLandingRuleTests`, `LeagueLandingTests` (API), `SimulatorScenarioTests` (Saturday-to-Tuesday walk).
+
+`At(nowUtc, weeks, firstWeek, lastWeek, lockedWeeks)` is the week the app calls "this week" for one league:
+
+1. No calendar -> `firstWeek`.
+2. The calendar's current week clamped to `firstWeek..lastWeek`. If the season state is not `InSeason`, or the clamp moved it (before the league's range, after its last week), that is the answer.
+3. Once the current week's picks-open moment has passed (section 4.1) -> the current week.
+4. Before it (the results window, Sunday 00:00 ET to Tuesday 04:00 ET) -> the most recent locked week in `firstWeek..current-1`, skipping a bye or gap week; with none (the league's first week) -> the current week.
+
+It is calendar plus lock state, not completeness: a week with a late or postponed game is still shown through the window (as In Progress). `LeagueSummary.DisplayWeek`, `LeagueDetail.DisplayWeek` and `LeagueWeek.IsDisplayWeek` carry it; the season leaderboard's "This week's leaderboard", `WeekNav`'s jump ("This week") and the league home card use it. `CurrentWeek`, the bottom tabs, the picks and dashboard routes and every job keep the calendar's current week.
 
 ## 13. Member stats (Feature 14, F14-01, D-190)
 
