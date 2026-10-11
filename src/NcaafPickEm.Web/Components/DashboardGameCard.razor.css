@@ -24,9 +24,12 @@
 }
 
 .dashboard-game-card-team-mine {
-    text-decoration: underline;
-    text-decoration-color: var(--color-brand);
-    text-decoration-thickness: 2px;
+    display: inline-block;
+    padding: 0 var(--space-2);
+    border: 2px solid var(--color-focus);
+    border-radius: var(--radius-sm);
+    background: var(--color-surface);
+    color: var(--color-focus);
 }
 
 .dashboard-game-card-status-row {
@@ -81,6 +84,6 @@
 }
 
 .point-badge-elevated {
-    background: var(--color-accent-soft);
-    color: var(--color-accent);
+    background: var(--color-brand);
+    color: var(--color-text-inverse);
 }
