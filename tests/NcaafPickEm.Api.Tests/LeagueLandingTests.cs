@@ -2,6 +2,7 @@ using System.Net.Http.Json;
 using NcaafPickEm.Api.Tests.Infrastructure;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Shared.Contracts.Leagues;
+using NcaafPickEm.Shared.Contracts.Seasons;
 using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Api.Tests;
@@ -62,6 +63,36 @@ public sealed class LeagueLandingTests : IAsyncLifetime
 
         league.CurrentWeek.Should().Be(8);
         league.Landing.Should().Be(LeagueLanding.Leaderboard);
+    }
+
+    [Fact]
+    public async Task GivenTheMondayAfterAPlayedWeek_WhenReadingTheLeague_ThenTheDisplayWeekIsTheWeekJustPlayed()
+    {
+        // Feature 15 (D-193): Monday 19 Oct 23:59 EDT, before week 8's picks open on Tuesday at 04:00.
+        _app.Set(new DateTimeOffset(2026, 10, 20, 3, 59, 0, TimeSpan.Zero));
+        LeagueScenario scenario = await TestUsers.CreateLeagueScenarioAsync(_app.Factory);
+        await AddSetAsync(scenario, 7, Week7LockAt, lockedUtc: Week7LockAt, isComplete: true);
+        await AddSetAsync(scenario, 8, Week7LockAt.AddDays(7));
+        using HttpClient client = _app.Factory.CreateClientAs(scenario.MemberUserId);
+
+        LeagueSummary summary = await ListAsync(scenario);
+        summary.CurrentWeek.Should().Be(8);
+        summary.DisplayWeek.Should().Be(7);
+        summary.Landing.Should().Be(LeagueLanding.Leaderboard);
+
+        LeagueDetail? detail = await client.GetFromJsonAsync<LeagueDetail>($"/api/leagues/{scenario.LeagueId}");
+        detail!.CurrentWeek.Should().Be(8);
+        detail.DisplayWeek.Should().Be(7);
+
+        LeagueWeek[]? weeks = await client.GetFromJsonAsync<LeagueWeek[]>($"/api/leagues/{scenario.LeagueId}/weeks");
+        weeks!.Single(week => week.IsDisplayWeek).Week.Should().Be(7);
+        weeks!.Single(week => week.IsCurrent).Week.Should().Be(8);
+
+        // Tuesday 04:00 EDT: week 8's picks open, and the app moves on to it.
+        _app.Set(new DateTimeOffset(2026, 10, 20, 8, 0, 0, TimeSpan.Zero));
+        LeagueSummary tuesday = await ListAsync(scenario);
+        tuesday.DisplayWeek.Should().Be(8);
+        tuesday.Landing.Should().Be(LeagueLanding.Picks);
     }
 
     private async Task<LeagueSummary> ListAsync(LeagueScenario scenario)

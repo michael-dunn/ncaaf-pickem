@@ -1,4 +1,7 @@
 using Microsoft.EntityFrameworkCore;
+using NcaafPickEm.Domain.Leagues;
+using NcaafPickEm.Domain.Picks;
+using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Shared.Enums;
@@ -264,5 +267,63 @@ public sealed class SimulatorScenarioTests
         SimLog log = await sim.World.CreateSandboxAsync(new SandboxRequest(), CancellationToken.None);
         log.Failed.Should().BeTrue();
         (await sim.CountAsync(context => context.Leagues)).Should().Be(0);
+    }
+
+    [Fact]
+    public async Task GivenAPlayedWeek_WhenTimeRunsFromItsLastGameToTheNextWeeksPicksOpening_ThenTheAppShowsItsResultsUntilThen()
+    {
+        // Features 15 and 16 (D-192, D-193) walked on the simulator's own calendar and clock.
+        await using SimHarness sim = await SimHarness.StartAsync();
+        SimSnapshot snapshot = await sim.CreateSandboxAsync();
+        Guid leagueId = snapshot.Leagues[0].LeagueId;
+
+        SimHarness.Ok(await sim.World.FillEveryoneAsync(PickStrategy.Mixed, includeTester: true, submit: true, leaveOneIncomplete: false, CancellationToken.None));
+        await sim.PassAsync(TimeSpan.FromMinutes(16));
+        (await LandAsync(sim, leagueId)).Should().Be((LeagueLanding.Dashboard, 1), "week 1 locked and is being played");
+
+        for (int tick = 0; tick < 12; tick++)
+        {
+            await sim.PassAsync(TimeSpan.FromMinutes(10));
+        }
+
+        (await LandAsync(sim, leagueId)).Should().Be((LeagueLanding.Leaderboard, 1), "every game is final");
+
+        IReadOnlyList<SeasonWeek> weeks = await sim.QueryAsync<IReadOnlyList<SeasonWeek>>(async context =>
+            await context.SeasonWeeks.AsNoTracking().Where(week => week.SeasonYear == SimHarness.SeasonYear).ToListAsync());
+        SeasonWeek week2 = weeks.Single(week => week.Week == 2);
+        DateTimeOffset opensAt = PicksOpenRule.OpensAtUtc(week2);
+
+        // The calendar rolls to week 2; its picks are not open yet, so week 1 stays on screen.
+        sim.Clock.Advance(week2.StartUtc - sim.Clock.GetUtcNow() + TimeSpan.FromMinutes(1));
+        (await LandAsync(sim, leagueId)).Should().Be((LeagueLanding.Leaderboard, 1));
+
+        sim.Clock.Advance(opensAt - sim.Clock.GetUtcNow() - TimeSpan.FromSeconds(1));
+        (await LandAsync(sim, leagueId)).Should().Be((LeagueLanding.Leaderboard, 1), "a second before week 2's picks open");
+
+        sim.Clock.Advance(TimeSpan.FromSeconds(1));
+        (await LandAsync(sim, leagueId)).Should().Be((LeagueLanding.Picks, 2), "week 2's picks are open");
+    }
+
+    /// <summary>The landing screen and display week the app would answer with, from the simulator's database.</summary>
+    private static async Task<(LeagueLanding Landing, int DisplayWeek)> LandAsync(SimHarness sim, Guid leagueId)
+    {
+        DateTimeOffset nowUtc = sim.Clock.GetUtcNow();
+        (List<SeasonWeek> weeks, League league, List<NcaafPickEm.Domain.GameSets.WeekGameSet> sets) = await sim.QueryAsync(async context => (
+            await context.SeasonWeeks.AsNoTracking().Where(week => week.SeasonYear == SimHarness.SeasonYear).ToListAsync(),
+            await context.Leagues.AsNoTracking().SingleAsync(candidate => candidate.Id == leagueId),
+            await context.WeekGameSets.AsNoTracking().Where(set => set.LeagueId == leagueId).ToListAsync()));
+
+        int current = SeasonCalendar.CurrentWeekAt(nowUtc, weeks).Week;
+        LeagueLanding landing = LeagueLandingRule.Choose(
+            nowUtc,
+            weeks,
+            league.FirstWeek,
+            league.LastWeek,
+            sets.SingleOrDefault(set => set.Week == current),
+            sets.SingleOrDefault(set => set.Week == current - 1));
+        int display = DisplayWeekRule.At(
+            nowUtc, weeks, league.FirstWeek, league.LastWeek, [.. sets.Where(set => set.IsLocked).Select(set => set.Week)]);
+
+        return (landing, display);
     }
 }

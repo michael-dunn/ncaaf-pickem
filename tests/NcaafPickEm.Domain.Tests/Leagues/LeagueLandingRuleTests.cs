@@ -1,3 +1,4 @@
+using System.Globalization;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Domain.Seasons;
@@ -7,8 +8,8 @@ namespace NcaafPickEm.Domain.Tests.Leagues;
 
 /// <summary>
 /// 04-Domain-Algorithms.md section 12 (D-187): the screen the app opens a league on. Picks while
-/// the week is open, the Dashboard once it locks, the Leaderboard once its games are done and on
-/// the Sunday after a played week.
+/// the week is open, the Dashboard once it locks, the Leaderboard once its games are done and through
+/// the results window after a played week (until the next week's picks open, D-193).
 /// </summary>
 public sealed class LeagueLandingRuleTests
 {
@@ -112,10 +113,36 @@ public sealed class LeagueLandingRuleTests
         Land(Week8SundayNoon, currentSet: null, PlayedWeek7()).Should().Be(LeagueLanding.Leaderboard);
     }
 
-    [Fact]
-    public void GivenTheMondayAfterAPlayedWeek_WhenOpeningTheLeague_ThenItLandsOnPicks()
+    [Theory]
+    [InlineData("2026-10-19T04:00:00Z")] // Monday 00:00 ET
+    [InlineData("2026-10-20T03:59:59Z")] // Monday 23:59:59 ET
+    [InlineData("2026-10-20T07:59:59Z")] // Tuesday 03:59:59 ET, a second before week 8's picks open
+    public void GivenTheResultsWindowAfterAPlayedWeek_WhenOpeningTheLeague_ThenItLandsOnTheLeaderboard(string nowUtc)
     {
-        Land(Week8MondayMidnight, OpenWeek8(), PlayedWeek7()).Should().Be(LeagueLanding.Picks);
+        // Feature 15 (D-193): the weekend's results stay on screen until Tuesday's picks open.
+        Land(DateTimeOffset.Parse(nowUtc, CultureInfo.InvariantCulture), OpenWeek8(), PlayedWeek7())
+            .Should().Be(LeagueLanding.Leaderboard);
+    }
+
+    [Fact]
+    public void GivenTheNextWeeksPicksHaveOpened_WhenOpeningTheLeague_ThenItLandsOnPicks()
+    {
+        // Tuesday 20 Oct 04:00 EDT.
+        Land(new DateTimeOffset(2026, 10, 20, 8, 0, 0, TimeSpan.Zero), OpenWeek8(), PlayedWeek7())
+            .Should().Be(LeagueLanding.Picks);
+    }
+
+    [Fact]
+    public void GivenTheFallBackSunday_WhenOpeningTheLeague_ThenTheResultsWindowRunsToTuesdayFourEasternStandardTime()
+    {
+        // Week 10 starts Sun 1 Nov, the 25-hour fall-back day; its picks open Tue 3 Nov 04:00 EST = 09:00 UTC.
+        DateTime week9LockAt = new(2026, 10, 31, 16, 0, 0, DateTimeKind.Utc);
+        WeekGameSet played9 = Set(9, week9LockAt, lockedUtc: week9LockAt, isComplete: true);
+        WeekGameSet open10 = Set(10, new DateTime(2026, 11, 7, 17, 0, 0, DateTimeKind.Utc));
+
+        Land(new DateTimeOffset(2026, 11, 2, 4, 30, 0, TimeSpan.Zero), open10, played9).Should().Be(LeagueLanding.Leaderboard); // Sun 23:30 EST
+        Land(new DateTimeOffset(2026, 11, 3, 8, 30, 0, TimeSpan.Zero), open10, played9).Should().Be(LeagueLanding.Leaderboard); // Tue 03:30 EST
+        Land(new DateTimeOffset(2026, 11, 3, 9, 0, 0, TimeSpan.Zero), open10, played9).Should().Be(LeagueLanding.Picks);
     }
 
     [Fact]
