@@ -1,0 +1,57 @@
+@using NcaafPickEm.Shared.Contracts.Stats
+@using NcaafPickEm.Web.Pages.Stats
+
+@*
+    One category on the league stats page (Feature 14): rank, name (linking to the member's
+    profile), and the value as a percentage with its raw fraction. The viewer's row is highlighted.
+*@
+
+<div class="card stat-category">
+    <h2>@Title</h2>
+    <p class="muted text-sm">@Hint</p>
+    <div class="stat-category-scroll">
+        <table class="stat-category-table">
+            <thead>
+                <tr>
+                    <th scope="col">Rank</th>
+                    <th scope="col">Member</th>
+                    <th scope="col">Value</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (StatRow row in Rows)
+                {
+                    <tr class="@(row.IsMe ? "stat-category-row-me" : "")">
+                        <td>@row.Rank</td>
+                        <td>
+                            <a href="@($"/leagues/{LeagueId}/members/{row.MembershipId}/stats")">@row.DisplayName</a>
+                            @if (row.IsMe)
+                            {
+                                <span class="stat-category-you">You</span>
+                            }
+                        </td>
+                        <td>@StatFormat.Percent(row.Hits, row.Total)</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+@code {
+    /// <summary>Category name.</summary>
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>One line on what the value measures.</summary>
+    [Parameter]
+    public string? Hint { get; set; }
+
+    /// <summary>The ranked rows, in order.</summary>
+    [Parameter, EditorRequired]
+    public StatRow[] Rows { get; set; } = [];
+
+    /// <summary>The league, for the profile links.</summary>
+    [Parameter, EditorRequired]
+    public Guid LeagueId { get; set; }
+}

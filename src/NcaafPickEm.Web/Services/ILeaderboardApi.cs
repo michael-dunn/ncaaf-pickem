@@ -1,4 +1,5 @@
 using NcaafPickEm.Shared.Contracts.Leaderboard;
+using NcaafPickEm.Shared.Contracts.Stats;
 
 namespace NcaafPickEm.Web.Services;
 
@@ -20,4 +21,15 @@ public interface ILeaderboardApi
     /// <c>StatusCode == 403</c> ("PicksNotVisible") before the week locks.
     /// </summary>
     Task<WeekGrid> GetWeekGridAsync(Guid leagueId, int week, CancellationToken cancellationToken = default);
+
+    /// <summary><c>GET /api/leagues/{leagueId}/stats</c>: stat category leaders (Feature 14).</summary>
+    Task<LeagueStats> GetLeagueStatsAsync(Guid leagueId, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// <c>GET /api/leagues/{leagueId}/members/{membershipId}/stats</c>: one member's stats profile.
+    /// Throws <see cref="LeaguesApiException"/> with <c>StatusCode == 404</c> for a membership
+    /// outside the league.
+    /// </summary>
+    Task<MemberStatsProfile> GetMemberStatsAsync(
+        Guid leagueId, Guid membershipId, CancellationToken cancellationToken = default);
 }

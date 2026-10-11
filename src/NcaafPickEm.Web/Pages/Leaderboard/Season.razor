@@ -49,7 +49,7 @@ else
                             <td>@row.Rank</td>
                             <td><TrendArrow Trend="row.Trend" /></td>
                             <td>
-                                @row.DisplayName
+                                <a href="@($"/leagues/{LeagueId}/members/{row.MembershipId}/stats")">@row.DisplayName</a>
                                 @if (row.IsMe)
                                 {
                                     <span class="season-leaderboard-you">You</span>
@@ -68,6 +68,7 @@ else
     <a class="btn btn-secondary" href="@($"/leagues/{LeagueId}/weeks/{_league.CurrentWeek}/leaderboard")">
         This week's leaderboard
     </a>
+    <a class="btn btn-secondary" href="@($"/leagues/{LeagueId}/stats")">League stats</a>
 }
 
 @code {

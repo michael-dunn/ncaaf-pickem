@@ -60,7 +60,7 @@ else
                                 }
                             </td>
                             <td>
-                                @row.DisplayName@(row.IsFormer ? " " : "")
+                                <a href="@($"/leagues/{LeagueId}/members/{row.MembershipId}/stats")">@row.DisplayName</a>@(row.IsFormer ? " " : "")
                                 @if (row.IsFormer)
                                 {
                                     <span class="muted text-sm">(former)</span>

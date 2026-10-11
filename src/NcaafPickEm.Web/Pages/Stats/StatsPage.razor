@@ -1,0 +1,78 @@
+@page "/leagues/{LeagueId:guid}/stats"
+@using NcaafPickEm.Shared.Contracts.Stats
+@inject ILeaguesApi LeaguesApi
+@inject ILeaderboardApi LeaderboardApi
+@inject AppShellState Shell
+
+@*
+    League stats (Feature 14): every current member ranked in each category, highest first, ties
+    sharing a rank. The viewer's row is highlighted and every name opens that member's profile.
+    Former members never appear here; their profiles are reachable from past week leaderboards.
+*@
+
+<PageTitle>Stats - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_stats is null)
+{
+    <LoadingSkeleton Rows="5" />
+}
+else
+{
+    LeagueStats stats = _stats;
+
+    <h1>League stats</h1>
+
+    @if (stats.ThroughWeek is null)
+    {
+        <EmptyState Title="No stats yet" Body="Stats appear after the first week's games go final." />
+    }
+    else
+    {
+        <p class="muted">
+            Through Week @stats.ThroughWeek
+            @if (stats.IsProvisional)
+            {
+                <span class="stats-in-progress">In Progress</span>
+            }
+        </p>
+
+        <StatCategory Title="Pick accuracy"
+                      Hint="Correct picks out of counted games."
+                      Rows="stats.Accuracy"
+                      LeagueId="LeagueId" />
+
+        <StatCategory Title="Underdog hits"
+                      Hint="Underdog wins picked out of underdog wins."
+                      Rows="stats.Underdog"
+                      LeagueId="LeagueId" />
+    }
+
+    <a class="btn btn-secondary" href="@($"/leagues/{LeagueId}/leaderboard")">Season standings</a>
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    private LeagueStats? _stats;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Stats");
+        _error = null;
+        try
+        {
+            LeagueDetail league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(league.LeagueId, league.Name, league.CurrentWeek);
+            _stats = await LeaderboardApi.GetLeagueStatsAsync(LeagueId);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+}

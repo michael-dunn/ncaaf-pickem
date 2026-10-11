@@ -2,6 +2,7 @@ using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Leaderboard;
 using NcaafPickEm.Shared.Contracts.Reference;
 using NcaafPickEm.Shared.Contracts.Seasons;
+using NcaafPickEm.Shared.Contracts.Stats;
 using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Web.Services.Fakes;
@@ -385,5 +386,69 @@ public sealed class FakeLeaderboardApi : ILeaderboardApi
 
         GridMember[] gridMembers = [.. members.Select(m => new GridMember(m.Id, m.Name, IsFormer: false))];
         return new WeekGrid(games, gridMembers, [.. cells]);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Weeks 5-7 as above; week 7 is still in progress, so the values are provisional.</remarks>
+    public Task<LeagueStats> GetLeagueStatsAsync(Guid leagueId, CancellationToken cancellationToken = default)
+    {
+        RequireSampleLeague(leagueId);
+
+        StatRow[] accuracy =
+        [
+            new(Rank: 1, AlysonId, "Alyson", Hits: 20, Total: 26, IsMe: false),
+            new(Rank: 2, MichaelId, "Michael", Hits: 16, Total: 26, IsMe: true),
+            new(Rank: 3, AlexId, "Alex", Hits: 9, Total: 16, IsMe: false),
+            new(Rank: 4, DanielId, "Daniel", Hits: 11, Total: 26, IsMe: false),
+        ];
+
+        StatRow[] underdog =
+        [
+            new(Rank: 1, AlexId, "Alex", Hits: 2, Total: 3, IsMe: false),
+            new(Rank: 2, AlysonId, "Alyson", Hits: 2, Total: 5, IsMe: false),
+            new(Rank: 2, MichaelId, "Michael", Hits: 2, Total: 5, IsMe: true),
+            new(Rank: 4, DanielId, "Daniel", Hits: 0, Total: 5, IsMe: false),
+        ];
+
+        return Task.FromResult(new LeagueStats(ThroughWeek: CurrentWeek, IsProvisional: true, accuracy, underdog));
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Every member gets the same three weeks, renamed; Dance reads as a former member.</remarks>
+    public Task<MemberStatsProfile> GetMemberStatsAsync(
+        Guid leagueId, Guid membershipId, CancellationToken cancellationToken = default)
+    {
+        RequireSampleLeague(leagueId);
+
+        (string name, bool isFormer) = membershipId switch
+        {
+            _ when membershipId == MichaelId => ("Michael", false),
+            _ when membershipId == AlysonId => ("Alyson", false),
+            _ when membershipId == DanceId => ("Dance", true),
+            _ when membershipId == AlexId => ("Alex", false),
+            _ when membershipId == DanielId => ("Daniel", false),
+            _ => throw new LeaguesApiException(404, "That member is not in this league."),
+        };
+
+        MemberWeekStat[] weeks =
+        [
+            new(Week: 5, Correct: 8, Total: 10, Points: 30, Rank: 1, IsComplete: true),
+            new(Week: 6, Correct: 2, Total: 10, Points: 5, Rank: 4, IsComplete: true),
+            new(Week: 7, Correct: 6, Total: 11, Points: 30, Rank: 1, IsComplete: false),
+        ];
+
+        return Task.FromResult(new MemberStatsProfile(
+            membershipId,
+            name,
+            isFormer,
+            IsMe: membershipId == MichaelId,
+            IsProvisional: true,
+            Accuracy: new MemberStat(isFormer ? null : 2, RankedCount: 4, Hits: 16, Total: 26),
+            Underdog: new MemberStat(isFormer ? null : 2, RankedCount: 4, Hits: 2, Total: 5),
+            MostCorrect: new WeekHighlight(5, 8, 10, []),
+            LeastCorrect: new WeekHighlight(6, 2, 10, []),
+            MostPoints: new WeekHighlight(5, 30, 10, []),
+            LeastPoints: new WeekHighlight(6, 5, 10, []),
+            weeks));
     }
 }

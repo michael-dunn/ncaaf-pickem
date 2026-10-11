@@ -1,0 +1,153 @@
+@page "/leagues/{LeagueId:guid}/members/{MembershipId:guid}/stats"
+@using NcaafPickEm.Shared.Contracts.Stats
+@inject ILeaguesApi LeaguesApi
+@inject ILeaderboardApi LeaderboardApi
+@inject AppShellState Shell
+
+@*
+    Member stats profile (Feature 14): the member's value and league rank in each category, their
+    best and worst Complete weeks, and a per-week table linking to each week's leaderboard. A
+    former member's profile works too (reached from past week leaderboards) but carries no ranks.
+*@
+
+<PageTitle>Member stats - NCAAF Pick Em</PageTitle>
+
+<ErrorBanner Message="@_error" OnDismiss="() => _error = null" />
+
+@if (_profile is null)
+{
+    @if (_error is null)
+    {
+        <LoadingSkeleton Rows="5" />
+    }
+}
+else
+{
+    MemberStatsProfile profile = _profile;
+
+    <h1>
+        @profile.DisplayName
+        @if (profile.IsFormer)
+        {
+            <span class="muted text-sm">(former)</span>
+        }
+    </h1>
+    @if (profile.IsProvisional)
+    {
+        <span class="stats-in-progress">In Progress</span>
+    }
+
+    <div class="card member-stats-summary">
+        <div>
+            <h2>Pick accuracy</h2>
+            <p class="member-stats-value">@StatFormat.Percent(profile.Accuracy.Hits, profile.Accuracy.Total)</p>
+            <p class="muted text-sm">@RankText(profile.Accuracy)</p>
+        </div>
+        <div>
+            <h2>Underdog hits</h2>
+            <p class="member-stats-value">@StatFormat.Percent(profile.Underdog.Hits, profile.Underdog.Total)</p>
+            <p class="muted text-sm">@RankText(profile.Underdog)</p>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>Best and worst weeks</h2>
+        @if (profile.MostCorrect is null)
+        {
+            <p class="muted">Appears once a week is complete.</p>
+        }
+        else
+        {
+            <dl class="member-stats-highlights">
+                <dt>Most correct</dt>
+                <dd>@CorrectText(profile.MostCorrect)</dd>
+                <dt>Least correct</dt>
+                <dd>@CorrectText(profile.LeastCorrect!)</dd>
+                <dt>Most points</dt>
+                <dd>@PointsText(profile.MostPoints!)</dd>
+                <dt>Least points</dt>
+                <dd>@PointsText(profile.LeastPoints!)</dd>
+            </dl>
+        }
+    </div>
+
+    <div class="card member-stats-scroll">
+        <table class="member-stats-weeks">
+            <thead>
+                <tr>
+                    <th scope="col">Week</th>
+                    <th scope="col">Correct</th>
+                    <th scope="col">Points</th>
+                    <th scope="col">Rank</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (MemberWeekStat week in profile.Weeks)
+                {
+                    <tr>
+                        <td>
+                            <a href="@($"/leagues/{LeagueId}/weeks/{week.Week}/leaderboard")">Week @week.Week</a>
+                            @if (!week.IsComplete)
+                            {
+                                <span class="muted text-sm"> (in progress)</span>
+                            }
+                        </td>
+                        <td>@week.Correct/@week.Total</td>
+                        <td>@week.Points</td>
+                        <td>@week.Rank</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (profile.Weeks.Length == 0)
+        {
+            <p class="muted">No weeks played yet.</p>
+        }
+    </div>
+
+    <a class="btn btn-secondary" href="@($"/leagues/{LeagueId}/stats")">League stats</a>
+}
+
+@code {
+    /// <summary>League from the route.</summary>
+    [Parameter]
+    public Guid LeagueId { get; set; }
+
+    /// <summary>The member whose profile this is.</summary>
+    [Parameter]
+    public Guid MembershipId { get; set; }
+
+    private MemberStatsProfile? _profile;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Shell.SetTitle("Member stats");
+        _error = null;
+        _profile = null;
+        try
+        {
+            LeagueDetail league = await LeaguesApi.GetLeagueAsync(LeagueId);
+            Shell.SetLeague(league.LeagueId, league.Name, league.CurrentWeek);
+            _profile = await LeaderboardApi.GetMemberStatsAsync(LeagueId, MembershipId);
+        }
+        catch (LeaguesApiException ex)
+        {
+            _error = ex.Message;
+        }
+    }
+
+    private static string RankText(MemberStat stat) =>
+        stat.Rank is { } rank ? $"Rank {rank} of {stat.RankedCount}" : "Not ranked (former member)";
+
+    private static string CorrectText(WeekHighlight highlight) =>
+        Join($"Week {highlight.Week}: {highlight.Value}/{highlight.GameCount}", highlight);
+
+    private static string PointsText(WeekHighlight highlight) =>
+        Join($"Week {highlight.Week}: {highlight.Value} pts ({highlight.GameCount} games)", highlight);
+
+    private static string Join(string text, WeekHighlight highlight) =>
+        highlight.OtherTiedWeeks.Length == 0
+            ? text
+            : $"{text} {StatFormat.MoreTies(highlight.OtherTiedWeeks)} (Week {string.Join(", ", highlight.OtherTiedWeeks)})";
+}

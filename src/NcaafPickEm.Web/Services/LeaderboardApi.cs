@@ -1,4 +1,5 @@
 using NcaafPickEm.Shared.Contracts.Leaderboard;
+using NcaafPickEm.Shared.Contracts.Stats;
 
 namespace NcaafPickEm.Web.Services;
 
@@ -39,5 +40,24 @@ public sealed class LeaderboardApi(HttpClient httpClient) : ILeaderboardApi
             await _httpClient.GetAsync($"api/leagues/{leagueId}/weeks/{week}/grid", cancellationToken);
         await ApiResponses.EnsureSuccessAsync(response);
         return await ApiResponses.ReadRequiredAsync<WeekGrid>(response);
+    }
+
+    /// <inheritdoc />
+    public async Task<LeagueStats> GetLeagueStatsAsync(Guid leagueId, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage response =
+            await _httpClient.GetAsync($"api/leagues/{leagueId}/stats", cancellationToken);
+        await ApiResponses.EnsureSuccessAsync(response);
+        return await ApiResponses.ReadRequiredAsync<LeagueStats>(response);
+    }
+
+    /// <inheritdoc />
+    public async Task<MemberStatsProfile> GetMemberStatsAsync(
+        Guid leagueId, Guid membershipId, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage response = await _httpClient.GetAsync(
+            $"api/leagues/{leagueId}/members/{membershipId}/stats", cancellationToken);
+        await ApiResponses.EnsureSuccessAsync(response);
+        return await ApiResponses.ReadRequiredAsync<MemberStatsProfile>(response);
     }
 }
