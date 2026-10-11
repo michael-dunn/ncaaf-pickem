@@ -179,6 +179,9 @@ public static class DependencyInjection
         // send immediately.
         services.AddScheduledJob<FridayMemberReminderJob>();
         services.AddScheduledJob<FridayCommissionerSummaryJob>();
+
+        // Feature 16 (D-190): Tuesday 04:00 ET "picks are open" push, or the commissioner alert.
+        services.AddScheduledJob<PicksOpenJob>();
         services.AddOneShotJob<SaturdayReminderOneShot>();
         services.AddDomainEventHandler<GameAddedToSet, GamesAddedNotificationHandler>();
         services.AddDomainEventHandler<GameRemovedFromSet, GameRemovedNotificationHandler>();
