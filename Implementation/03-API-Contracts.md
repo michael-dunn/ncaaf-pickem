@@ -159,6 +159,15 @@ Record definitions live in `Shared/Contracts/Leaderboard/` (`SeasonLeaderboard`,
 | GET | `/api/leagues/{leagueId}/weeks/{week}/leaderboard` | Member | `WeekLeaderboard { Week, IsComplete, Rows: WeekRow[] { Rank, MembershipId, DisplayName, Points, Correct, Total, IsWinner, IsFormer, IsMe } }` |
 | GET | `/api/leagues/{leagueId}/weeks/{week}/grid` | Member | `WeekGrid { Games: GameSetGameDto[] (voided included), Members: GridMember[] { MembershipId, DisplayName, IsFormer } (the memberships the lock job settled - `WeekSubmissions.Status` in Locked/Incomplete, D-135 - by name), Cells: GridCell[] { GameSetGameId, MembershipId, TeamId?, Outcome: Pending/Correct/Incorrect/NoPick/Voided } }`; 403 `PicksNotVisible` before lock, the same ProblemDetails title as `GET .../picks` |
 
+## Member stats (Feature 14)
+
+Records live in `Shared/Contracts/Stats/` (`LeagueStats`, `StatRow`, `MemberStatsProfile`, `MemberStat`, `WeekHighlight`, `MemberWeekStat`). Computed on read (04 section 13); percentages are formatted by the client from `Hits`/`Total`.
+
+| Method | Route | Scope | Response |
+|---|---|---|---|
+| GET | `/api/leagues/{leagueId}/stats` | Member | `LeagueStats { ThroughWeek? (null = no counted game yet), IsProvisional, Accuracy: StatRow[], Underdog: StatRow[] }`, `StatRow { Rank, MembershipId, DisplayName, Hits, Total, IsMe }`; active members only |
+| GET | `/api/leagues/{leagueId}/members/{membershipId}/stats` | Member | `MemberStatsProfile { MembershipId, DisplayName, IsFormer, IsMe, IsProvisional, Accuracy, Underdog: MemberStat { Rank? (null for a former member), RankedCount, Hits, Total }, MostCorrect?, LeastCorrect?, MostPoints?, LeastPoints?: WeekHighlight { Week, Value, GameCount, OtherTiedWeeks[] }, Weeks: MemberWeekStat[] { Week, Correct, Total, Points, Rank, IsComplete } }`; former members of the league included; 404 `MembershipNotFound` for a membership in another league |
+
 ## Data admin (Features 09, 12)
 
 **Bootstrap exception to the admin scope (P8-06, D-166):** `GET /api/admin/data-status` and

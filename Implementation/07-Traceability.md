@@ -205,3 +205,16 @@ addendum.
 | Before first week / after last week states | P1-02 | UI, A | PASS: screenshot `p1-02-picker-empty-375.png`; `LeagueEndpointsTests.GivenALeaguesFirstAndLastWeek_WhenGettingLeagueWeeks_ThenTheRangeAndCurrentAreCorrect` |
 | UTC storage, Eastern logic, local display with zone hint | P0-05, all UI | D, UI | PASS: `SeasonCalendarTests`; security review's `DateTime.UtcNow` grep (zero hits outside `TimeProvider`, confirms UTC-only storage/domain logic, §4.3); screenshots showing Eastern-labelled kickoff times (e.g. `p3-05-member-week-375.png`) |
 | Schedule change before lock removes + notifies; after lock flags for void review (`GameNeedsVoidReview`), P5-02 owns the actual void | P3-04, P7-03, P5-02 | A `ScheduleChangeTests` | PASS: `ScheduleChangeTests.GivenAGameInAnUnlockedWeek_WhenItIsPostponed_ThenItIsRemovedAndLockAtIsRecomputed`, `.GivenAPostponedGame_WhenItReturnsToScheduled_ThenItIsRestored`, `.GivenALockedWeek_WhenItsGameIsPostponed_ThenNothingIsRemovedAndItAppearsInNeedsVoidReview`, `.GivenALockedWeeksPostponedGame_WhenTheCommissionerOverridesTheResult_ThenItLeavesTheReviewList` |
+
+## Feature 14 - Member Stats
+
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Counted games only; an unpicked counted game is a miss | F14-01 | D `MemberStatsCalculatorTests.GivenPendingAndUnpickedGames_...`, A `StatsEndpointsTests.GivenALockedPartlyDecidedWeek_...` | PASS: both |
+| Underdog per `SpreadAtLock`; no line / 0 excluded | F14-01 | D `MemberStatsCalculatorTests.GivenALine_...`, `.GivenNoLineOrAPickEm_...`, A `StatsEndpointsTests.GivenALockedPartlyDecidedWeek_...` | PASS: all three |
+| Categories ranked by percentage, ties share a rank, late joiners on their own weeks | F14-01 | D `MemberStatsCalculatorTests.GivenEqualPercentages_...` | PASS |
+| Best/worst Complete weeks, ties to most recent with "+N more" | F14-01 | D `MemberStatsCalculatorTests.GivenCompleteWeeks_...`, UI | PASS; screenshot `f14-member-stats-375.png` |
+| Profile ranks; former member reachable, unranked | F14-01 | D `MemberStatsCalculatorTests.GivenAnActiveMember_...`, `.GivenAFormerMember_...` | PASS |
+| Stats page: highlight, name links, empty state, linked from season leaderboard | F14-01 | UI, A `StatsEndpointsTests.GivenNothingLocked_...` | PASS; screenshots `f14-league-stats-375.png`, `f14-season-stats-link-375.png` |
+| Members-only; other league's membership 404 | F14-01 | A `StatsEndpointsTests` matrix tests, `GeneratedAuthMatrixTests` | PASS |
+| Under 1 s for 50 members x 15 weeks | F14-01 | A `LeaderboardPerfTests.GivenFiftyMembersAcrossFifteenWeeks_WhenReadingStats_...` | PASS |

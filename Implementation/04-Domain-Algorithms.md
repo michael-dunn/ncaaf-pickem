@@ -215,3 +215,13 @@ Owner: `Leagues/LeagueLandingRule`. Tests: `LeagueLandingRuleTests` (rule), `Sea
 5. Otherwise -> `Picks` (including a week with no set yet; the picks page shows its own empty state).
 
 With no calendar ingested (`weeks` empty) rules 1, 2 and 4 cannot apply and the set alone decides. The client maps `Picks` and `Dashboard` to the current week's tab routes, `Leaderboard` to `/leagues/{id}/leaderboard`, and `LeagueHome` to `/leagues/{id}` (`Web/Services/LeagueLandingRoute`).
+
+## 13. Member stats (Feature 14, F14-01, D-190)
+
+Owner: `Stats/MemberStatsCalculator`. Tests: `MemberStatsCalculatorTests`.
+
+Pure, over flattened records like section 8: `StandingsMember` and `StandingsWeekResult` (section 8's own), `StatsGame(GameSetGameId, Week, HomeTeamId, AwayTeamId, SpreadAtLock, WinnerTeamId, IsWeekComplete)` and `StatsPick(MembershipId, GameSetGameId, TeamId)` in; the `Shared/Contracts/Stats` records out. `Infrastructure/Services/MemberStatsService` passes the active (not removed, not voided) rows of the league's locked sets with `WinnerTeamId` from `Scoring/WinnerResolver` (D-098), so a **counted game** is simply a row with a winner. Nothing is stored: stats are computed on read from the rows scoring already keeps true, so a game going final, an override or a void shows on the next read.
+
+A member's weeks are the weeks they have a `WeekResults` row for, from `JoinedWeek` on - the lock job's roster (D-111). Within them: **accuracy** = correct picks / counted games (an unpicked counted game is a miss); **underdog hits** = underdog wins picked / underdog wins, where the underdog is the team getting points per `SpreadAtLock` (home minus away: negative = away is the underdog, positive = home); no line, or a spread of exactly 0, has no underdog. Categories list every active member, ranked by percentage compared exactly as fractions (2/3 ties 4/6) with competition ranking, then display name and `MembershipId`; a zero denominator reads as 0%. No minimum number of games (owner answer). `ThroughWeek` = latest week with a counted game (null = empty state); `IsProvisional` = a counted game sits in a week that is not complete.
+
+Profile: both categories with the member's rank from the league ranking (null for a former member, who is not ranked); most/least correct and most/least points over the member's **Complete** result rows only (ties: the most recent week, the others listed most recent first); and one row per result row with weekly rank = 1 + that week's rows with more points (the week leaderboard's competition rank, former members included).
