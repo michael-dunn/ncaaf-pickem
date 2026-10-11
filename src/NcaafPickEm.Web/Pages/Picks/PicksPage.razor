@@ -46,17 +46,39 @@ else
         </div>
     </div>
 
-    <div class="card picks-status-card">
-        <StatusPill Status="picks.Status" PickedCount="picks.PickedCount" TotalCount="picks.TotalCount" />
-        <LockTime LockAtUtc="picks.LockAtUtc" EasternDisplay="@picks.LockAtEasternDisplay" NoLockText="No games yet" />
-    </div>
-
-    @if (picks.Games.Length == 0)
+    @if (!picks.PicksOpen && !picks.IsLocked)
     {
+        @* Feature 16 (D-190): before Tuesday 04:00 ET the set is still the commissioner's preview. *@
+        <div class="card picks-status-card">
+            <span class="text-sm muted">Picks open</span>
+            <LockTime LockAtUtc="picks.PicksOpenAtUtc" EasternDisplay="@picks.PicksOpenAtEasternDisplay" NoLockText="Not yet" />
+        </div>
+
+        @if (picks.PicksOpenAtUtc is { } opensAt && opensAt > DateTimeOffset.UtcNow)
+        {
+            <EmptyState Title="Games will be set Tuesday" Body="This week's games are settled after the new rankings. Come back when picks open." />
+        }
+        else
+        {
+            <EmptyState Title="No games yet" Body="Picks open as soon as the commissioner sets this week's games." />
+        }
+    }
+    else if (picks.Games.Length == 0)
+    {
+        <div class="card picks-status-card">
+            <StatusPill Status="picks.Status" PickedCount="picks.PickedCount" TotalCount="picks.TotalCount" />
+            <LockTime LockAtUtc="picks.LockAtUtc" EasternDisplay="@picks.LockAtEasternDisplay" NoLockText="No games yet" />
+        </div>
+
         <EmptyState Title="No games yet" Body="The commissioner has not set up this week's games." />
     }
     else
     {
+        <div class="card picks-status-card">
+            <StatusPill Status="picks.Status" PickedCount="picks.PickedCount" TotalCount="picks.TotalCount" />
+            <LockTime LockAtUtc="picks.LockAtUtc" EasternDisplay="@picks.LockAtEasternDisplay" NoLockText="No games yet" />
+        </div>
+
         <div class="card picks-games-card">
             @foreach (MyPickGameDto myGame in picks.Games)
             {

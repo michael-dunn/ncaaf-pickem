@@ -27,7 +27,12 @@ else
         <LockTime LockAtUtc="set.LockAtUtc" EasternDisplay="@set.LockAtEasternDisplay" NoLockText="No games yet" />
     </div>
 
-    @if (set.Games.Length == 0)
+    @if (set.Games.Length == 0 && !set.IsLocked && set.PicksOpenAtUtc is { } opensAt && opensAt > DateTimeOffset.UtcNow)
+    {
+        @* Feature 16 (D-190): before picks open members get no provisional set. *@
+        <EmptyState Title="Games will be set Tuesday" Body="@($"Picks open {set.PicksOpenAtEasternDisplay}.")" />
+    }
+    else if (set.Games.Length == 0)
     {
         <EmptyState Title="No games yet" Body="The commissioner has not set up this week's games." />
     }
