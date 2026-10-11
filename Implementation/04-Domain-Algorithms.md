@@ -32,7 +32,7 @@ The generator is pure and takes flattened records, not entities: `GameSetGenerat
 5. Exclude any GameId whose existing row has `IsRemoved = 1` (sticky removal).
 6. `ExceedsMax = Count > 50`. Generation is refused (409) when true; preview reports it. The full list is still returned so the preview can show what the rules produced.
 7. Regeneration diff: `Added = new - old active`, `Removed = old active rule-sourced rows the rules no longer select` (manual rows are never in `Removed`), `RemovedIneligible = old active rows of either source whose game left the step 1 pool`. Emit `GameAddedToSet` and `GameRemovedFromSet` events per diff item. Removed rows are marked `IsRemoved = 1` rather than deleted so picks remain, with `RemovedReason = "Rule regeneration"` for `Removed` and `"Schedule change"` for `RemovedIneligible`.
-8. From the week's lock instant generation is a no-op. "Locked" here means `GameSets/WeekGameSetLockGuard.IsFrozen(set, nowUtc)` = `LockedUtc != null` **or** `nowUtc >= LockAtUtc` (D-110), so a lock job that is running late does not leave a window in which the set can still be regenerated after picks have stopped. The service passes that answer in as `IsLocked`; the domain function returns `GenerationResult.Locked` - `IsLocked = true`, empty games and empty diff - and the caller turns that into the 409. The Tuesday regeneration job just skips the week. Manual add, manual remove and the week rule override use the same guard.
+8. From the week's lock instant generation is a no-op. "Locked" here means `GameSets/WeekGameSetLockGuard.IsFrozen(set, nowUtc)` = `LockedUtc != null` **or** `nowUtc >= LockAtUtc` (D-110), so a lock job that is running late does not leave a window in which the set can still be regenerated after picks have stopped. The service passes that answer in as `IsLocked`; the domain function returns `GenerationResult.Locked` - `IsLocked = true`, empty games and empty diff - and the caller turns that into the 409. The Tuesday regeneration job just skips the week, and also skips a week whose picks have opened (section 4.1, D-192). Manual add, manual remove and the week rule override use the same guard.
 9. `LockAtUtc` = min `KickoffUtc` over active games, or null. Games are returned ordered by `KickoffUtc` then `GameId`, so two runs over the same inputs produce the same list.
 
 Preview runs steps 1 to 7 with candidate rules and without persisting, and ignores lock: only saving is refused after lock.
@@ -81,6 +81,18 @@ At lock (job): for each active membership at lock time, `Submitted` -> `Locked`;
 Rules enforced server-side, every call: reject pick/submit when `nowUtc >= LockAtUtc` or `LockedUtc != null` (409) - `GameSets/WeekGameSetLockGuard.IsFrozen`, the same predicate configuration uses since D-110. Reject pick where `TeamId` is not home/away of the game (400). Reject picks on removed or voided games (409). Tapping the already-picked team is a no-op success.
 
 Visibility: `/picks` (all members) and `/grid` return 403 until `LockedUtc != null`.
+
+### 4.1 Picks open Tuesday (Feature 16, D-192)
+
+Owner: `Picks/PicksOpenRule` over `SeasonCalendar.PicksOpenAtUtc`. Tests: `PicksOpenRuleTests`, `PicksOpenTests` (API), `RegenerationJobTests`.
+
+- Picks-open moment of a week: 04:00 ET (`SeasonCalendar.PicksOpenTimeEastern`) on the Eastern calendar date two days after the window's first day, i.e. the Tuesday after the window's Sunday. It is an Eastern wall-clock time, so the fall-back week still opens at 04:00 EST. It comes after the Tuesday 03:30 `RegenerateGameSetsJob` (Open Question answer b; no job times changed).
+- `PicksOpenRule.At(nowUtc, week?, hasActiveGames)` -> `PicksOpening { OpensAtUtc?, State }`: `NotYetOpen` before the moment; after it `Open` when the set has an active game, else `AwaitingGames` (generation failed or selected nothing: picks stay closed until the set is generated). With no calendar (`week` null) only the set decides.
+- Pick and submit: after `WeekNotCurrent`, a current week whose moment has not arrived is refused 409 `PicksNotOpen` carrying the moment. After it the existing set/lock rules apply unchanged (an empty set is still `GameNotInSet` / `NoGamesInSet`).
+- Reads: while not open (and not locked) `GET .../picks/me` returns no games and null lock fields with the open time; `GET .../gameset` does the same for a member, while a commissioner sees the full provisional set (preview, and generate/regenerate keep working).
+- Stability: `RegenerateGameSetsJob` skips any week whose moment has passed (`HasOpenMomentPassed`), so a late or catch-up run never adds or drops games after open; after that only commissioner actions (add, void, remove, with their existing notifications) change the set. Point values still follow line moves (D-189). `EnsureCurrentWeekSetsJob` only creates a missing set, which is what opens an `AwaitingGames` week.
+- Notification: `Notifications/PicksOpenJob`, Tuesday 04:00 ET, pushes "Week N picks are open" (`NotificationType.PicksOpen`) to every member of each active league whose current week has games; a league whose current week has none gets `PicksNotSet` to its commissioners instead.
+- Weeks beyond the current week are never open (`WeekNotCurrent`); past weeks are read-only as before. Migration: none - the first affected week is the one whose moment follows deployment.
 
 ## 5. Lock job (Features 04, 05)
 
@@ -199,6 +211,7 @@ Owner: `Infrastructure/Jobs/ReminderJobs`. Tests: `ReminderJobTests`.
 - Cron evaluated in Eastern: Friday 20:00 (member reminder), Friday 21:00 (commissioner summary), and a per-week one-shot at `LockAtUtc - 1h` (Saturday reminder) recomputed whenever `LockAtUtc` changes.
 - Recipients evaluated at send time. Skip members with status Submitted. Skip everything if the league has no game set for the current week or the week is already locked.
 - Once-per-week guarantee via the `NotificationLog` filtered unique index; a duplicate insert = Skipped.
+- Tuesday 04:00 ET: "Week N picks are open" to every member, or the "games not set" alert to commissioners (section 4.1, D-192).
 - Event-driven: `GameAddedToSet` (only to members who were Submitted) and `GameRemovedFromSet` (only to members with a pick on that game) send immediately, coalescing multiple adds in one regeneration into one "N new games" message.
 - Delivery: 404/410 deletes the subscription (Result = Expired). Other failures retry 3 times over 15 minutes with backoff, then Failed.
 
