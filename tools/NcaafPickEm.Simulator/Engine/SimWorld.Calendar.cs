@@ -214,11 +214,12 @@ public sealed partial class SimWorld
             await NoteLocksAsync(state, log, token).ConfigureAwait(false);
         }, cancellationToken);
 
-    /// <summary>Lays the calendar out with <paramref name="week"/> current from now, and makes the week ready to pick.</summary>
+    /// <summary>Lays the calendar out with <paramref name="week"/> current, its picks open, and makes the week ready to pick.</summary>
     private async Task EnterWeekAsync(SimState state, int week, SimLog log, CancellationToken cancellationToken, bool generateSets = true)
     {
         DateTimeOffset nowUtc = _timeProvider.GetUtcNow();
-        IReadOnlyList<SeasonWeek> weeks = SimCalendarLayout.Build(state.SeasonYear, week, nowUtc);
+        // Started a few days back, so the week's picks have already opened (Feature 16, D-190).
+        IReadOnlyList<SeasonWeek> weeks = SimCalendarLayout.Build(state.SeasonYear, week, nowUtc - SimCalendarLayout.PicksOpenLead);
         await InScopeAsync(services => services.GetRequiredService<CalendarDesk>().WriteAsync(state.SeasonYear, weeks, cancellationToken))
             .ConfigureAwait(false);
         log.Note($"calendar: week {week} is current, until {SimFormat.EasternDate(weeks[week - SimCalendarLayout.FirstWeek].EndUtc)}");

@@ -33,6 +33,13 @@ public static class SimCalendarLayout
     public static readonly TimeSpan PastWeekLength = TimeSpan.FromDays(1);
 
     /// <summary>
+    /// How far before now the simulator starts the week it enters (D-190): three days, so the
+    /// week's picks-open moment (Tuesday 04:00 ET of the window, Feature 16) has passed and the
+    /// tester can pick at once. The week then has four days left to run.
+    /// </summary>
+    public static readonly TimeSpan PicksOpenLead = TimeSpan.FromDays(3);
+
+    /// <summary>
     /// The gap between one window's inclusive end and the next one's start, matching the real
     /// calendar's Saturday 23:59:59.999 to Sunday 00:00:00.000.
     /// </summary>
