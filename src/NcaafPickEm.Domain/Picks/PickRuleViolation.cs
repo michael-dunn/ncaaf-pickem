@@ -14,6 +14,12 @@ public enum PickRuleViolationCode
     WeekNotCurrent,
 
     /// <summary>
+    /// The week is current but its picks-open moment (Tuesday 04:00 ET, Feature 16) has not
+    /// arrived. 409; <see cref="PickRuleViolation.OpensAtUtc"/> carries the moment.
+    /// </summary>
+    PicksNotOpen,
+
+    /// <summary>
     /// The week is locked: the lock job has run, or the first kickoff has simply passed. 409.
     /// </summary>
     Locked,
@@ -64,4 +70,7 @@ public sealed class PickRuleViolation : Exception
     /// <summary>How many active games are still unpicked, for
     /// <see cref="PickRuleViolationCode.IncompletePicks"/>.</summary>
     public int? Count { get; }
+
+    /// <summary>When the week's picks open, for <see cref="PickRuleViolationCode.PicksNotOpen"/>.</summary>
+    public DateTimeOffset? OpensAtUtc { get; init; }
 }

@@ -130,6 +130,28 @@ public sealed class SeasonCalendar(TimeProvider timeProvider)
     }
 
     /// <summary>
+    /// The Eastern wall-clock time picks open on the third day of a week's window: Tuesday 04:00
+    /// ET for a real Sunday-to-Saturday week, after the Tuesday 03:30 regeneration (Feature 16, D-190).
+    /// </summary>
+    public static TimeOnly PicksOpenTimeEastern { get; } = new(4, 0);
+
+    /// <summary>
+    /// The instant a week's picks open (Feature 16): <see cref="PicksOpenTimeEastern"/> on the
+    /// Eastern calendar date two days after the window's first day - the Tuesday after the Sunday
+    /// the week starts. Computed as an Eastern wall-clock time, so a week that starts on the
+    /// fall-back Sunday still opens at 04:00 EST, not 03:00.
+    /// </summary>
+    /// <param name="week">The week whose picks open.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="week"/> is null.</exception>
+    public static DateTimeOffset PicksOpenAtUtc(SeasonWeek week)
+    {
+        ArgumentNullException.ThrowIfNull(week);
+
+        DateOnly firstDay = DateOnly.FromDateTime(ToEastern(week.StartUtc).DateTime);
+        return ToUtc(firstDay.AddDays(2).ToDateTime(PicksOpenTimeEastern));
+    }
+
+    /// <summary>
     /// The range a new league falls back to when the season has no calendar at all: Weeks 1
     /// through 14, the length of a normal FBS regular season (D-165).
     /// </summary>
