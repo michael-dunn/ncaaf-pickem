@@ -57,11 +57,11 @@ public sealed class FakeLeaderboardApi : ILeaderboardApi
         {
             weeks[week - FirstWeek] = week switch
             {
-                5 => new LeagueWeek(5, HasGameSet: true, IsCurrent: false, IsLocked: true, IsComplete: true, LockAtUtc(5)),
-                6 => new LeagueWeek(6, HasGameSet: true, IsCurrent: false, IsLocked: true, IsComplete: true, LockAtUtc(6)),
-                7 => new LeagueWeek(7, HasGameSet: true, IsCurrent: true, IsLocked: true, IsComplete: false, LockAtUtc(7)),
-                8 => new LeagueWeek(8, HasGameSet: true, IsCurrent: false, IsLocked: false, IsComplete: false, LockAtUtc(8)),
-                _ => new LeagueWeek(week, HasGameSet: false, IsCurrent: false, IsLocked: false, IsComplete: false, null),
+                5 => new LeagueWeek(5, HasGameSet: true, IsCurrent: false, IsLocked: true, IsComplete: true, LockAtUtc(5), IsDisplayWeek: false),
+                6 => new LeagueWeek(6, HasGameSet: true, IsCurrent: false, IsLocked: true, IsComplete: true, LockAtUtc(6), IsDisplayWeek: false),
+                7 => new LeagueWeek(7, HasGameSet: true, IsCurrent: true, IsLocked: true, IsComplete: false, LockAtUtc(7), IsDisplayWeek: true),
+                8 => new LeagueWeek(8, HasGameSet: true, IsCurrent: false, IsLocked: false, IsComplete: false, LockAtUtc(8), IsDisplayWeek: false),
+                _ => new LeagueWeek(week, HasGameSet: false, IsCurrent: false, IsLocked: false, IsComplete: false, null, IsDisplayWeek: false),
             };
         }
 

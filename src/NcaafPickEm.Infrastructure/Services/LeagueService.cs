@@ -210,11 +210,29 @@ public sealed class LeagueService
                 membership.Role,
                 currentWeek,
                 statusByMembershipId[membership.Id],
-                landing);
+                landing,
+                DisplayWeekRule.At(
+                    nowUtc,
+                    weeksByYear[league.SeasonYear],
+                    league.FirstWeek,
+                    league.LastWeek,
+                    LockedWeeks(setsByLeagueWeek.Values.Where(set => set.LeagueId == league.Id))));
         }
 
         return summaries;
     }
+
+    /// <summary>The weeks among <paramref name="sets"/> that have locked: the played weeks <see cref="DisplayWeekRule"/> looks back to.</summary>
+    private static int[] LockedWeeks(IEnumerable<WeekGameSet> sets) =>
+        [.. sets.Where(set => set.IsLocked).Select(set => set.Week)];
+
+    /// <summary>The league's locked weeks, for <see cref="DisplayWeekRule"/>.</summary>
+    private Task<List<int>> LoadLockedWeeksAsync(Guid leagueId, CancellationToken cancellationToken) =>
+        _database.WeekGameSets
+            .AsNoTracking()
+            .Where(set => set.LeagueId == leagueId && set.LockedUtc != null)
+            .Select(set => set.Week)
+            .ToListAsync(cancellationToken);
 
     /// <summary>
     /// One <see cref="ISeasonWeekSource"/> call per distinct <c>SeasonYear</c> instead of one per
@@ -665,6 +683,13 @@ public sealed class LeagueService
                 .ConfigureAwait(false)
         ];
 
+        int displayWeek = DisplayWeekRule.At(
+            _timeProvider.GetUtcNow(),
+            seasonWeeks,
+            league.FirstWeek,
+            league.LastWeek,
+            LockedWeeks(gameSetsByWeek.Values));
+
         var weeks = new LeagueWeekDto[league.LastWeek - league.FirstWeek + 1];
         for (int week = league.FirstWeek; week <= league.LastWeek; week++)
         {
@@ -676,7 +701,8 @@ public sealed class LeagueService
                 IsCurrent: week == currentWeek,
                 IsLocked: set?.IsLocked ?? false,
                 IsComplete: set?.IsComplete ?? false,
-                LockAtUtc: set?.LockAtUtc is DateTime lockAt ? new DateTimeOffset(lockAt, TimeSpan.Zero) : null);
+                LockAtUtc: set?.LockAtUtc is DateTime lockAt ? new DateTimeOffset(lockAt, TimeSpan.Zero) : null,
+                IsDisplayWeek: week == displayWeek);
         }
 
         return weeks;
@@ -735,7 +761,13 @@ public sealed class LeagueService
             membership.Role,
             status,
             lockAtUtc,
-            lockDisplay);
+            lockDisplay,
+            DisplayWeekRule.At(
+                nowUtc,
+                seasonWeeks,
+                league.FirstWeek,
+                league.LastWeek,
+                await LoadLockedWeeksAsync(league.Id, cancellationToken).ConfigureAwait(false)));
     }
 
     private async Task<SubmissionStatus?> GetCurrentWeekStatusAsync(

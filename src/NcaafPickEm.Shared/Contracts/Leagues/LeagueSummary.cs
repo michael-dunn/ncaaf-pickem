@@ -18,6 +18,11 @@ namespace NcaafPickEm.Shared.Contracts.Leagues;
 /// The screen the app opens this league on: Picks, the Dashboard, the Leaderboard, or the league
 /// home (04-Domain-Algorithms.md section 12).
 /// </param>
+/// <param name="DisplayWeek">
+/// The week the app treats as "this week" (Feature 15, 04-Domain-Algorithms.md section 12.1): the
+/// week just played from the Sunday rollover until the next week's picks open on Tuesday,
+/// otherwise <paramref name="CurrentWeek"/> clamped to the league's range.
+/// </param>
 public sealed record LeagueSummary(
     Guid LeagueId,
     string Name,
@@ -25,4 +30,5 @@ public sealed record LeagueSummary(
     MembershipRole MyRole,
     int CurrentWeek,
     SubmissionStatus? MyCurrentWeekStatus,
-    LeagueLanding Landing);
+    LeagueLanding Landing,
+    int DisplayWeek);

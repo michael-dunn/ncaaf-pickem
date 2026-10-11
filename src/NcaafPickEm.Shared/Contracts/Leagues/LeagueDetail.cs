@@ -15,6 +15,11 @@ namespace NcaafPickEm.Shared.Contracts.Leagues;
 /// <param name="MyCurrentWeekStatus">Caller's submission status for the current week, or null when it has no game set.</param>
 /// <param name="CurrentWeekLockAtUtc">Lock instant of the current week's game set, or null when none.</param>
 /// <param name="LockAtEasternDisplay">Eastern rendering of the lock instant, e.g. "Sat 12:00 PM ET".</param>
+/// <param name="DisplayWeek">
+/// The week the app treats as "this week" (Feature 15): the week just played from the Sunday
+/// rollover until the next week's picks open, otherwise <paramref name="CurrentWeek"/> clamped to
+/// the league's range.
+/// </param>
 public sealed record LeagueDetail(
     Guid LeagueId,
     string Name,
@@ -27,4 +32,5 @@ public sealed record LeagueDetail(
     MembershipRole MyRole,
     SubmissionStatus? MyCurrentWeekStatus,
     DateTimeOffset? CurrentWeekLockAtUtc,
-    string? LockAtEasternDisplay);
+    string? LockAtEasternDisplay,
+    int DisplayWeek);

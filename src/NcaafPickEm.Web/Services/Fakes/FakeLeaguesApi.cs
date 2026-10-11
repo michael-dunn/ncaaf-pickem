@@ -339,7 +339,8 @@ public sealed class FakeLeaguesApi : ILeaguesApi
         me?.Role ?? MembershipRole.Member,
         league.CurrentWeek,
         me?.CurrentWeekStatus,
-        LeagueLanding.Picks);
+        LeagueLanding.Picks,
+        Math.Clamp(league.CurrentWeek, league.FirstWeek, league.LastWeek));
 
     private static LeagueDetail ToDetail(FakeLeague league, FakeMember? me) => new(
         league.LeagueId,
@@ -353,7 +354,8 @@ public sealed class FakeLeaguesApi : ILeaguesApi
         me?.Role ?? MembershipRole.Member,
         me?.CurrentWeekStatus,
         league.LockAtUtc,
-        league.LockAtUtc is null ? null : "Sat 12:00 PM ET");
+        league.LockAtUtc is null ? null : "Sat 12:00 PM ET",
+        Math.Clamp(league.CurrentWeek, league.FirstWeek, league.LastWeek));
 
     private static InviteResponse ToInviteResponse(FakeInvite invite) => new(
         invite.InviteId,

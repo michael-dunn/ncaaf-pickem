@@ -9,10 +9,16 @@ namespace NcaafPickEm.Shared.Contracts.Seasons;
 /// <param name="IsLocked">The week's game set is locked.</param>
 /// <param name="IsComplete">Every active game in the set is final or voided.</param>
 /// <param name="LockAtUtc">Lock instant, when a game set exists.</param>
+/// <param name="IsDisplayWeek">
+/// The week the app treats as "this week" (Feature 15): the week just played from the Sunday
+/// rollover until the next week's picks open, otherwise the current week. The week navigation's
+/// jump goes here.
+/// </param>
 public sealed record LeagueWeek(
     int Week,
     bool HasGameSet,
     bool IsCurrent,
     bool IsLocked,
     bool IsComplete,
-    DateTimeOffset? LockAtUtc);
+    DateTimeOffset? LockAtUtc,
+    bool IsDisplayWeek);
