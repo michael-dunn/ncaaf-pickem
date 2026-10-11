@@ -13,29 +13,37 @@ using NcaafPickEm.Shared.Enums;
 namespace NcaafPickEm.Api.Tests;
 
 /// <summary>
-/// <see cref="RegenerateGameSetsJob"/> (Feature 02, P3-04), driven directly against
-/// <see cref="ApiTestFixture.PinnedFactory"/> so "current week" is deterministically week 7 of
-/// the Week 7, 2026 fixture calendar.
+/// <see cref="RegenerateGameSetsJob"/> (Feature 02, P3-04), driven directly against a
+/// <see cref="ClockedApp"/> at the job's real slot, Tuesday 2026-10-13 03:30 ET, so "current week"
+/// is deterministically week 7 of the fixture calendar and its picks have not opened yet
+/// (Feature 16: they open at 04:00).
 /// </summary>
 [Collection(ApiTestCollection.Name)]
-public sealed class RegenerationJobTests
+public sealed class RegenerationJobTests : IAsyncLifetime
 {
-    private readonly ApiTestFixture _fixture;
+    /// <summary>Tuesday 2026-10-13 03:30 EDT, week 7's regeneration slot.</summary>
+    private static readonly DateTimeOffset TuesdaySlotUtc = new(2026, 10, 13, 7, 30, 0, TimeSpan.Zero);
+
+    private readonly ClockedApp _app;
 
     public RegenerationJobTests(ApiTestFixture fixture)
     {
-        _fixture = fixture;
+        _app = new ClockedApp(fixture, TuesdaySlotUtc);
     }
+
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync() => await _app.DisposeAsync();
 
     private async Task<(League League, HttpClient Client)> CreateCommishLeagueAsync()
     {
-        await FixtureGameData.EnsureSeededAsync(_fixture.PinnedFactory);
+        await FixtureGameData.EnsureSeededAsync(_app.Factory);
 
-        User commissioner = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "RegenCommish"));
-        League league = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
-        await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
+        User commissioner = await _app.Factory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "RegenCommish"));
+        League league = await _app.Factory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
+        await _app.Factory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
 
-        HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(commissioner.Id);
+        HttpClient client = _app.Factory.CreateMutatingClientAs(commissioner.Id);
         return (league, client);
     }
 
@@ -49,12 +57,12 @@ public sealed class RegenerationJobTests
 
     private async Task RunJobAsync()
     {
-        await using AsyncServiceScope scope = _fixture.PinnedFactory.Services
+        await using AsyncServiceScope scope = _app.Factory.Services
             .GetRequiredService<IServiceScopeFactory>()
             .CreateAsyncScope();
 
         RegenerateGameSetsJob job = ActivatorUtilities.CreateInstance<RegenerateGameSetsJob>(scope.ServiceProvider);
-        await job.RunAsync(ApiTestFixture.PinnedNowUtc, CancellationToken.None);
+        await job.RunAsync(_app.NowUtc, CancellationToken.None);
     }
 
     private async Task<WeekGameSetResponse> GetWeekAsync(HttpClient client, Guid leagueId, int week)
@@ -79,10 +87,10 @@ public sealed class RegenerationJobTests
         // shared for the whole test run (other tests, e.g. GameSetGenerateTests, assert exact
         // counts against the fixture's original 11-team week-7 poll), so this row is removed
         // again in a finally block.
-        Guid oklahomaTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900111);
+        Guid oklahomaTeamId = await FixtureGameData.GetTeamIdAsync(_app.Factory, 900111);
         try
         {
-            await _fixture.PinnedFactory.QueryDbAsync(async db =>
+            await _app.Factory.QueryDbAsync(async db =>
             {
                 db.Rankings.Add(new NcaafPickEm.Domain.Seasons.Ranking
                 {
@@ -104,7 +112,52 @@ public sealed class RegenerationJobTests
         }
         finally
         {
-            await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+            await _app.Factory.ExecuteDbAsync(async db =>
+            {
+                await db.Rankings
+                    .Where(r => r.SeasonYear == 2026 && r.Week == 7 && r.TeamId == oklahomaTeamId)
+                    .ExecuteDeleteAsync();
+            });
+        }
+    }
+
+    [Fact]
+    public async Task GivenPicksHaveOpened_WhenTheJobRunsLate_ThenTheSetIsNotChanged()
+    {
+        (League league, HttpClient client) = await CreateCommishLeagueAsync();
+        await PutTop25RuleAsync(client, league.Id);
+        await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
+        WeekGameSetResponse before = await GetWeekAsync(client, league.Id, 7);
+
+        Guid oklahomaTeamId = await FixtureGameData.GetTeamIdAsync(_app.Factory, 900111);
+        try
+        {
+            await _app.Factory.QueryDbAsync(async db =>
+            {
+                db.Rankings.Add(new NcaafPickEm.Domain.Seasons.Ranking
+                {
+                    SeasonYear = 2026,
+                    Week = 7,
+                    Poll = NcaafPickEm.Domain.Seasons.Ranking.ApPoll,
+                    Rank = 12,
+                    TeamId = oklahomaTeamId,
+                    FetchedUtc = DateTime.UtcNow,
+                });
+                await db.SaveChangesAsync();
+                return true;
+            });
+
+            // Tuesday 04:00 ET exactly: week 7's picks are open (Feature 16), so a catch-up run of
+            // the 03:30 job must not add the newly ranked team's game.
+            _app.Set(new DateTimeOffset(2026, 10, 13, 8, 0, 0, TimeSpan.Zero));
+            await RunJobAsync();
+
+            WeekGameSetResponse after = await GetWeekAsync(client, league.Id, 7);
+            after.Games.Select(g => g.GameId).Should().BeEquivalentTo(before.Games.Select(g => g.GameId));
+        }
+        finally
+        {
+            await _app.Factory.ExecuteDbAsync(async db =>
             {
                 await db.Rankings
                     .Where(r => r.SeasonYear == 2026 && r.Week == 7 && r.TeamId == oklahomaTeamId)
@@ -125,10 +178,10 @@ public sealed class RegenerationJobTests
 
         // Game 700001 (Michigan/Texas) is on the shared fixture schedule every other test in the
         // run also reads; restore it to Scheduled once this test is done.
-        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700001); // Michigan/Texas
+        Guid gameId = await FixtureGameData.GetGameIdAsync(_app.Factory, 700001); // Michigan/Texas
         try
         {
-            await _fixture.PinnedFactory.QueryDbAsync(async db =>
+            await _app.Factory.QueryDbAsync(async db =>
             {
                 await db.Games.Where(g => g.Id == gameId)
                     .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Postponed));
@@ -140,7 +193,7 @@ public sealed class RegenerationJobTests
             WeekGameSetResponse after = await GetWeekAsync(client, league.Id, 7);
             after.Games.Should().NotContain(g => g.HomeTeam.School == "Michigan" || g.AwayTeam.School == "Michigan");
 
-            WeekGameSetGame row = await _fixture.PinnedFactory.QueryDbAsync(db => db.WeekGameSetGames
+            WeekGameSetGame row = await _app.Factory.QueryDbAsync(db => db.WeekGameSetGames
                 .AsNoTracking()
                 .Where(r => r.WeekGameSet!.LeagueId == league.Id && r.GameId == gameId)
                 .SingleAsync());
@@ -149,7 +202,7 @@ public sealed class RegenerationJobTests
         }
         finally
         {
-            await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
+            await _app.Factory.ExecuteDbAsync(async db =>
             {
                 await db.Games.Where(g => g.Id == gameId)
                     .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Scheduled));
@@ -164,7 +217,7 @@ public sealed class RegenerationJobTests
         await PutTop25RuleAsync(client, league.Id);
         await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
 
-        Guid manualGameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700005); // unranked, non-conference
+        Guid manualGameId = await FixtureGameData.GetGameIdAsync(_app.Factory, 700005); // unranked, non-conference
         using HttpResponseMessage addResponse = await client.PostAsJsonAsync(
             $"/api/leagues/{league.Id}/weeks/7/gameset/games",
             new AddGameRequest(manualGameId));
@@ -185,7 +238,7 @@ public sealed class RegenerationJobTests
 
         // Week 8 is the job's "next" target for the pinned current week (7). Lock it directly,
         // the way P4-02's lock job eventually will.
-        WeekGameSet week8 = await _fixture.PinnedFactory.QueryDbAsync(async db =>
+        WeekGameSet week8 = await _app.Factory.QueryDbAsync(async db =>
         {
             WeekGameSet? set = await db.WeekGameSets.FirstOrDefaultAsync(s => s.LeagueId == league.Id && s.Week == 8);
             if (set is null)
@@ -209,7 +262,7 @@ public sealed class RegenerationJobTests
         Func<Task> act = RunJobAsync;
         await act.Should().NotThrowAsync();
 
-        WeekGameSet stillLocked = await _fixture.PinnedFactory.QueryDbAsync(db => db.WeekGameSets
+        WeekGameSet stillLocked = await _app.Factory.QueryDbAsync(db => db.WeekGameSets
             .AsNoTracking()
             .SingleAsync(s => s.Id == week8.Id));
         stillLocked.IsLocked.Should().BeTrue();
