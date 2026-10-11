@@ -5,10 +5,12 @@ using Microsoft.EntityFrameworkCore;
 using NcaafPickEm.Api.Tests.Infrastructure;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
+using NcaafPickEm.Domain.Picks;
 using NcaafPickEm.Domain.Scoring;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Domain.Users;
 using NcaafPickEm.Shared.Contracts.Leaderboard;
+using NcaafPickEm.Shared.Contracts.Stats;
 using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Api.Tests;
@@ -87,7 +89,48 @@ public sealed class LeaderboardPerfTests
             weekStopwatch.ElapsedMilliseconds);
     }
 
-    private async Task<PerfLeague> SeedLeagueAsync()
+    [Fact]
+    public async Task GivenFiftyMembersAcrossFifteenWeeks_WhenReadingStats_ThenBothPagesAnswerInUnderASecond()
+    {
+        // Feature 14's criterion, on its own season year so its games never collide with the
+        // leaderboard test's, and with every member picking every game - the stats' worst case.
+        PerfLeague league = await SeedLeagueAsync(SeasonYear + 1, withPicks: true);
+        Guid profileMembershipId = await _fixture.Factory.QueryDbAsync(db => db.Memberships
+            .Where(membership => membership.LeagueId == league.LeagueId)
+            .Select(membership => membership.Id)
+            .FirstAsync());
+
+        using HttpClient client = _fixture.Factory.CreateClientAs(league.ViewerUserId);
+
+        foreach (string route in new[]
+        {
+            $"/api/leagues/{league.LeagueId}/stats",
+            $"/api/leagues/{league.LeagueId}/members/{profileMembershipId}/stats",
+        })
+        {
+            using (HttpResponseMessage warmup = await client.GetAsync(route))
+            {
+                warmup.StatusCode.Should().Be(HttpStatusCode.OK);
+            }
+
+            var stopwatch = Stopwatch.StartNew();
+            using HttpResponseMessage response = await client.GetAsync(route);
+            stopwatch.Stop();
+
+            response.StatusCode.Should().Be(HttpStatusCode.OK);
+            stopwatch.Elapsed.Should().BeLessThan(
+                TimeSpan.FromSeconds(1),
+                "Feature 14 requires {0} under a second for 50 members over 15 weeks (took {1} ms)",
+                route,
+                stopwatch.ElapsedMilliseconds);
+        }
+
+        LeagueStats? stats = await client.GetFromJsonAsync<LeagueStats>($"/api/leagues/{league.LeagueId}/stats");
+        stats!.Accuracy.Should().HaveCount(MemberCount);
+        stats.Accuracy.Should().OnlyContain(row => row.Total == WeekCount * GamesPerWeek);
+    }
+
+    private async Task<PerfLeague> SeedLeagueAsync(int seasonYear = SeasonYear, bool withPicks = false)
     {
         await FixtureGameData.EnsureSeededAsync(_fixture.Factory);
 
@@ -120,7 +163,7 @@ public sealed class LeaderboardPerfTests
             {
                 Id = leagueId,
                 Name = $"Perf League {leagueId.ToString()[..8]}",
-                SeasonYear = SeasonYear,
+                SeasonYear = seasonYear,
                 FirstWeek = 1,
                 LastWeek = WeekCount,
                 DefaultPointValue = 10,
@@ -159,7 +202,7 @@ public sealed class LeaderboardPerfTests
                 }
             }
 
-            long cfbdGameId = (SeasonYear * 1_000_000L) + 1;
+            long cfbdGameId = (seasonYear * 1_000_000L) + 1;
             for (int week = 1; week <= WeekCount; week++)
             {
                 Guid setId = Guid.CreateVersion7();
@@ -182,7 +225,7 @@ public sealed class LeaderboardPerfTests
                     {
                         Id = gameId,
                         CfbdGameId = cfbdGameId++,
-                        SeasonYear = SeasonYear,
+                        SeasonYear = seasonYear,
                         Week = week,
                         HomeTeamId = teamIds[(game * 2) % teamIds.Length],
                         AwayTeamId = teamIds[((game * 2) + 1) % teamIds.Length],
@@ -194,15 +237,31 @@ public sealed class LeaderboardPerfTests
                         AwayScore = 21,
                     });
 
+                    Guid gameSetGameId = Guid.CreateVersion7();
                     db.WeekGameSetGames.Add(new WeekGameSetGame
                     {
-                        Id = Guid.CreateVersion7(),
+                        Id = gameSetGameId,
                         WeekGameSetId = setId,
                         GameId = gameId,
                         Source = GameSetGameSource.Rule,
                         AddedUtc = DateTime.UtcNow,
                         ResolvedPointValue = 10,
+                        SpreadAtLock = game % 2 == 0 ? 3.5m : -6.5m,
                     });
+
+                    for (int member = 0; withPicks && member < MemberCount; member++)
+                    {
+                        db.Picks.Add(new Pick
+                        {
+                            Id = Guid.CreateVersion7(),
+                            MembershipId = membershipIds[member],
+                            WeekGameSetGameId = gameSetGameId,
+                            PickedTeamId = (member + game) % 2 == 0
+                                ? teamIds[(game * 2) % teamIds.Length]
+                                : teamIds[((game * 2) + 1) % teamIds.Length],
+                            UpdatedUtc = DateTime.UtcNow,
+                        });
+                    }
                 }
 
                 for (int member = 0; member < MemberCount; member++)
