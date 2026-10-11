@@ -99,6 +99,31 @@ public static class NotificationMessages
             PicksUrl(leagueId, week),
             string.Create(CultureInfo.InvariantCulture, $"game-removed-{gameSetGameId}"));
 
+    /// <summary>Feature 16: the week's picks are open, Tuesday 04:00 ET.</summary>
+    /// <param name="week">The league week.</param>
+    /// <param name="leagueId">The league.</param>
+    public static PushPayload PicksOpen(int week, Guid leagueId) =>
+        new(
+            "Picks are open",
+            string.Create(CultureInfo.InvariantCulture, $"Week {week} picks are open."),
+            PicksUrl(leagueId, week),
+            string.Create(CultureInfo.InvariantCulture, $"picks-open-{leagueId}-{week}"));
+
+    /// <summary>
+    /// Feature 16, to commissioners: the picks-open moment arrived but the week's set has no games
+    /// (a provider outage, or rules that select nothing), so picks stay closed until it is generated.
+    /// </summary>
+    /// <param name="week">The league week.</param>
+    /// <param name="leagueId">The league.</param>
+    public static PushPayload PicksNotSet(int week, Guid leagueId) =>
+        new(
+            "Week's games not set",
+            string.Create(
+                CultureInfo.InvariantCulture,
+                $"Week {week} has no games yet, so picks are still closed. Generate the week's games to open them."),
+            string.Create(CultureInfo.InvariantCulture, $"/leagues/{leagueId}/config/week/{week}"),
+            string.Create(CultureInfo.InvariantCulture, $"picks-not-set-{leagueId}-{week}"));
+
     /// <summary>"12:00 PM" for the lock time, in Eastern, as the catalog's "h:mm AM/PM" wants.</summary>
     private static string FormatLockTime(DateTimeOffset lockAtUtc) =>
         SeasonCalendar.ToEastern(lockAtUtc).ToString("h:mm tt", CultureInfo.InvariantCulture);
