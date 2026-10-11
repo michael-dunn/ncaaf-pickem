@@ -26,6 +26,14 @@ namespace NcaafPickEm.Shared.Contracts.Picks;
 /// listed (flagged on <c>Game.IsVoided</c>) but counts towards neither <see cref="PickedCount"/>
 /// nor <see cref="TotalCount"/>.
 /// </param>
+/// <param name="PicksOpenAtUtc">
+/// When the week's picks open (Tuesday 04:00 ET, Feature 16); null when no season calendar is known.
+/// </param>
+/// <param name="PicksOpenAtEasternDisplay">Eastern rendering of <see cref="PicksOpenAtUtc"/>, e.g. "Tue 4:00 AM ET".</param>
+/// <param name="PicksOpen">
+/// False before the picks-open moment, and after it while the set has no games yet. While false
+/// <see cref="Games"/> is empty and the lock fields are null: the provisional set is not shown.
+/// </param>
 public sealed record MyPicksResponse(
     int Week,
     SubmissionStatus Status,
@@ -35,4 +43,7 @@ public sealed record MyPicksResponse(
     int PickedCount,
     int TotalCount,
     bool HasUnseenGameChanges,
-    MyPickGameDto[] Games);
+    MyPickGameDto[] Games,
+    DateTimeOffset? PicksOpenAtUtc = null,
+    string? PicksOpenAtEasternDisplay = null,
+    bool PicksOpen = true);

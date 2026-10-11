@@ -67,12 +67,32 @@ public sealed class PickService
             .ConfigureAwait(false);
 
         WeekGameSet? set = await LoadSetAsync(caller.LeagueId, week, cancellationToken).ConfigureAwait(false);
-        if (set is null)
+        if (set is null || (!games.PicksOpen && !games.IsLocked))
         {
-            return new MyPicksResponse(week, SubmissionStatus.NotStarted, null, null, false, 0, 0, false, []);
+            // No set yet, or picks have not opened: the provisional set is the commissioners'
+            // preview, so the page shows only when picks open (Feature 16, D-190).
+            return new MyPicksResponse(
+                week,
+                SubmissionStatus.NotStarted,
+                null,
+                null,
+                false,
+                0,
+                0,
+                false,
+                [],
+                games.PicksOpenAtUtc,
+                games.PicksOpenAtEasternDisplay,
+                PicksOpen: false);
         }
 
-        return await BuildMyPicksAsync(caller, week, set, games, cancellationToken).ConfigureAwait(false);
+        MyPicksResponse response = await BuildMyPicksAsync(caller, week, set, games, cancellationToken).ConfigureAwait(false);
+        return response with
+        {
+            PicksOpenAtUtc = games.PicksOpenAtUtc,
+            PicksOpenAtEasternDisplay = games.PicksOpenAtEasternDisplay,
+            PicksOpen = games.PicksOpen,
+        };
     }
 
     /// <summary>
@@ -646,7 +666,8 @@ public sealed class PickService
 
     /// <summary>
     /// The three guards every mutation runs, in the order the contract documents them: the week is
-    /// one the league plays (404), it is the current week (409), and it is not locked (409).
+    /// one the league plays (404), it is the current week (409), its picks have opened
+    /// (409, Feature 16), and it is not locked (409).
     /// </summary>
     private async Task<WeekGameSet> EnsurePickableWeekAsync(
         Guid leagueId,
@@ -657,7 +678,19 @@ public sealed class PickService
         League league = await WeekRangeGuard.EnsureWeekInRangeAsync(_database, leagueId, week, cancellationToken)
             .ConfigureAwait(false);
 
-        await EnsureCurrentWeekAsync(league, week, cancellationToken).ConfigureAwait(false);
+        SeasonWeek currentWeek = await EnsureCurrentWeekAsync(league, week, cancellationToken).ConfigureAwait(false);
+
+        // Tuesday 04:00 ET (Feature 16, D-190): until then the set may still change, so it takes no picks.
+        PicksOpening opening = PicksOpenRule.At(new DateTimeOffset(nowUtc, TimeSpan.Zero), currentWeek, hasActiveGames: true);
+        if (opening.State == PicksOpenState.NotYetOpen)
+        {
+            throw new PickRuleViolation(
+                PickRuleViolationCode.PicksNotOpen,
+                $"Week {week} picks open {SeasonCalendar.EasternDisplay(opening.OpensAtUtc!.Value)}.")
+            {
+                OpensAtUtc = opening.OpensAtUtc,
+            };
+        }
 
         WeekGameSet set = await LoadSetAsync(leagueId, week, cancellationToken).ConfigureAwait(false)
             ?? throw new PickRuleViolation(
@@ -674,7 +707,7 @@ public sealed class PickService
         return set;
     }
 
-    private async Task EnsureCurrentWeekAsync(League league, int week, CancellationToken cancellationToken)
+    private async Task<SeasonWeek> EnsureCurrentWeekAsync(League league, int week, CancellationToken cancellationToken)
     {
         IReadOnlyList<SeasonWeek> seasonWeeks = await _weekSource
             .GetWeeksAsync(league.SeasonYear, cancellationToken)
@@ -690,7 +723,7 @@ public sealed class PickService
         CurrentWeek current = SeasonCalendar.CurrentWeekAt(_timeProvider.GetUtcNow(), seasonWeeks);
         if (current.Week == week)
         {
-            return;
+            return seasonWeeks.First(candidate => candidate.Week == week);
         }
 
         string reason = week < current.Week

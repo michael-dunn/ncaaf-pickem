@@ -24,4 +24,13 @@ public enum NotificationType : byte
 
     /// <summary>A game was removed from a week before lock.</summary>
     GameRemoved = 4,
+
+    /// <summary>Tuesday 04:00 ET: the week's picks are open (Feature 16).</summary>
+    PicksOpen = 5,
+
+    /// <summary>
+    /// Tuesday 04:00 ET, to commissioners: the week's set has no games, so picks stay closed until
+    /// it is generated (Feature 16).
+    /// </summary>
+    PicksNotSet = 6,
 }

@@ -5,6 +5,7 @@ using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
 using NcaafPickEm.Infrastructure.Services;
 using NcaafPickEm.Shared.Contracts.GameSets;
+using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Api.Endpoints;
 
@@ -228,7 +229,9 @@ public static class GameSetEndpoints
         try
         {
             WeekGameSetResponse response = await gameSetService.GetWeekGameSetAsync(membership.LeagueId, week, cancellationToken);
-            return TypedResults.Ok(response);
+
+            // Before picks open the set is the commissioners' preview (Feature 16, D-190).
+            return TypedResults.Ok(membership.Role == MembershipRole.Commissioner ? response : response.ForMember());
         }
         catch (GameSetRuleViolation violation)
         {

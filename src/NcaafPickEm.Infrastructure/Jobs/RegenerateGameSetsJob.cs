@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.Leagues;
+using NcaafPickEm.Domain.Picks;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
 using NcaafPickEm.Infrastructure.Services;
@@ -74,6 +75,7 @@ public sealed class RegenerateGameSetsJob : IScheduledJob
         int weeksRegenerated = 0;
         int weeksSkippedLocked = 0;
         int weeksSkippedExceedsMax = 0;
+        int weeksSkippedOpen = 0;
 
         foreach (League league in leagues)
         {
@@ -99,6 +101,20 @@ public sealed class RegenerateGameSetsJob : IScheduledJob
 
             foreach (int week in targetWeeks)
             {
+                // Feature 16 (D-190): once a week's picks have opened (Tuesday 04:00 ET, after this
+                // job's 03:30 run) no automatic regeneration may add or drop its games - a late
+                // catch-up run leaves it alone. Only commissioner actions change it from then on.
+                if (weeks.FirstOrDefault(candidate => candidate.Week == week) is SeasonWeek seasonWeek
+                    && PicksOpenRule.HasOpenMomentPassed(nowUtc, seasonWeek))
+                {
+                    weeksSkippedOpen++;
+                    _logger.LogInformation(
+                        "League {LeagueId} week {Week}'s picks have opened; skipping regeneration.",
+                        league.Id,
+                        week);
+                    continue;
+                }
+
                 try
                 {
                     await _gameSetService.GetOrCreateWeekSetAsync(league.Id, week, cancellationToken).ConfigureAwait(false);
@@ -143,11 +159,12 @@ public sealed class RegenerateGameSetsJob : IScheduledJob
 
         _logger.LogInformation(
             "RegenerateGameSets occurrence {ScheduledFor:o}: {Leagues} leagues, {Regenerated} weeks regenerated, " +
-            "{Locked} skipped (locked), {ExceedsMax} skipped (exceeds max).",
+            "{Locked} skipped (locked), {ExceedsMax} skipped (exceeds max), {Open} skipped (picks open).",
             scheduledFor,
             leaguesProcessed,
             weeksRegenerated,
             weeksSkippedLocked,
-            weeksSkippedExceedsMax);
+            weeksSkippedExceedsMax,
+            weeksSkippedOpen);
     }
 }

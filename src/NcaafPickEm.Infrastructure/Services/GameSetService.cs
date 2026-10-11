@@ -5,6 +5,7 @@ using NcaafPickEm.Domain.Events;
 using NcaafPickEm.Domain.GameSets;
 using NcaafPickEm.Domain.GameSets.Events;
 using NcaafPickEm.Domain.Leagues;
+using NcaafPickEm.Domain.Picks;
 using NcaafPickEm.Domain.Scoring;
 using NcaafPickEm.Domain.Seasons;
 using NcaafPickEm.Infrastructure.Data;
@@ -506,7 +507,10 @@ public sealed class GameSetService
 
         if (set is null)
         {
-            return new WeekGameSetResponse(week, null, null, false, false, []);
+            PicksOpening none = await GetPicksOpeningAsync(league, week, hasActiveGames: false, cancellationToken)
+                .ConfigureAwait(false);
+            return new WeekGameSetResponse(week, null, null, false, false, [])
+                .WithOpening(none);
         }
 
         List<WeekGameSetGame> rows = await _database.WeekGameSetGames
@@ -548,7 +552,37 @@ public sealed class GameSetService
         DateTimeOffset? lockAtUtc = set.LockAtUtc is DateTime lockAt ? new DateTimeOffset(lockAt, TimeSpan.Zero) : null;
         string? lockDisplay = lockAtUtc is DateTimeOffset value ? SeasonCalendar.EasternDisplay(value) : null;
 
-        return new WeekGameSetResponse(week, lockAtUtc, lockDisplay, set.IsLocked, set.IsComplete, dtos);
+        PicksOpening opening = await GetPicksOpeningAsync(
+            league, week, hasActiveGames: rows.Any(row => !row.IsVoided), cancellationToken).ConfigureAwait(false);
+
+        return new WeekGameSetResponse(week, lockAtUtc, lockDisplay, set.IsLocked, set.IsComplete, dtos)
+            .WithOpening(opening);
+    }
+
+    /// <summary>
+    /// Where a league's week stands against its picks-open moment (Feature 16, D-190), through
+    /// <see cref="PicksOpenRule"/> against the league's season calendar.
+    /// </summary>
+    /// <param name="league">The league.</param>
+    /// <param name="week">The week.</param>
+    /// <param name="hasActiveGames">True when the week's set exists and holds an active game.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public async Task<PicksOpening> GetPicksOpeningAsync(
+        League league,
+        int week,
+        bool hasActiveGames,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(league);
+
+        IReadOnlyList<SeasonWeek> weeks = await _seasonWeekSource
+            .GetWeeksAsync(league.SeasonYear, cancellationToken)
+            .ConfigureAwait(false);
+
+        return PicksOpenRule.At(
+            _timeProvider.GetUtcNow(),
+            weeks.FirstOrDefault(candidate => candidate.Week == week),
+            hasActiveGames);
     }
 
     /// <summary>

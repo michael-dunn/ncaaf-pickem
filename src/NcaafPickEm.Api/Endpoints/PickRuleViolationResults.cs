@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http.HttpResults;
 using NcaafPickEm.Domain.Picks;
+using NcaafPickEm.Domain.Seasons;
 
 namespace NcaafPickEm.Api.Endpoints;
 
@@ -22,6 +23,7 @@ public static class PickRuleViolationResults
             PickRuleViolationCode.PicksNotVisible => StatusCodes.Status403Forbidden,
             PickRuleViolationCode.GameNotInSet => StatusCodes.Status404NotFound,
             PickRuleViolationCode.WeekNotCurrent => StatusCodes.Status409Conflict,
+            PickRuleViolationCode.PicksNotOpen => StatusCodes.Status409Conflict,
             PickRuleViolationCode.Locked => StatusCodes.Status409Conflict,
             PickRuleViolationCode.GameNotActive => StatusCodes.Status409Conflict,
             PickRuleViolationCode.IncompletePicks => StatusCodes.Status409Conflict,
@@ -29,9 +31,18 @@ public static class PickRuleViolationResults
             _ => StatusCodes.Status400BadRequest,
         };
 
-        Dictionary<string, object?>? extensions = violation.Count is int count
-            ? new Dictionary<string, object?> { ["count"] = count }
-            : null;
+        Dictionary<string, object?>? extensions = null;
+        if (violation.Count is int count)
+        {
+            extensions = new Dictionary<string, object?> { ["count"] = count };
+        }
+
+        if (violation.OpensAtUtc is DateTimeOffset opensAtUtc)
+        {
+            extensions ??= [];
+            extensions["opensAtUtc"] = opensAtUtc;
+            extensions["opensAtEasternDisplay"] = SeasonCalendar.EasternDisplay(opensAtUtc);
+        }
 
         return TypedResults.Problem(
             title: violation.Code.ToString(),
