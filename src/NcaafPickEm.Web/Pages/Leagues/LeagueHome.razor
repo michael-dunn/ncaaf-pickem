@@ -37,6 +37,38 @@ else
             <p>Season complete.</p>
         </div>
     }
+    else if (league.DisplayWeek < league.CurrentWeek)
+    {
+        @* Feature 15 (D-193): from the Sunday rollover until Tuesday's picks open, the week just played. *@
+        <div class="card">
+            <h2>Week @league.DisplayWeek</h2>
+            <p>Results are in. Week @league.CurrentWeek picks open Tuesday.</p>
+        </div>
+
+        <div class="league-home-actions">
+            <a class="btn btn-primary league-home-action" href="@($"/leagues/{league.LeagueId}/weeks/{league.DisplayWeek}/leaderboard")">
+                Week @league.DisplayWeek leaderboard
+            </a>
+            <a class="btn btn-secondary league-home-action" href="@($"/leagues/{league.LeagueId}/weeks/{league.DisplayWeek}/dashboard")">
+                Dashboard
+            </a>
+            <a class="btn btn-secondary league-home-action" href="@($"/leagues/{league.LeagueId}/leaderboard")">
+                Season
+            </a>
+        </div>
+
+        @if (league.MyRole == MembershipRole.Commissioner)
+        {
+            <div class="card">
+                <h2>Configure</h2>
+                <a href="@($"/leagues/{league.LeagueId}/config/games")">Game set rules</a>
+                &middot;
+                <a href="@($"/leagues/{league.LeagueId}/config/week/{league.CurrentWeek}")">Week @league.CurrentWeek games</a>
+                &middot;
+                <a href="@($"/leagues/{league.LeagueId}/config/points")">Point rules</a>
+            </div>
+        }
+    }
     else
     {
         <div class="card">
@@ -118,7 +150,7 @@ else
         {
             _league = await LeaguesApi.GetLeagueAsync(LeagueId);
             Shell.SetLeague(_league.LeagueId, _league.Name, _league.CurrentWeek);
-            Shell.SetTitle($"Week {_league.CurrentWeek}");
+            Shell.SetTitle($"Week {_league.DisplayWeek}");
 
             if (_league.CurrentWeek < _league.FirstWeek)
             {
