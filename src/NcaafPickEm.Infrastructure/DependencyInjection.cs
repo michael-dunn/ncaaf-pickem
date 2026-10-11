@@ -137,6 +137,9 @@ public static class DependencyInjection
         services.AddScoped<IStandingsSnapshotWriter, StandingsSnapshotWriter>();
         services.AddScoped<LeaderboardService>();
 
+        // Member stats (Feature 14).
+        services.AddScoped<MemberStatsService>();
+
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
         // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.
