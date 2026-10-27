@@ -218,3 +218,12 @@ addendum.
 | Stats page: highlight, name links, empty state, linked from season leaderboard | F14-01 | UI, A `StatsEndpointsTests.GivenNothingLocked_...` | PASS; screenshots `f14-league-stats-375.png`, `f14-season-stats-link-375.png` |
 | Members-only; other league's membership 404 | F14-01 | A `StatsEndpointsTests` matrix tests, `GeneratedAuthMatrixTests` | PASS |
 | Under 1 s for 50 members x 15 weeks | F14-01 | A `LeaderboardPerfTests.GivenFiftyMembersAcrossFifteenWeeks_WhenReadingStats_...` | PASS |
+
+## Feature 17 - Recent Form Tray
+
+| AC group | Task | Proof | Result |
+|---|---|---|---|
+| Last three Final games before the game's kickoff, newest first, told from the team's side | F17-01 | D `TeamFormCalculatorTests` (5), A `TeamFormTests.GivenEarlierGames_...` | PASS |
+| This season only; non-Final games excluded; every set team listed | F17-01 | A `TeamFormTests.GivenEarlierGames_...` | PASS |
+| Empty before picks open; 404 outside the league's range; members only | F17-01 | A `TeamFormTests.GivenPicksHaveNotOpened_...`, `.GivenAWeekOutsideTheLeaguesRange_...`, `GeneratedAuthMatrixTests` | PASS |
+| Tray on the picks page: toggle, one open at a time, empty/loading/failed states, works on locked weeks, 375px | F17-01 | UI | See STATUS |

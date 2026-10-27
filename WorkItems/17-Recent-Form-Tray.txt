@@ -1,0 +1,70 @@
+Feature 17: Recent Form Tray
+Overview reference: amends Major Feature 4 (Weekly Picks)
+
+Summary
+-------
+While making picks, a member can open a tray under any game that shows each team's last three
+results: the opponent, the score and whether they won. For Boston College @ Duke the tray shows
+six games, three per team, so the member can weigh recent form without leaving the app.
+
+User Stories
+------------
+- As a member, on the Picks page I can open a game's tray to see both teams' last three results.
+- As a member, I can open the tray on a locked or past week too, to see the form each team took
+  into that game.
+- As a member, picking a team works exactly as before; opening the tray never makes a pick.
+
+Definitions
+-----------
+- Recent game: a game in the same season as the picked game, involving the team, with status
+  Final and both scores known, that kicked off before the picked game's kickoff. Games against
+  FCS opponents count.
+- Last three: the three most recent recent games by kickoff, newest first. Fewer than three is
+  allowed (early season, byes).
+- Result: from the team's point of view. Win, Loss, or Tie when the scores are equal.
+
+Acceptance Criteria
+-------------------
+API
+- GET /api/leagues/{leagueId}/weeks/{week}/team-form returns, for every team in the week's set
+  (removed games excluded), up to three recent games: opponent, home or away, the team's score,
+  the opponent's score, the result and the kickoff. A team with none is listed with an empty list.
+- Member-scoped, like the other picks routes. A week outside the league's range is a 404.
+- Before the week's picks open (Feature 16) the response has no teams, matching the picks page.
+- Counting back from each game's own kickoff means a past week shows the form each team took into
+  that game, and the answer never changes as later games are played.
+- Previous seasons are never included. Week 1 shows no recent games.
+
+Picks page
+- Each game card has a "Recent" toggle on its bottom row. Tapping it opens the tray under that
+  card; tapping it again closes it. Opening one game's tray closes any other.
+- The tray has two columns in the card's away @ home order, each headed by the team and listing
+  its recent games as: W/L/T badge, score (team first), "vs" (home) or "@" (away) and the
+  opponent's abbreviation.
+- A team with no recent games reads "No games yet this season".
+- The data loads once per page visit. While it loads the tray reads "Loading..."; if the call
+  fails the tray reads "Couldn't load recent games" and picking is unaffected.
+- The toggle works on locked and past weeks.
+- Works at 375px with no horizontal scroll.
+
+Data freshness
+- The schedule refresh also re-imports the previous week, so a game the live score feed missed
+  still turns Final from CollegeFootballData and appears in the tray.
+
+Out of Scope
+------------
+- The Dashboard game cards (a later follow-up).
+- Opponent ranks, neutral-site labels, box scores.
+
+Testing
+-------
+- Domain tests for the last-three rule: fewer than three, ordering, the kickoff cutoff, home and
+  away perspective, ties, non-Final games excluded.
+- Api tests: the member gets each set team's last three; before picks open there are no teams;
+  the generated authorization matrix covers the route.
+
+Open Questions
+--------------
+- Production history: the server imports only the current and next week, so weeks before the
+  server's first run are not in the database. If production did not run from week 1, a one-time
+  import of the earlier weeks is needed before the tray is complete for those weeks.
