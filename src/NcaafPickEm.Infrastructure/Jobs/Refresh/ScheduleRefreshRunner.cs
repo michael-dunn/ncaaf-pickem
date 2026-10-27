@@ -6,8 +6,9 @@ namespace NcaafPickEm.Infrastructure.Jobs.Refresh;
 
 /// <summary>
 /// The work behind both <see cref="ScheduleRefreshJob"/> and <see cref="ScheduleRefreshDailyJob"/>:
-/// refresh the calendar, then the schedule for the current week and the next one, so a Tuesday
-/// postponement discovered mid-week and next week's slate are both current (Feature 09, 13).
+/// refresh the calendar, then the schedule for the previous, current and next week, so a Tuesday
+/// postponement discovered mid-week, next week's slate and last week's finals are all current
+/// (Feature 09, 13, 17).
 /// </summary>
 /// <remarks>
 /// <c>CalendarRefreshJob</c> is folded in here rather than being its own registration: the
@@ -64,6 +65,14 @@ public sealed class ScheduleRefreshRunner
         int? lastRegularWeek = await RefreshJobSupport
             .LastRegularSeasonWeekAsync(_weekSource, season, cancellationToken)
             .ConfigureAwait(false);
+
+        // The previous week too, so a game the live feed never finalized still turns Final from
+        // CFBD's Completed flag and reaches the recent form tray (Feature 17, D-194). First, so a
+        // failure here is not the last word on the refresh status when this week succeeds.
+        if (week > 1)
+        {
+            await IngestWeekAsync(season, week - 1, cancellationToken).ConfigureAwait(false);
+        }
 
         await IngestWeekAsync(season, week, cancellationToken).ConfigureAwait(false);
 
