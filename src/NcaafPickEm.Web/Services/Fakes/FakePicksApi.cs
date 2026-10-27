@@ -1,6 +1,7 @@
 using NcaafPickEm.Shared.Contracts.GameSets;
 using NcaafPickEm.Shared.Contracts.Picks;
 using NcaafPickEm.Shared.Contracts.Reference;
+using NcaafPickEm.Shared.Contracts.TeamForm;
 using NcaafPickEm.Shared.Enums;
 
 namespace NcaafPickEm.Web.Services.Fakes;
@@ -60,6 +61,63 @@ public sealed class FakePicksApi(FakeGameSetStore store) : IPicksApi
     /// <inheritdoc />
     public Task AckChangesAsync(Guid leagueId, int week, CancellationToken cancellationToken = default) =>
         Task.CompletedTask;
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// Deterministic per team (a hash of its abbreviation), so the tray reads the same on every
+    /// load. The week's last team gets a single game, to show a short column next to a full one.
+    /// </remarks>
+    public Task<WeekTeamFormResponse> GetTeamFormAsync(
+        Guid leagueId, int week, CancellationToken cancellationToken = default)
+    {
+        TeamDto[] teams =
+        [
+            .. ToResponse(week).Games
+                .SelectMany(g => new[] { g.Game.AwayTeam, g.Game.HomeTeam })
+                .DistinctBy(t => t.TeamId),
+        ];
+
+        TeamFormDto[] form =
+        [
+            .. teams.Select((team, index) => new TeamFormDto(
+                team.TeamId,
+                [.. RecentGames(team, teams, count: index == teams.Length - 1 ? 1 : 3)])),
+        ];
+
+        return Task.FromResult(new WeekTeamFormResponse(week, form));
+    }
+
+    private IEnumerable<RecentGameDto> RecentGames(TeamDto team, TeamDto[] weekTeams, int count)
+    {
+        TeamDto[] opponents = [.. _store.Teams.Where(t => t.TeamId != team.TeamId && !weekTeams.Contains(t))];
+        if (opponents.Length == 0)
+        {
+            opponents = [.. _store.Teams.Where(t => t.TeamId != team.TeamId)];
+        }
+
+        int seed = team.Abbreviation!.Aggregate(17, (hash, c) => unchecked((hash * 31) + c));
+        DateTimeOffset kickoff = new(2026, 10, 10, 19, 30, 0, TimeSpan.Zero);
+
+        for (int i = 0; i < count; i++)
+        {
+            int roll = unchecked(seed * (i + 7)) & int.MaxValue;
+            int teamScore = 10 + (roll % 35);
+            int opponentScore = 7 + (roll / 35 % 35);
+            if (opponentScore == teamScore)
+            {
+                opponentScore += 3;
+            }
+
+            yield return new RecentGameDto(
+                Guid.NewGuid(),
+                opponents[roll % opponents.Length],
+                IsHome: roll % 2 == 0,
+                teamScore,
+                opponentScore,
+                teamScore > opponentScore ? FormResult.Win : FormResult.Loss,
+                kickoff.AddDays(-7 * i));
+        }
+    }
 
     private void RequirePickable(int week)
     {

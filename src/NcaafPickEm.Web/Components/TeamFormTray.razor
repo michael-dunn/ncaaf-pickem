@@ -1,0 +1,88 @@
+@* The recent form tray under a PickGameCard (Feature 17): each team's last games in two columns,
+   in the card's away @ home order so each column sits under its team's button. Null games mean
+   the page is still loading them; Failed means the call failed, which never affects picking. *@
+
+<div class="team-form-tray" id="@Id">
+    @if (Failed)
+    {
+        <p class="team-form-message">Couldn't load recent games</p>
+    }
+    else if (AwayGames is null || HomeGames is null)
+    {
+        <p class="team-form-message">Loading...</p>
+    }
+    else
+    {
+        <div class="team-form-columns">
+            @Column(AwayTeam, AwayGames)
+            @Column(HomeTeam, HomeGames)
+        </div>
+    }
+</div>
+
+@code {
+    /// <summary>Element id, for the toggle's <c>aria-controls</c>.</summary>
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = string.Empty;
+
+    /// <summary>The away team (left column).</summary>
+    [Parameter, EditorRequired]
+    public TeamDto AwayTeam { get; set; } = null!;
+
+    /// <summary>The home team (right column).</summary>
+    [Parameter, EditorRequired]
+    public TeamDto HomeTeam { get; set; } = null!;
+
+    /// <summary>The away team's recent games, newest first; null while loading.</summary>
+    [Parameter]
+    public RecentGameDto[]? AwayGames { get; set; }
+
+    /// <summary>The home team's recent games, newest first; null while loading.</summary>
+    [Parameter]
+    public RecentGameDto[]? HomeGames { get; set; }
+
+    /// <summary>True when the form could not be loaded.</summary>
+    [Parameter]
+    public bool Failed { get; set; }
+
+    private static RenderFragment Column(TeamDto team, RecentGameDto[] games) => __builder =>
+    {
+        <section class="team-form-column" aria-label="@($"{team.School} recent games")">
+            <h3 class="team-form-team">@team.School</h3>
+            @if (games.Length == 0)
+            {
+                <p class="team-form-empty">No games yet this season</p>
+            }
+            else
+            {
+                <ol class="team-form-games">
+                    @foreach (RecentGameDto game in games)
+                    {
+                        <li class="team-form-game">
+                            <span class="team-form-result @ResultClass(game.Result)" aria-label="@game.Result">@ResultLetter(game.Result)</span>
+                            <span class="team-form-score">@game.TeamScore&ndash;@game.OpponentScore</span>
+                            <span class="team-form-opponent">
+                                <span class="team-form-site">@(game.IsHome ? "vs" : "@")</span>
+                                @(game.Opponent.Abbreviation ?? game.Opponent.School)
+                            </span>
+                        </li>
+                    }
+                </ol>
+            }
+        </section>
+    };
+
+    private static string ResultLetter(FormResult result) => result switch
+    {
+        FormResult.Win => "W",
+        FormResult.Loss => "L",
+        _ => "T",
+    };
+
+    private static string ResultClass(FormResult result) => result switch
+    {
+        FormResult.Win => "team-form-result-win",
+        FormResult.Loss => "team-form-result-loss",
+        _ => "team-form-result-tie",
+    };
+}

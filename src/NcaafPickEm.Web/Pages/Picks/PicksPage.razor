@@ -9,7 +9,8 @@
     MyPicksResponse (the source of truth) replaces the whole page state on success; a failure
     reverts just that card and shows the server's ProblemDetails title inline (D-084/D-086). Past
     weeks and locked weeks render read-only, coloring each pick correct/incorrect once
-    GameSetGameDto.WinnerTeamId is known. One GET on load; no per-card requests.
+    GameSetGameDto.WinnerTeamId is known. One GET on load, then one for the recent form trays
+    (Feature 17); no per-card requests.
 *@
 
 <PageTitle>Week @Week picks - NCAAF Pick Em</PageTitle>
@@ -92,7 +93,12 @@ else
                                   Outcome="OutcomeFor(myGame)"
                                   ShowSavedTick="_savedTick.TryGetValue(gameId, out bool saved) && saved"
                                   ErrorMessage="@(_cardError.TryGetValue(gameId, out string? err) ? err : null)"
-                                  OnPick="teamId => PickAsync(myGame, teamId)" />
+                                  OnPick="teamId => PickAsync(myGame, teamId)"
+                                  IsFormOpen="_openFormGameId == gameId"
+                                  AwayForm="FormFor(myGame.Game.AwayTeam.TeamId)"
+                                  HomeForm="FormFor(myGame.Game.HomeTeam.TeamId)"
+                                  FormFailed="_formFailed"
+                                  OnToggleForm="() => ToggleForm(gameId)" />
                 }
             }
         </div>
@@ -125,6 +131,11 @@ else
     private readonly Dictionary<Guid, int> _sequence = [];
     private readonly Dictionary<Guid, string?> _cardError = [];
     private readonly Dictionary<Guid, bool> _savedTick = [];
+
+    // Recent form tray (Feature 17): loaded once per visit after the picks; null until it arrives.
+    private Dictionary<Guid, RecentGameDto[]>? _form;
+    private bool _formFailed;
+    private Guid? _openFormGameId;
 
     private bool IsReadOnly => _picks is { } p && (p.IsLocked || (_league is { } l && Week != l.CurrentWeek));
 
@@ -165,6 +176,9 @@ else
         _sequence.Clear();
         _cardError.Clear();
         _savedTick.Clear();
+        _form = null;
+        _formFailed = false;
+        _openFormGameId = null;
 
         try
         {
@@ -187,7 +201,29 @@ else
             // Non-fatal: the week chips fall back to plain First..Last bounds.
             _weeks = [];
         }
+
+        if (_picks is { Games.Length: > 0 })
+        {
+            // Show the picks now; the form is extra and must not hold the page back.
+            StateHasChanged();
+            try
+            {
+                WeekTeamFormResponse form = await PicksApi.GetTeamFormAsync(LeagueId, Week);
+                _form = form.Teams.ToDictionary(t => t.TeamId, t => t.Games);
+            }
+            catch (LeaguesApiException)
+            {
+                // Non-fatal: the tray says so and picking is unaffected.
+                _formFailed = true;
+            }
+        }
     }
+
+    private RecentGameDto[]? FormFor(Guid teamId) =>
+        _form is null ? null : _form.TryGetValue(teamId, out RecentGameDto[]? games) ? games : [];
+
+    private void ToggleForm(Guid gameId) =>
+        _openFormGameId = _openFormGameId == gameId ? null : gameId;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {

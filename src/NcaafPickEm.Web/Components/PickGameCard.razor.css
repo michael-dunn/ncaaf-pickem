@@ -102,6 +102,30 @@
     font-weight: 600;
 }
 
+.pick-game-form-toggle {
+    margin-left: auto;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    padding: 0 var(--space-2);
+    background: none;
+    border: none;
+    color: var(--color-text-muted);
+    font-size: var(--text-sm);
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.pick-game-form-chevron {
+    display: inline-block;
+    transition: transform 0.15s ease;
+}
+
+.pick-game-form-chevron-open {
+    transform: rotate(90deg);
+}
+
 .pick-game-card-new {
     padding-top: calc(var(--space-3) + 2px);
 }

@@ -1,5 +1,6 @@
 using System.Net.Http.Json;
 using NcaafPickEm.Shared.Contracts.Picks;
+using NcaafPickEm.Shared.Contracts.TeamForm;
 
 namespace NcaafPickEm.Web.Services;
 
@@ -50,5 +51,15 @@ public sealed class PicksApi(HttpClient httpClient) : IPicksApi
         using HttpResponseMessage response = await _httpClient.PostAsync(
             $"api/leagues/{leagueId}/weeks/{week}/picks/me/ack-changes", content: null, cancellationToken);
         await ApiResponses.EnsureSuccessAsync(response);
+    }
+
+    /// <inheritdoc />
+    public async Task<WeekTeamFormResponse> GetTeamFormAsync(
+        Guid leagueId, int week, CancellationToken cancellationToken = default)
+    {
+        using HttpResponseMessage response =
+            await _httpClient.GetAsync($"api/leagues/{leagueId}/weeks/{week}/team-form", cancellationToken);
+        await ApiResponses.EnsureSuccessAsync(response);
+        return await ApiResponses.ReadRequiredAsync<WeekTeamFormResponse>(response);
     }
 }

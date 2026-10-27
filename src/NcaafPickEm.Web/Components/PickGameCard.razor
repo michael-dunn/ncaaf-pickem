@@ -1,7 +1,8 @@
 @* One game on the Picks page (P4-03): two TeamPickButtons, kickoff, point badge, and the game's
    save/ribbon state. PicksPage owns all the state (which card is saving, what error to show) and
    passes it in - this component is a dumb renderer plus the tap callback, so PicksPage's
-   optimistic-update/revert logic stays in one place. *@
+   optimistic-update/revert logic stays in one place. The "Recent" toggle opens a TeamFormTray
+   (Feature 17); which tray is open, and the form data, are PicksPage's too. *@
 
 <div class="pick-game-card @(IsNewSinceSubmit ? "pick-game-card-new" : "")">
     @if (IsNewSinceSubmit)
@@ -49,7 +50,25 @@
         {
             <span class="pick-game-error" role="alert">@ErrorMessage</span>
         }
+        <button type="button"
+                class="pick-game-form-toggle"
+                aria-expanded="@IsFormOpen"
+                aria-controls="@FormTrayId"
+                @onclick="() => OnToggleForm.InvokeAsync()">
+            Recent
+            <span class="pick-game-form-chevron @(IsFormOpen ? "pick-game-form-chevron-open" : "")" aria-hidden="true">&#9656;</span>
+        </button>
     </div>
+
+    @if (IsFormOpen)
+    {
+        <TeamFormTray Id="@FormTrayId"
+                      AwayTeam="Game.AwayTeam"
+                      HomeTeam="Game.HomeTeam"
+                      AwayGames="AwayForm"
+                      HomeGames="HomeForm"
+                      Failed="FormFailed" />
+    }
 </div>
 
 @code {
@@ -84,6 +103,28 @@
     /// <summary>Raised with the tapped team's id.</summary>
     [Parameter]
     public EventCallback<Guid> OnPick { get; set; }
+
+    /// <summary>Whether this card's recent form tray is open (Feature 17). Works when <see cref="Disabled"/> too.</summary>
+    [Parameter]
+    public bool IsFormOpen { get; set; }
+
+    /// <summary>The away team's recent games; null while they load.</summary>
+    [Parameter]
+    public RecentGameDto[]? AwayForm { get; set; }
+
+    /// <summary>The home team's recent games; null while they load.</summary>
+    [Parameter]
+    public RecentGameDto[]? HomeForm { get; set; }
+
+    /// <summary>True when the recent form could not be loaded.</summary>
+    [Parameter]
+    public bool FormFailed { get; set; }
+
+    /// <summary>Raised when the "Recent" toggle is tapped; the page decides which tray is open.</summary>
+    [Parameter]
+    public EventCallback OnToggleForm { get; set; }
+
+    private string FormTrayId => $"team-form-{Game.GameId}";
 
     private Task Pick(Guid teamId) => Disabled ? Task.CompletedTask : OnPick.InvokeAsync(teamId);
 }

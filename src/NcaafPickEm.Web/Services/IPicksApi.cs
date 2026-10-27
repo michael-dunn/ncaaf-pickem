@@ -1,4 +1,5 @@
 using NcaafPickEm.Shared.Contracts.Picks;
+using NcaafPickEm.Shared.Contracts.TeamForm;
 
 namespace NcaafPickEm.Web.Services;
 
@@ -36,4 +37,10 @@ public interface IPicksApi
     /// "no submission row yet".
     /// </summary>
     Task AckChangesAsync(Guid leagueId, int week, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// <c>GET /api/leagues/{leagueId}/weeks/{week}/team-form</c> (Feature 17): each set team's last
+    /// three games, for the picks page's recent form tray. Empty before the week's picks open.
+    /// </summary>
+    Task<WeekTeamFormResponse> GetTeamFormAsync(Guid leagueId, int week, CancellationToken cancellationToken = default);
 }
