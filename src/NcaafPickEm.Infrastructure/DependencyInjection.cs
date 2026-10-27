@@ -140,6 +140,9 @@ public static class DependencyInjection
         // Member stats (Feature 14).
         services.AddScoped<MemberStatsService>();
 
+        // Recent form tray (Feature 17).
+        services.AddScoped<TeamFormService>();
+
         // Background jobs (P0-06). Registered after the migrator so the schema is in place before
         // the first tick. Later phases add their jobs with AddScheduledJob<T>() / AddOneShotJob<T>()
         // right here; see JobRegistrationExtensions and the "Jobs" section of AGENT-NOTES.md.

@@ -36,6 +36,7 @@ public static class EndpointMapping
         api.MapReferenceEndpoints();
         api.MapSeasonEndpoints();
         api.MapStatsEndpoints();
+        api.MapTeamFormEndpoints();
 
         // One line per feature, alphabetical.
         api.MapMeEndpoints();
