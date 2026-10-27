@@ -33,12 +33,18 @@ public sealed class EventNotificationTests : IAsyncLifetime
 {
     private readonly ApiTestFixture _fixture;
     private readonly FakePushSender _sender = new();
+
+    // Week 7 (the fixture week) whatever the wall clock says, but still moving: these tests rely
+    // on submit, add and add again getting successive timestamps.
+    private readonly TickingTimeProvider _clock = new(ApiTestFixture.PinnedNowUtc);
     private ApiFactory? _factory;
 
     public EventNotificationTests(ApiTestFixture fixture)
     {
         _fixture = fixture;
     }
+
+    private DateTime Now => _clock.GetUtcNow().UtcDateTime;
 
     private ApiFactory Factory => _factory
         ?? throw new InvalidOperationException("The test has not been initialized.");
@@ -47,6 +53,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
     {
         _factory = new ApiFactory(
             _fixture.Database.ConnectionString,
+            timeProvider: _clock,
             configureServices: services =>
             {
                 services.RemoveAll<IPushSender>();
@@ -83,7 +90,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
         // The submitted member submitted after every game already in the set, and before the
         // regeneration that is about to add more (D-155: that comparison, not OccurredUtc, is
         // what "was Submitted at the moment of the add" means).
-        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, DateTime.UtcNow);
+        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, Now);
 
         Guid oklahomaId = await FixtureGameData.GetTeamIdAsync(Factory, 900111);
         Guid ohioStateId = await FixtureGameData.GetTeamIdAsync(Factory, 900105);
@@ -140,7 +147,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
 
         // Catching up: PickService.SubmitAsync refreshes SubmittedUtc whenever the status is not
         // already Submitted, which is exactly this case.
-        await SetSubmittedUtcAsync(league, member, setId, DateTime.UtcNow);
+        await SetSubmittedUtcAsync(league, member, setId, Now);
 
         await AddGameAsync(client, league.Id, 700004);
         _sender.SentTo(endpoint).Should().HaveCount(2, "they were Submitted again when the second add happened");
@@ -177,7 +184,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
                 MembershipId = membershipId,
                 WeekGameSetGameId = weekGameSetGameId,
                 PickedTeamId = michiganId,
-                UpdatedUtc = DateTime.UtcNow,
+                UpdatedUtc = Now,
             });
 
             await db.SaveChangesAsync();
@@ -230,7 +237,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
                     MembershipId = membershipId,
                     WeekGameSetGameId = weekGameSetGameId,
                     PickedTeamId = michiganId,
-                    UpdatedUtc = DateTime.UtcNow,
+                    UpdatedUtc = Now,
                 });
 
                 await db.SaveChangesAsync();
@@ -263,7 +270,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
             .Select(s => s.Id)
             .SingleAsync());
 
-        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, DateTime.UtcNow);
+        await SetSubmissionAsync(league, submitted, setId, SubmissionStatus.Submitted, Now);
 
         Guid weekGameSetGameId = await Factory.QueryDbAsync(db => db.WeekGameSetGames
             .Where(g => g.WeekGameSetId == setId)
@@ -273,13 +280,13 @@ public sealed class EventNotificationTests : IAsyncLifetime
         await Factory.ExecuteDbAsync(async db =>
         {
             WeekGameSet row = await db.WeekGameSets.SingleAsync(s => s.Id == setId);
-            row.LockedUtc = DateTime.UtcNow;
+            row.LockedUtc = Now;
             await db.SaveChangesAsync();
         });
 
         var domainEvent = new GameAddedToSet(league.Id, 7, setId, [weekGameSetGameId], "Manual")
         {
-            OccurredUtc = DateTime.UtcNow,
+            OccurredUtc = Now,
         };
 
         await using AsyncServiceScope scope = Factory.Services.GetRequiredService<IServiceScopeFactory>().CreateAsyncScope();
@@ -312,7 +319,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
             .Select(s => s.Id)
             .SingleAsync());
 
-        await SetSubmissionAsync(league, member, setId, SubmissionStatus.Submitted, DateTime.UtcNow);
+        await SetSubmissionAsync(league, member, setId, SubmissionStatus.Submitted, Now);
 
         return (league, client, setId, endpoint, member);
     }
@@ -385,7 +392,7 @@ public sealed class EventNotificationTests : IAsyncLifetime
                 Endpoint = endpoint,
                 P256dh = "p256dh",
                 Auth = "auth",
-                CreatedUtc = DateTime.UtcNow,
+                CreatedUtc = Now,
             });
 
             await db.SaveChangesAsync();

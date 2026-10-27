@@ -35,6 +35,7 @@ public sealed class VoidTests : IAsyncLifetime
         _database = await SqlTestDatabase.CreateAsync();
         _factory = new ApiFactory(
             _database.ConnectionString,
+            timeProvider: new FixedTimeProvider(ApiTestFixture.PinnedNowUtc),
             configureServices: services =>
             {
                 services.RemoveAll<IStandingsSnapshotWriter>();

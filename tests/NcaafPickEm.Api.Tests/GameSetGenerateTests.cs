@@ -27,13 +27,13 @@ public sealed class GameSetGenerateTests
 
     private async Task<(League League, HttpClient Client)> CreateCommishLeagueAsync()
     {
-        await FixtureGameData.EnsureSeededAsync(_fixture.Factory);
+        await FixtureGameData.EnsureSeededAsync(_fixture.PinnedFactory);
 
-        User commissioner = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "Commish"));
-        League league = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
-        await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
+        User commissioner = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "Commish"));
+        League league = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
+        await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
 
-        HttpClient client = _fixture.Factory.CreateMutatingClientAs(commissioner.Id);
+        HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(commissioner.Id);
         return (league, client);
     }
 
@@ -69,7 +69,7 @@ public sealed class GameSetGenerateTests
         await PutDefaultRulesAsync(client, league.Id, [new(null, GameSetRuleType.Top25, null, null, null, null, false, 0)]);
         await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
 
-        Guid oklahomaId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900111);
+        Guid oklahomaId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900111);
         await PutDefaultRulesAsync(client, league.Id, [new(null, GameSetRuleType.Team, null, null, oklahomaId, null, false, 0)]);
 
         using HttpResponseMessage response = await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
@@ -80,8 +80,8 @@ public sealed class GameSetGenerateTests
         body.Games.Should().NotContain(g => g.HomeTeam.School == "Michigan" || g.AwayTeam.School == "Michigan");
 
         // The previously rule-selected rows are marked removed, not deleted.
-        Guid michiganTexasGameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700001);
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        Guid michiganTexasGameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700001);
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             WeekGameSetGame row = await db.WeekGameSetGames
                 .SingleAsync(r => r.GameId == michiganTexasGameId && r.WeekGameSet!.LeagueId == league.Id);
@@ -109,7 +109,7 @@ public sealed class GameSetGenerateTests
     }
 
     private async Task<List<(Guid Id, Guid GameId, bool IsRemoved, int PointValue)>> ReadRowsAsync(Guid leagueId) =>
-        await _fixture.Factory.QueryDbAsync(async db =>
+        await _fixture.PinnedFactory.QueryDbAsync(async db =>
         {
             List<WeekGameSetGame> rows = await db.WeekGameSetGames
                 .AsNoTracking()
@@ -127,12 +127,12 @@ public sealed class GameSetGenerateTests
         await PutDefaultRulesAsync(client, league.Id, [new(null, GameSetRuleType.Top25, null, null, null, null, false, 0)]);
         await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
 
-        Guid ohioStateGameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700005); // Ohio State / Wisconsin
+        Guid ohioStateGameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700005); // Ohio State / Wisconsin
         using HttpResponseMessage addResponse = await client.PostAsJsonAsync(
             $"/api/leagues/{league.Id}/weeks/7/gameset/games", new AddGameRequest(ohioStateGameId));
         addResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        Guid oklahomaId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900111);
+        Guid oklahomaId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900111);
         await PutDefaultRulesAsync(client, league.Id, [new(null, GameSetRuleType.Team, null, null, oklahomaId, null, false, 0)]);
 
         using HttpResponseMessage response = await client.PostAsync($"/api/leagues/{league.Id}/weeks/7/gameset/generate", null);
@@ -146,7 +146,7 @@ public sealed class GameSetGenerateTests
     {
         (League league, HttpClient client) = await CreateCommishLeagueAsync();
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             db.WeekGameSets.Add(new WeekGameSet
             {
@@ -168,10 +168,10 @@ public sealed class GameSetGenerateTests
     [Fact]
     public async Task GivenRulesThatSelectMoreThanFiftyGames_WhenGenerating_ThenItIs409WithTheCount()
     {
-        await FixtureGameData.EnsureSeededAsync(_fixture.Factory);
+        await FixtureGameData.EnsureSeededAsync(_fixture.PinnedFactory);
 
-        User commissioner = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "Commish"));
-        League league = await _fixture.Factory.QueryDbAsync(async db =>
+        User commissioner = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "Commish"));
+        League league = await _fixture.PinnedFactory.QueryDbAsync(async db =>
         {
             var created = new League
             {
@@ -188,16 +188,16 @@ public sealed class GameSetGenerateTests
             await db.SaveChangesAsync();
             return created;
         });
-        await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
+        await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
 
-        Guid michiganId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900101);
-        Guid conferenceId = await FixtureGameData.GetConferenceIdAsync(_fixture.Factory, 5); // Michigan's conference (B1G)
-        Guid otherTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900102); // Texas, any other FBS team
+        Guid michiganId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900101);
+        Guid conferenceId = await FixtureGameData.GetConferenceIdAsync(_fixture.PinnedFactory, 5); // Michigan's conference (B1G)
+        Guid otherTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900102); // Texas, any other FBS team
 
         // A Saturday-Eastern kickoff for the synthetic 2099/week 1 season.
         DateTime kickoffUtc = new(2099, 1, 3, 17, 0, 0, DateTimeKind.Utc); // 2099-01-03 is a Saturday.
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             for (int i = 0; i < 55; i++)
             {
@@ -220,7 +220,7 @@ public sealed class GameSetGenerateTests
             await db.SaveChangesAsync();
         });
 
-        HttpClient client = _fixture.Factory.CreateMutatingClientAs(commissioner.Id);
+        HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(commissioner.Id);
         await PutDefaultRulesAsync(client, league.Id, [new(null, GameSetRuleType.Conference, conferenceId, null, null, null, false, 0)]);
 
         using HttpResponseMessage previewResponse = await client.PostAsJsonAsync(

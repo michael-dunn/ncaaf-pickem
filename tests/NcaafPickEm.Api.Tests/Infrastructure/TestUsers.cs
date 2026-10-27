@@ -58,7 +58,13 @@ public static class TestUsers
         return league;
     }
 
-    /// <summary>Inserts a membership. Pass <paramref name="removed"/> to seed a former member.</summary>
+    /// <summary>
+    /// Inserts a membership. Pass <paramref name="removed"/> to seed a former member. Joined (and
+    /// removed) at <see cref="ApiTestFixture.PinnedNowUtc"/>, inside week 7 before its lock, not at
+    /// the wall clock: the lock job and the all-picks view only count members who joined by
+    /// <c>LockAtUtc</c> (D-111), so a wall-clock stamp turned every helper member into a late joiner
+    /// once the real date passed the fixture week's first kickoff (2026-10-17).
+    /// </summary>
     public static async Task<Membership> CreateMembershipAsync(
         AppDbContext database,
         League league,
@@ -76,9 +82,9 @@ public static class TestUsers
             LeagueId = league.Id,
             UserId = user.Id,
             Role = role,
-            JoinedUtc = DateTime.UtcNow,
+            JoinedUtc = ApiTestFixture.PinnedNowUtc.UtcDateTime,
             JoinedWeek = 1,
-            RemovedUtc = removed ? DateTime.UtcNow : null,
+            RemovedUtc = removed ? ApiTestFixture.PinnedNowUtc.UtcDateTime : null,
         };
 
         database.Memberships.Add(membership);

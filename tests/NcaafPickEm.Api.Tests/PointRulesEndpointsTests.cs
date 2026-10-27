@@ -29,20 +29,20 @@ public sealed class PointRulesEndpointsTests
 
     private async Task<(League League, HttpClient Client, Guid CommissionerMembershipId)> CreateCommishLeagueAsync()
     {
-        await FixtureGameData.EnsureSeededAsync(_fixture.Factory);
+        await FixtureGameData.EnsureSeededAsync(_fixture.PinnedFactory);
 
-        User commissioner = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "Commish"));
-        League league = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
-        Membership membership = await _fixture.Factory.QueryDbAsync(
+        User commissioner = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "Commish"));
+        League league = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
+        Membership membership = await _fixture.PinnedFactory.QueryDbAsync(
             db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
 
-        HttpClient client = _fixture.Factory.CreateMutatingClientAs(commissioner.Id);
+        HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(commissioner.Id);
         return (league, client, membership.Id);
     }
 
     private async Task AddGameAsync(HttpClient client, Guid leagueId, int week, long cfbdGameId)
     {
-        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, cfbdGameId);
+        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, cfbdGameId);
         using HttpResponseMessage response = await client.PostAsJsonAsync(
             $"/api/leagues/{leagueId}/weeks/{week}/gameset/games", new AddGameRequest(gameId));
         response.StatusCode.Should().Be(HttpStatusCode.OK);
@@ -96,9 +96,9 @@ public sealed class PointRulesEndpointsTests
 
         Guid lockedGameSetId = Guid.CreateVersion7();
         Guid lockedGameSetGameId = Guid.CreateVersion7();
-        Guid ohioStateGameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700005);
+        Guid ohioStateGameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700005);
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             db.WeekGameSets.Add(new WeekGameSet
             {
@@ -121,12 +121,12 @@ public sealed class PointRulesEndpointsTests
             await db.SaveChangesAsync();
         });
 
-        Guid ohioStateTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900105);
+        Guid ohioStateTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900105);
         PointRuleDto[] rules = [new(null, 0, PointRuleType.Team, null, ohioStateTeamId, null, 42)];
         using HttpResponseMessage putResponse = await client.PutAsJsonAsync($"/api/leagues/{league.Id}/point-rules", rules);
         putResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             WeekGameSetGame lockedRow = await db.WeekGameSetGames.SingleAsync(r => r.Id == lockedGameSetGameId);
             lockedRow.ResolvedPointValue.Should().Be(99, "a locked week's resolved point values must never change");
@@ -144,12 +144,12 @@ public sealed class PointRulesEndpointsTests
         (League league, HttpClient client, Guid membershipId) = await CreateCommishLeagueAsync();
         await AddGameAsync(client, league.Id, 7, 700005);
 
-        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700005);
-        Guid michiganId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900101);
-        Guid gameSetGameId = await _fixture.Factory.QueryDbAsync(
+        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700005);
+        Guid michiganId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900101);
+        Guid gameSetGameId = await _fixture.PinnedFactory.QueryDbAsync(
             db => db.WeekGameSetGames.Where(r => r.GameId == gameId && r.WeekGameSet!.LeagueId == league.Id).Select(r => r.Id).SingleAsync());
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             db.Picks.Add(new Pick
             {
@@ -162,12 +162,12 @@ public sealed class PointRulesEndpointsTests
             await db.SaveChangesAsync();
         });
 
-        Guid ohioStateTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.Factory, 900105);
+        Guid ohioStateTeamId = await FixtureGameData.GetTeamIdAsync(_fixture.PinnedFactory, 900105);
         PointRuleDto[] rules = [new(null, 0, PointRuleType.Team, null, ohioStateTeamId, null, 33)];
         using HttpResponseMessage putResponse = await client.PutAsJsonAsync($"/api/leagues/{league.Id}/point-rules", rules);
         putResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             WeekGameSetGame row = await db.WeekGameSetGames.SingleAsync(r => r.Id == gameSetGameId);
             row.ResolvedPointValue.Should().Be(33, "the rule change must re-resolve the unlocked week");
@@ -182,7 +182,7 @@ public sealed class PointRulesEndpointsTests
     {
         (League league, HttpClient client, _) = await CreateCommishLeagueAsync();
         await AddGameAsync(client, league.Id, 7, 700005);
-        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700005);
+        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700005);
 
         using HttpResponseMessage setResponse = await client.PutAsJsonAsync(
             $"/api/leagues/{league.Id}/weeks/7/gameset/games/{gameId}/points", new SetPointOverrideRequest(75));
@@ -202,9 +202,9 @@ public sealed class PointRulesEndpointsTests
     {
         (League league, HttpClient client, _) = await CreateCommishLeagueAsync();
         await AddGameAsync(client, league.Id, 7, 700005);
-        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700005);
+        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700005);
 
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             WeekGameSet set = await db.WeekGameSets.SingleAsync(s => s.LeagueId == league.Id && s.Week == 7);
             set.LockedUtc = DateTime.UtcNow;

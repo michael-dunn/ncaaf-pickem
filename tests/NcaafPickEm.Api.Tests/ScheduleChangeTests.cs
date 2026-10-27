@@ -34,13 +34,13 @@ public sealed class ScheduleChangeTests
 
     private async Task<(League League, HttpClient Client, Guid GameId)> SeedLeagueWithGameAsync()
     {
-        await FixtureGameData.EnsureSeededAsync(_fixture.Factory);
+        await FixtureGameData.EnsureSeededAsync(_fixture.PinnedFactory);
 
-        User commissioner = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "ScheduleCommish"));
-        League league = await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
-        await _fixture.Factory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
+        User commissioner = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateUserAsync(db, "ScheduleCommish"));
+        League league = await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateLeagueAsync(db, commissioner));
+        await _fixture.PinnedFactory.QueryDbAsync(db => TestUsers.CreateMembershipAsync(db, league, commissioner, MembershipRole.Commissioner));
 
-        HttpClient client = _fixture.Factory.CreateMutatingClientAs(commissioner.Id);
+        HttpClient client = _fixture.PinnedFactory.CreateMutatingClientAs(commissioner.Id);
 
         // Game 700002 (ESPN event 401900001): unranked, so a manual add is what puts it in the
         // set - LiveScoreApplyTests already drives this exact game through Scheduled -> Postponed
@@ -48,8 +48,8 @@ public sealed class ScheduleChangeTests
         // database is shared across the run, and an earlier test (here or in
         // LiveScoreApplyTests) may have left it Postponed, which the manual-add eligibility
         // check would then reject.
-        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.Factory, 700002);
-        await _fixture.Factory.ExecuteDbAsync(async db =>
+        Guid gameId = await FixtureGameData.GetGameIdAsync(_fixture.PinnedFactory, 700002);
+        await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
         {
             await db.Games.Where(g => g.Id == gameId)
                 .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Scheduled));
@@ -73,7 +73,7 @@ public sealed class ScheduleChangeTests
 
     private async Task ApplyAsync(LiveScoreUpdate update)
     {
-        await using AsyncServiceScope scope = _fixture.Factory.Services
+        await using AsyncServiceScope scope = _fixture.PinnedFactory.Services
             .GetRequiredService<IServiceScopeFactory>()
             .CreateAsyncScope();
 
@@ -83,7 +83,7 @@ public sealed class ScheduleChangeTests
 
     private async Task<NeedsVoidReviewItem[]> ListNeedsVoidReviewAsync(Guid leagueId)
     {
-        await using AsyncServiceScope scope = _fixture.Factory.Services
+        await using AsyncServiceScope scope = _fixture.PinnedFactory.Services
             .GetRequiredService<IServiceScopeFactory>()
             .CreateAsyncScope();
 
@@ -92,7 +92,7 @@ public sealed class ScheduleChangeTests
     }
 
     private Task<WeekGameSetGame> RowAsync(Guid leagueId, Guid gameId) =>
-        _fixture.Factory.QueryDbAsync(db => db.WeekGameSetGames
+        _fixture.PinnedFactory.QueryDbAsync(db => db.WeekGameSetGames
             .AsNoTracking()
             .Include(r => r.WeekGameSet)
             .Include(r => r.Game)
@@ -201,7 +201,7 @@ public sealed class ScheduleChangeTests
 
         try
         {
-            await _fixture.Factory.ExecuteDbAsync(async db =>
+            await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
             {
                 WeekGameSet set = await db.WeekGameSets.SingleAsync(s => s.LeagueId == league.Id && s.Week == 7);
                 set.LockedUtc = DateTime.UtcNow;
@@ -239,7 +239,7 @@ public sealed class ScheduleChangeTests
 
         try
         {
-            await _fixture.Factory.ExecuteDbAsync(async db =>
+            await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
             {
                 WeekGameSet set = await db.WeekGameSets.SingleAsync(s => s.LeagueId == league.Id && s.Week == 7);
                 set.LockedUtc = DateTime.UtcNow;
@@ -263,12 +263,12 @@ public sealed class ScheduleChangeTests
 
             // P5-02 can resolve it either way; overriding the winner is the non-void option, and
             // must take it off the list just as voiding does.
-            Guid homeTeamId = await _fixture.Factory.QueryDbAsync(db => db.Games
+            Guid homeTeamId = await _fixture.PinnedFactory.QueryDbAsync(db => db.Games
                 .Where(g => g.Id == gameId)
                 .Select(g => g.HomeTeamId)
                 .SingleAsync());
 
-            await _fixture.Factory.ExecuteDbAsync(async db =>
+            await _fixture.PinnedFactory.ExecuteDbAsync(async db =>
             {
                 await db.WeekGameSetGames
                     .Where(r => r.WeekGameSet!.LeagueId == league.Id && r.GameId == gameId)
@@ -289,7 +289,7 @@ public sealed class ScheduleChangeTests
     /// (`ManualAddRemoveTests`, `PointRulesEndpointsTests`); every test here that leaves it
     /// Postponed restores it in a finally block.
     /// </summary>
-    private Task ResetGameToScheduledAsync(Guid gameId) => _fixture.Factory.ExecuteDbAsync(async db =>
+    private Task ResetGameToScheduledAsync(Guid gameId) => _fixture.PinnedFactory.ExecuteDbAsync(async db =>
     {
         await db.Games.Where(g => g.Id == gameId)
             .ExecuteUpdateAsync(setters => setters.SetProperty(g => g.Status, GameStatus.Scheduled));
