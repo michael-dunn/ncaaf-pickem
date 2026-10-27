@@ -67,6 +67,7 @@ internal static class ApiContractRoutes
         "POST /api/leagues/{leagueId}/weeks/{week}/picks/me/ack-changes",
         "GET /api/leagues/{leagueId}/weeks/{week}/picks",
         "GET /api/leagues/{leagueId}/weeks/{week}/picks/status",
+        "GET /api/leagues/{leagueId}/weeks/{week}/team-form",
 
         // Influence dashboard (Feature 05)
         "GET /api/leagues/{leagueId}/weeks/{week}/dashboard",
